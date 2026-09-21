@@ -4,7 +4,9 @@ One entry per build that testers can install. To see which build you have, open 
 
 ## 0.1.0 alpha
 
-The first alpha for testers. Not yet published; this entry gets a date and the APK checksum when it is.
+The first alpha for testers, released 21 September 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.1.0-alpha).
+
+APK SHA-256: `9a29897c76f899332e1afc0fbd326665229ad4b9a769df5691e7a90e46d4f62a`
 
 ### In this build
 
