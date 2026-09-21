@@ -57,7 +57,7 @@ export async function exportPackage(
   /** Optional file-name stem; defaults to the package name. */
   filenameHint?: string,
 ): Promise<void> {
-  const pack = createPackageContentPack(homebrew, contents, meta, deviceId, Constants.expoConfig?.version ?? '1.0.0');
+  const pack = createPackageContentPack(homebrew, contents, meta, deviceId, Constants.expoConfig?.version ?? '0.1.0');
   const json = JSON.stringify(pack, null, 2);
   const filename = `${sanitize(filenameHint ?? meta.name)}.grimoire-pack`;
 

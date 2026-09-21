@@ -85,7 +85,7 @@ export async function exportBackup(
     characters,
     homebrew,
     deviceId,
-    Constants.expoConfig?.version ?? '1.0.0',
+    Constants.expoConfig?.version ?? '0.1.0',
   );
 
   const json     = JSON.stringify(pack, null, 2);
@@ -114,7 +114,7 @@ export async function exportContentPack(
   const pack = createContentPack(
     homebrew,
     deviceId,
-    Constants.expoConfig?.version ?? '1.0.0',
+    Constants.expoConfig?.version ?? '0.1.0',
   );
 
   const json     = JSON.stringify(pack, null, 2);
