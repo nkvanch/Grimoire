@@ -16,6 +16,7 @@ The first alpha for testers. Not yet published; this entry gets a date and the A
 - Export Character and Import Character as Grimoire Character JSON, with PDF, Markdown and text copies for reading.
 - Custom Rule Profiles, and point buy with a configurable budget.
 - Optional campaign sync over the local network, with a room code or QR code.
+- Only the permissions the app needs: camera (to scan a campaign QR code), local network and internet access for sync, storage access on older Android for import and export, and vibration. Microphone, biometrics and draw-over-apps are not requested.
 
 ### Content
 
