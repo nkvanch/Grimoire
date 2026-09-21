@@ -45,8 +45,18 @@ npx tsx scripts/generate-content-db.mjs   # rebuild assets/content.db from src/c
 
 ## License
 
-**Code** in this repository is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE).
+Grimoire's application source code is licensed under the **GNU General Public License v3.0 or later**, see [LICENSE](LICENSE). You are free to use, study, modify and redistribute it. Distributed modified versions must keep the same freedoms and provide the corresponding source under the GPL.
 
-**Game content** taken from the System Reference Document 5.1 is licensed by Wizards of the Coast LLC under the **Creative Commons Attribution 4.0 International License (CC-BY-4.0)**, not the GPL. The required attribution is in [NOTICE.md](NOTICE.md) and in the app's "About & Legal" screen.
+The GPL covers the code only. Other parts have their own terms:
+
+- **Documentation** (the website, this README, the changelog): CC BY-SA 4.0.
+- **SRD 5.1 game content**: licensed by Wizards of the Coast LLC under CC-BY-4.0, not the GPL. The attribution is in [NOTICE.md](NOTICE.md) and in the app's "About & Legal" screen.
+- **Libraries**: their own licences, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Homebrew** that you create or import stays yours and is not part of this repository.
+- **Other Wizards of the Coast or third-party content** is not included.
+
+The Grimoire name, logo and official branding are not licensed under the GPL, see [TRADEMARKS.md](TRADEMARKS.md). A modified version may say it is based on Grimoire, but should not present itself as an official Grimoire release or use the official branding without permission.
+
+Grimoire is free to download and use.
 
 This project is not affiliated with, endorsed by, or sponsored by Wizards of the Coast. Dungeons & Dragons and its logo are trademarks of Wizards of the Coast LLC; their use here is purely descriptive.
