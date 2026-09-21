@@ -1,0 +1,58 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# Environment files (contain API keys — never commit)
+.env
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Downloaded EAS build artifacts
+builds/
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# graphify knowledge graph (generated, rebuild with `graphify update .`)
+graphify-out/
+.claude/settings.json.graphify-bak
+
+# jest coverage reports (generated, rerun `jest --coverage` to regenerate)
+/coverage
+
+# creator outreach drafts (private)
+outreach/private/
+outreach/to-send/

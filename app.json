@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Grimoire",
+    "slug": "grimoire",
+    "version": "1.0.0",
+    "scheme": "dndapp",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nkvanch.grimoire",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nkvanch.grimoire",
+      "permissions": [
+        "ACCESS_WIFI_STATE",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-router",
+        {
+          "root": "app"
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing"
+    ],
+    "extra": {
+      "router": {
+        "root": "app"
+      },
+      "eas": {
+        "projectId": "839f3848-3cc0-4d46-94fd-96aee22baf91"
+      }
+    },
+    "owner": "nkvanch"
+  }
+}

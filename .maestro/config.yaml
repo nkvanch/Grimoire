@@ -1,0 +1,5 @@
+flows:
+  - "*.yaml"
+testOutputDir: "builds/maestro-artifacts"
+env:
+  APP_ID: "com.nkvanch.grimoire"
