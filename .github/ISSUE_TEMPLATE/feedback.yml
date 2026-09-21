@@ -1,0 +1,52 @@
+name: Feedback or bug report
+description: Something broke, or a design would not fit. Six short answers help me reproduce it.
+title: "[feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying Grimoire. A short, specific report helps most. Even one design that did not work is plenty.
+        Please do not paste anything private. If you would rather not post publicly, email feedback.grimoire@gmail.com instead.
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: The character, class, feature or pack you were building, in a sentence or two.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you actually saw, including any error message word for word.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The steps, from the screen you started on.
+    validations:
+      required: true
+  - type: textarea
+    id: content
+    attributes:
+      label: Content involved
+      description: Which homebrew or pack, or which SRD entry. You can attach a .grimoire-pack or character file (zip it first if GitHub refuses it). Check it for anything private.
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or short video
+      description: Optional. Drag it into this box.
+  - type: input
+    id: build
+    attributes:
+      label: Build and phone
+      description: "Version from Android Settings, Apps, Grimoire (for example 0.1.0), and your phone and Android version."
+      placeholder: "0.1.0, Pixel 7, Android 15"

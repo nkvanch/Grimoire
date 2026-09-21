@@ -4,6 +4,8 @@ A table companion app for 5th-edition-compatible tabletop roleplaying games: cha
 
 Everything stays on your own devices. Nothing is collected or sent to any server, and no account is needed. Campaign sync is direct device-to-device over your local network.
 
+Website: https://nkvanch.github.io/Grimoire/ (documentation, changelog, privacy, feedback). Feedback: feedback.grimoire@gmail.com or a GitHub issue.
+
 ## What this repository is
 
 This is the **official, SRD-only edition** of Grimoire. It contains the app code and only content that is safe to distribute: the System Reference Document 5.1 (CC-BY-4.0) and original data written for this project. It is meant to be the central place people build from, fork, and download releases of.

@@ -56,3 +56,6 @@ graphify-out/
 # creator outreach drafts (private)
 outreach/private/
 outreach/to-send/
+
+# Editor state
+.obsidian/

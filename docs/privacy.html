@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy - Grimoire</title>
+<meta name="description" content="What Grimoire stores, where it stores it, and what leaves your device.">
+<link rel="icon" href="assets/favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+  <h1>Privacy</h1>
+  <p class="lead">Short version: Grimoire keeps your data on your device. I run no server for it, I collect nothing, and the app has no accounts, analytics, ads or crash reporting.</p>
+  <p>This page describes alpha 0.1.0. Last updated 21 September 2026.</p>
+
+  <h2>What is stored, and where</h2>
+  <ul>
+    <li><strong>Characters, homebrew, campaigns and settings</strong> are stored in a database inside the app, on your phone.</li>
+    <li><strong>A random device ID</strong> is created the first time you run the app. It is kept in Android's secure storage and in the app database. It only identifies your device to a campaign session you join or host. It is not linked to your name, email or any account.</li>
+    <li><strong>Files you export</strong> (characters, homebrew packs, backups, PDFs) go exactly where you choose to save or share them. Grimoire does not keep a copy anywhere else.</li>
+  </ul>
+  <p>Uninstalling the app deletes its data, so export a backup first if you want to keep your characters.</p>
+
+  <h2>What leaves your device</h2>
+  <p>Nothing, unless you use campaign sync or share a file yourself. The app does not contact my servers or any third party on its own. There are none to contact, and the code has no analytics, advertising or crash-reporting libraries. The source is public, so you can check.</p>
+  <p>The About screen has links to the SRD and its licence. They open in your browser only when you tap them.</p>
+
+  <h2 id="sync">Campaign sync</h2>
+  <p>Sync is optional. When a DM hosts a campaign, their phone listens on port 7742 on the local network. Players join with a 7-character room code, which is the DM's local IP address written in a shorter form, or by scanning the QR code that shows the same code. Character and campaign data then travels between the phones in that session, relayed by the DM's phone.</p>
+  <div class="note">
+    <p><strong>Sync is not encrypted and has no password.</strong> Anyone on the same network who knows the room code or the DM's IP address could connect to the session. Use it at home or at a table on a network you trust, and do not use it on public Wi-Fi.</p>
+  </div>
+  <p>None of this goes through the internet or through me.</p>
+
+  <h2>Permissions the app asks for</h2>
+  <p>Android lists these in the app's permission settings. Here is what each is for.</p>
+  <table>
+    <tr><th>Permission</th><th>Why</th></tr>
+    <tr><td>Camera</td><td>Only to scan the QR code when you join a campaign. Nothing is recorded or stored.</td></tr>
+    <tr><td>Internet, network state, Wi-Fi state</td><td>Campaign sync uses the local network, and Android files that under "internet". The app makes no other connections.</td></tr>
+    <tr><td>Read and write storage (Android 12 and older only)</td><td>Picking a file to import, and saving a file you export.</td></tr>
+    <tr><td>Vibrate</td><td>Feedback on some buttons.</td></tr>
+  </table>
+  <p>The release also declares a few permissions that Grimoire does not use, such as microphone, biometrics and drawing over other apps. They come with the libraries the app is built on, and there is no feature in the app that uses them.</p>
+
+  <h2>Content you share</h2>
+  <p>A <code>.grimoire-pack</code> or character file contains what you put in it, and whoever you send it to can read it. Check it before sharing if it holds anything you would rather keep private, such as notes in a character's description.</p>
+
+  <h2>Changes to this page</h2>
+  <p>If I ever add accounts, sync through a server, analytics or crash reporting, this page will change first, and the <a href="changelog.html">changelog</a> will say so. Questions: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a>.</p>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>

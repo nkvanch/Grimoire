@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation - Grimoire</title>
+<meta name="description" content="Grimoire creator documentation: homebrew, .grimoire-pack files, Character JSON, Custom Rule Profiles, campaign sync and current limits.">
+<link rel="icon" href="assets/favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html" aria-current="page">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+  <h1>Documentation</h1>
+  <p class="lead">Short notes for people who make things: how homebrew, packs, character files and rule profiles fit together, and where the edges are. This describes alpha 0.1.0.</p>
+
+  <div class="toc"><ul>
+    <li><a href="#install">Install</a></li>
+    <li><a href="#content">What content is in the app</a></li>
+    <li><a href="#homebrew">Homebrew</a></li>
+    <li><a href="#packs">Sharing with .grimoire-pack</a></li>
+    <li><a href="#character">Character export and import</a></li>
+    <li><a href="#profiles">Custom Rule Profiles</a></li>
+    <li><a href="#sync">Campaign sync</a></li>
+    <li><a href="#limits">Current limitations</a></li>
+  </ul></div>
+
+  <h2 id="install">Install</h2>
+  <ol>
+    <li>Download the APK from <a href="https://github.com/nkvanch/Grimoire/releases">GitHub Releases</a>. Each release lists a SHA-256 you can check.</li>
+    <li>Open it on your phone. Android will ask you to allow installing apps from your browser or file manager. Allow it for that app only, and turn it off again afterwards.</li>
+    <li>Google Play Protect may say the app is unrecognised. That is expected for a sideloaded alpha that is not on the Play Store. Choose "More details" and then "Install anyway" only if you are comfortable with that. The source is public.</li>
+  </ol>
+  <p>To see which build you have, open Android Settings, Apps, Grimoire. The version should match the <a href="changelog.html">changelog</a>.</p>
+
+  <h2 id="content">What content is in the app</h2>
+  <p>The app ships only content from the System Reference Document 5.1 (CC-BY-4.0) plus original content. Everything else you use is homebrew that you create or import. That is deliberate: it keeps the app and this repository safe to distribute. Details are on the <a href="license.html">license and content policy</a> page.</p>
+
+  <h2 id="homebrew">Homebrew</h2>
+  <p>Open the <strong>Homebrew</strong> tab to create content. There are builders for:</p>
+  <ul>
+    <li>races and subraces</li>
+    <li>classes and subclasses</li>
+    <li>spells</li>
+    <li>items, including rarer magic items</li>
+    <li>monsters</li>
+    <li>feats and backgrounds</li>
+    <li>conditions</li>
+  </ul>
+  <p>Features (the mechanical pieces, such as a resource, a passive bonus or an active ability) are built in a feature editor that the other builders share. Most builders have a <strong>Test</strong> button that shows what the content does before you save it.</p>
+  <p>Saved homebrew lives in the <strong>Compendium</strong>, under the <strong>Homebrew</strong> mode. <strong>Official</strong> mode only ever shows the bundled SRD content, so your homebrew never gets mixed into it. <strong>Packages</strong> mode lists packs you have installed.</p>
+
+  <h2 id="packs">Sharing with .grimoire-pack</h2>
+  <p>A <code>.grimoire-pack</code> is a single file that carries homebrew from one Grimoire to another. There are three separate things, on purpose:</p>
+  <table>
+    <tr><th>Action</th><th>What it makes</th><th>Where</th></tr>
+    <tr><td>Export Homebrew</td><td>One entry plus everything it needs.</td><td>Compendium, Homebrew mode, on the entry.</td></tr>
+    <tr><td>Export Package</td><td>Several entries chosen together, plus everything they need.</td><td>Compendium, Homebrew mode, Select then Create Package. Or Packages mode, Create Package.</td></tr>
+    <tr><td>Export Character</td><td>A character file. It is not a pack.</td><td>Character sheet menu.</td></tr>
+  </table>
+  <h3>Dependencies</h3>
+  <p>If a subclass needs two spells and a condition, exporting the subclass includes them, and the review screen shows what you chose and what was added automatically. The file does not carry official SRD content, because the person importing already has it.</p>
+  <h3>Importing</h3>
+  <p>In the <strong>Homebrew</strong> tab choose import, and pick the file. You see a preview grouped by type first, with problems listed (a missing dependency, a duplicate id, an unsupported ruleset, a damaged file). Nothing is added until you confirm, and a pack is added all together or not at all.</p>
+  <h3>Example packs</h3>
+  <p>Each release includes four small original packs, labelled "(Demo)", that you can import to see how it works.</p>
+
+  <h2 id="character">Character export and import</h2>
+  <p><strong>Export Character</strong> writes a Grimoire Character JSON file (<code>format: grimoire-character</code>, version 1). It holds the character, and the Custom Rule Profile attached to it, if any. <strong>Import Character</strong> is on the Characters tab and reads that file.</p>
+  <ul>
+    <li>A character file does <strong>not</strong> bundle homebrew. If the character uses your homebrew, send the pack too, and import the pack first.</li>
+    <li>The export menu also offers PDF, Markdown and plain text. Those are readable copies for printing or sharing, and they are marked "not importable".</li>
+  </ul>
+
+  <h2 id="profiles">Custom Rule Profiles</h2>
+  <p>A Custom Rule Profile is a named set of rule choices that you attach to a character, without changing anything for other characters. It sits on top of the campaign's rules. It can cover:</p>
+  <ul>
+    <li>ability score cap, level cap, XP on or off, hit point mode, multiclassing on or off</li>
+    <li>how ability scores are generated, including point-buy budget, minimum and maximum</li>
+    <li>house rules such as feat rules at level-up, flanking, critical hits, and short and long rest length</li>
+  </ul>
+  <p>A profile only applies to characters in the same game family it was made for. Find it under the Homebrew tab.</p>
+
+  <h2 id="sync">Campaign sync</h2>
+  <p>A DM starts a campaign and shows a room code (and a QR code). Players on the same local network join with the code or by scanning the QR code. Sync is optional, and the app works fully without it. Read the <a href="privacy.html#sync">privacy page</a> before using it: it is not encrypted and has no password.</p>
+
+  <h2 id="limits">Current limitations</h2>
+  <ul>
+    <li>Android only. There is no iOS build.</li>
+    <li>Alpha software, so expect rough edges and please report them.</li>
+    <li>Reactive features and outcomes are shown as text. Grimoire does not resolve them automatically.</li>
+    <li>Homebrew is 5e-compatible only.</li>
+    <li>A character file does not include the homebrew it uses. Character and homebrew in one file is not built yet.</li>
+    <li>Only SRD 5.1 and original content ships in the app. Other content has to come in as homebrew.</li>
+    <li>Campaign sync is unencrypted, so use it on a network you trust.</li>
+  </ul>
+  <p>Found something that is not listed here? <a href="feedback.html">Tell me</a>.</p>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>
