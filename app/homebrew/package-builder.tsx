@@ -50,6 +50,7 @@ export default function PackageBuilderScreen() {
   const feats       = useHomebrewStore(s => s.feats);
   const monsters    = useHomebrewStore(s => s.monsters);
   const conditions  = useHomebrewStore(s => s.conditions);
+  const spellLists  = useHomebrewStore(s => s.spellLists);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
 
   const { explicit, step, name, version, author, description, search, category } = usePackageBuilderStore();
@@ -57,8 +58,8 @@ export default function PackageBuilderScreen() {
   const [exporting, setExporting] = useState(false);
 
   const homebrew = useMemo(
-    () => ({ races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions }),
-    [races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions],
+    () => ({ races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions, spellLists }),
+    [races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions, spellLists],
   );
   const lookup = useMemo(() => makeHomebrewLookup(homebrew), [homebrew]);
 
@@ -291,6 +292,10 @@ export default function PackageBuilderScreen() {
   );
 }
 
+// The Review Package button is the footer's only child, so extra bottom padding
+// lifts it. 18dp (asked for 15-20) — one constant to tweak.
+const REVIEW_BUTTON_LIFT = 18;
+
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Spacing.xl + 8, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm },
@@ -317,7 +322,7 @@ const s = StyleSheet.create({
   typeBadge: { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 2 },
   typeBadgeTxt: { fontSize: FontSize.xs, color: Colors.textDim },
   autoBadge: { fontSize: FontSize.xs, color: Colors.textSecondary },
-  footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.bg },
+  footer: { padding: Spacing.lg, paddingBottom: Spacing.lg + REVIEW_BUTTON_LIFT, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.bg },
   footerBtn: { backgroundColor: Colors.gold, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   footerBtnTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   disabled: { opacity: 0.4 },

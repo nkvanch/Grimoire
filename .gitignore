@@ -57,5 +57,8 @@ graphify-out/
 outreach/private/
 outreach/to-send/
 
+# Generated first-party packs (scripts/build-srd-packs.ts)
+/release/
+
 # Editor state
 .obsidian/

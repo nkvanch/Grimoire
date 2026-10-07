@@ -7,6 +7,9 @@
 import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
 import { recomputeDerived, applyStatModifiers, modifier } from '../pipeline';
 import { useHomebrewStore } from '../../store/homebrewStore';
+import { applyCondition, removeCondition } from '../conditions';
+import { startWildShape } from '../combat';
+import { ALL_CONDITIONS } from '../../content/conditions';
 import { Entity, Effect, FeatureInstance, DmOverride, Item } from '../types';
 
 function feature(id: string, effects: Partial<Effect>[]): FeatureInstance {
@@ -411,14 +414,12 @@ describe('recomputeDerived — DM overrides', () => {
 });
 
 // Re-audit A18: weapon attack ability-selection and proficiency-bonus
-// gating. Weapon definitions are resolved via useHomebrewStore's fallback
-// lookup (computeWeaponAttackBonuses checks itemRepo first, then
-// homebrewStore — a homebrew-only id guarantees the homebrew path, no
-// SQLite/itemRepo warm-up needed in Jest), matching actionCards.test.ts's
-// own established pattern for seeding fake content into the real store.
+// gating. Rules-engine blocker RE-AUDIT closure (dependency inversion, 1D):
+// weapon definitions are now resolved via recomputeDerived's own explicit
+// `content.items` parameter (a homebrew-only id proves the homebrew path
+// resolves correctly, no SQLite/itemRepo warm-up needed in Jest) — the
+// engine no longer reaches into useHomebrewStore for this at all.
 describe('computeWeaponAttackBonuses — ability selection and proficiency (A18)', () => {
-  afterEach(() => { useHomebrewStore.setState({ items: [] }); });
-
   function weaponItem(id: string, properties: string[], dice: string, damageType = 'slashing'): Item {
     return {
       id, name: id, weight: 1, cost: '1 gp', properties,
@@ -432,16 +433,17 @@ describe('computeWeaponAttackBonuses — ability selection and proficiency (A18)
   }
 
   function withWeapon(item: Item, overrides: Partial<Entity> = {}): Entity {
-    useHomebrewStore.setState({ items: [item as any] });
     const inst = { itemId: item.id, quantity: 1, attuned: false, features: [] };
     const e = makeEmptyEntity('e1');
     return { ...e, stats: { str: 18, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, inventory: { ...e.inventory, equipped: [inst] }, ...overrides };
   }
 
+  const items = (item: Item) => ({ items: [item as any] });
+
   it('a thrown, non-finesse weapon (handaxe) always uses STR, never DEX, despite listing a range in its own property text', () => {
     const item = weaponItem('test_handaxe', ['light', 'thrown (range 20/60)'], '1d6');
     const e = withWeapon(item, { proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['martial'] } });
-    const ab = recomputeDerived(e, DEFAULT_RULES).derived.attackBonuses.find(a => a.id === 'test_handaxe')!;
+    const ab = recomputeDerived(e, DEFAULT_RULES, items(item)).derived.attackBonuses.find(a => a.id === 'test_handaxe')!;
     expect(ab.ability).toBe('str');
     expect(ab.type).toBe('melee');
   });
@@ -452,14 +454,14 @@ describe('computeWeaponAttackBonuses — ability selection and proficiency (A18)
       stats: { str: 10, dex: 18, con: 10, int: 10, wis: 10, cha: 10 },
       proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['simple'] },
     });
-    const ab = recomputeDerived(e, DEFAULT_RULES).derived.attackBonuses.find(a => a.id === 'test_dagger')!;
+    const ab = recomputeDerived(e, DEFAULT_RULES, items(item)).derived.attackBonuses.find(a => a.id === 'test_dagger')!;
     expect(ab.ability).toBe('dex');
   });
 
   it('an ammunition weapon (bow) uses DEX and is classified ranged', () => {
     const item = weaponItem('test_bow', ['ammunition (range 80/320)', 'two-handed'], '1d8', 'piercing');
     const e = withWeapon(item, { proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['martial'] } });
-    const ab = recomputeDerived(e, DEFAULT_RULES).derived.attackBonuses.find(a => a.id === 'test_bow')!;
+    const ab = recomputeDerived(e, DEFAULT_RULES, items(item)).derived.attackBonuses.find(a => a.id === 'test_bow')!;
     expect(ab.ability).toBe('dex');
     expect(ab.type).toBe('ranged');
   });
@@ -470,7 +472,7 @@ describe('computeWeaponAttackBonuses — ability selection and proficiency (A18)
       identity: { ...makeEmptyEntity('e1').identity, level: 5 },
       proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['simple'] },
     });
-    const result = recomputeDerived(e, DEFAULT_RULES);
+    const result = recomputeDerived(e, DEFAULT_RULES, items(item));
     const ab = result.derived.attackBonuses.find(a => a.id === 'test_simple_weapon')!;
     expect(ab.bonus).toBe(result.derived.proficiencyBonus + modifier(18));
   });
@@ -481,9 +483,40 @@ describe('computeWeaponAttackBonuses — ability selection and proficiency (A18)
       identity: { ...makeEmptyEntity('e1').identity, level: 5 },
       proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: [] },
     });
-    const result = recomputeDerived(e, DEFAULT_RULES);
+    const result = recomputeDerived(e, DEFAULT_RULES, items(item));
     const ab = result.derived.attackBonuses.find(a => a.id === 'test_simple_weapon_2')!;
     expect(ab.bonus).toBe(modifier(18)); // no proficiency bonus included
+  });
+
+  it('WITHOUT the explicit content param, a homebrew-only weapon correctly falls back to official-only resolution (no crash, no bonus computed)', () => {
+    const item = weaponItem('test_handaxe_2', ['light'], '1d6');
+    const e = withWeapon(item, { proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['martial'] } });
+    const ab = recomputeDerived(e, DEFAULT_RULES).derived.attackBonuses.find(a => a.id === 'test_handaxe_2');
+    expect(ab).toBeUndefined(); // deterministic official-only fallback, not a crash
+  });
+
+  // Rules-engine blocker RE-AUDIT closure — architecture purity (1J): the
+  // REAL recomputeDerived path (item resolution + attack-bonus computation),
+  // not a trivial resolver, proving determinism from explicit inputs alone.
+  it('same entity + rules + explicit content -> same result, REGARDLESS of useHomebrewStore mutations in between', () => {
+    const item = weaponItem('test_purity_weapon', ['light'], '1d6');
+    const e = withWeapon(item, { proficiencies: { ...makeEmptyEntity('e1').proficiencies, weapons: ['martial'] } });
+    const explicitContent = { items: [item] };
+
+    useHomebrewStore.setState({ items: [] }); // baseline: store has NOTHING registered
+    const before = recomputeDerived(e, DEFAULT_RULES, explicitContent);
+
+    // Mutate the store with CONFLICTING content — a real store read would
+    // change the result; an explicit-content-snapshot call must be
+    // completely unaffected.
+    useHomebrewStore.setState({ items: [{ ...item, name: 'DIFFERENT NAME', features: [] }] });
+    const after = recomputeDerived(e, DEFAULT_RULES, explicitContent);
+
+    expect(after.derived.attackBonuses.find(a => a.id === 'test_purity_weapon'))
+      .toEqual(before.derived.attackBonuses.find(a => a.id === 'test_purity_weapon'));
+    expect(after.derived.attackBonuses.find(a => a.id === 'test_purity_weapon')).toBeDefined();
+
+    useHomebrewStore.setState({ items: [] }); // cleanup
   });
 });
 
@@ -537,5 +570,213 @@ describe('recomputeDerived — entitlement-driven proficiencies (closure pass 2)
     expect(twice.proficiencies).toEqual(once.proficiencies);
     expect(twice.skills).toEqual(once.skills);
     expect(twice.entitlements).toEqual(once.entitlements); // no double-application/duplication
+  });
+});
+
+// ============================================================================
+// HIGH-batch rules-correctness fix (A): speed-zero precedence. A condition
+// that sets speed to 0 (Grappled/Restrained/Stunned/Unconscious — see
+// content/conditions/index.ts's speedZeroFeature, target:'speed',
+// operation:'set', value:0) is a RESTRICTION, not an ordinary "highest set
+// wins" replacement value. Before this fix, resolveCombine's normal 'set'
+// tie-break let an ordinary higher replacement speed OR an additive bonus
+// stacked on top of the winning 'set' beat the 0. An explicit character/DM
+// override still wins — those are applied later, unconditionally, and are
+// untouched by this fix.
+// ============================================================================
+describe('recomputeDerived — speed resolution (speed-zero precedence)', () => {
+  const speedZero = (id: string) => feature(id, [{ target: 'speed', operation: 'set', value: 0 }]);
+  const speedAdd  = (id: string, value: number) => feature(id, [{ target: 'speed', operation: 'add', value }]);
+  const speedSet  = (id: string, value: number) => feature(id, [{ target: 'speed', operation: 'set', value }]);
+
+  it('1. base 30, no effects -> 30', () => {
+    expect(recomputeDerived(withFeatures([]), DEFAULT_RULES).derived.speed).toBe(30);
+  });
+
+  it('2. base 30 + additive bonus 10 -> 40', () => {
+    const e = withFeatures([speedAdd('boots', 10)]);
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(40);
+  });
+
+  it('3. base 30 + additive bonus 10 + Grappled -> 0 (restriction beats additive bonus)', () => {
+    const e = withFeatures([speedAdd('boots', 10), speedZero('grappled')]);
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('4. base 30 + ordinary replacement/set 40 + Grappled -> 0 (restriction beats an ordinary higher "set")', () => {
+    const e = withFeatures([speedSet('haste', 40), speedZero('grappled')]);
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('5. Restrained alone -> 0', () => {
+    const e = withFeatures([speedZero('restrained')]);
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('6. removing Grappled restores the ordinary calculated speed', () => {
+    const grappled = withFeatures([speedAdd('boots', 10), speedZero('grappled')]);
+    expect(recomputeDerived(grappled, DEFAULT_RULES).derived.speed).toBe(0);
+    const removed = withFeatures([speedAdd('boots', 10)]); // Grappled feature stripped, same as removeCondition would do
+    expect(recomputeDerived(removed, DEFAULT_RULES).derived.speed).toBe(40);
+  });
+
+  it('7. repeated recompute is idempotent — no stale zero, no duplicated effects', () => {
+    const e = withFeatures([speedAdd('boots', 10), speedZero('grappled')]);
+    const once  = recomputeDerived(e, DEFAULT_RULES);
+    const twice = recomputeDerived(once, DEFAULT_RULES);
+    expect(once.derived.speed).toBe(0);
+    expect(twice.derived.speed).toBe(0);
+    expect(twice.features.filter(f => f.id === 'grappled')).toHaveLength(1);
+  });
+
+  it('8. two overlapping zero restrictions -> still 0', () => {
+    const e = withFeatures([speedZero('grappled'), speedZero('restrained')]);
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('9. removing one of two zero restrictions -> still 0 because the other remains', () => {
+    const e = withFeatures([speedZero('restrained')]); // grappled already removed
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('10. an explicit character override after a calculated zero still wins', () => {
+    const e = withFeatures([speedZero('grappled')], {
+      characterOverrides: [{
+        id: 'co1', entityId: 'e1', stat: 'speed', operation: 'set', value: 20,
+        label: 'table ruling', active: true, appliedAt: 0, cancelledAt: null,
+      }],
+    });
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(20);
+  });
+
+  it('11. a DM override wins over both the restriction and a character override (existing DM-wins-over-all precedence)', () => {
+    const e = withFeatures([speedZero('grappled')], {
+      characterOverrides: [{
+        id: 'co1', entityId: 'e1', stat: 'speed', operation: 'set', value: 20,
+        label: 'table ruling', active: true, appliedAt: 0, cancelledAt: null,
+      }],
+      dmOverrides: [{
+        id: 'do1', campaignId: 'c1', entityId: 'e1', dmDeviceId: 'd1',
+        stat: 'speed', operation: 'set', value: 15, active: true,
+        label: 'DM ruling', appliedAt: 1, cancelledAt: null, expiry: 'manual',
+      } as DmOverride],
+    });
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(15);
+  });
+});
+
+// ============================================================================
+// HIGH-batch rules-correctness fix (single-issue follow-up): Wild Shape
+// speed-zero precedence. The beastForm branch of finalSpeed used to
+// short-circuit straight to beastForm.speed BEFORE the zero-speed
+// restriction check ever ran, so a transformed, Grappled/Restrained
+// creature incorrectly kept its full beast-form movement — the active
+// condition's own effects live on entity.features (applyCondition), which
+// Wild Shape never touches, so the restriction must still apply on top of
+// the transformed calculated speed. Uses the REAL shipped Grappled/
+// Restrained condition definitions (content/conditions/index.ts), not just
+// hand-built stat_modifier fixtures, and the real Wolf BeastForm (speed 40).
+// ============================================================================
+describe('recomputeDerived — Wild Shape speed-zero precedence (HIGH-batch single-issue follow-up)', () => {
+  const grappledFeatures = ALL_CONDITIONS.find(c => c.id === 'grappled')!.features;
+  const restrainedFeatures = ALL_CONDITIONS.find(c => c.id === 'restrained')!.features;
+  const speedAdd = (id: string, value: number) => feature(id, [{ target: 'speed', operation: 'add', value }]);
+  const speedSet = (id: string, value: number) => feature(id, [{ target: 'speed', operation: 'set', value }]);
+
+  function wolfShaped(): Entity {
+    const e = makeEmptyEntity('e1');
+    return startWildShape(e, 'wolf', DEFAULT_RULES); // Wolf: speed 40
+  }
+
+  it('1. active Wild Shape + real Grappled -> speed 0', () => {
+    const shaped = wolfShaped();
+    expect(shaped.derived.speed).toBe(40); // sanity: beast form speed before the condition
+    const grappled = applyCondition(shaped, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    expect(grappled.derived.speed).toBe(0);
+  });
+
+  it('2. active Wild Shape + real Restrained -> speed 0', () => {
+    const shaped = wolfShaped();
+    const restrained = applyCondition(shaped, 'restrained', 'manual', DEFAULT_RULES, restrainedFeatures);
+    expect(restrained.derived.speed).toBe(0);
+  });
+
+  it('3. Wild Shape + Grappled + an additive speed bonus -> still 0', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = { ...e, features: [...e.features, speedAdd('boots', 10)] };
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('4. Wild Shape + Grappled + an ordinary replacement/set speed effect -> still 0', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = { ...e, features: [...e.features, speedSet('haste', 60)] };
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(0);
+  });
+
+  it('5. Wild Shape + Grappled + Restrained (two overlapping restrictions) -> 0', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = applyCondition(e, 'restrained', 'manual', DEFAULT_RULES, restrainedFeatures);
+    expect(e.derived.speed).toBe(0);
+  });
+
+  it('6. removing one restriction (Grappled) while Restrained remains -> still 0', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = applyCondition(e, 'restrained', 'manual', DEFAULT_RULES, restrainedFeatures);
+    e = removeCondition(e, 'grappled', DEFAULT_RULES);
+    expect(e.derived.speed).toBe(0);
+  });
+
+  it('7. removing the final restriction restores the BeastForm\'s calculated speed', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = applyCondition(e, 'restrained', 'manual', DEFAULT_RULES, restrainedFeatures);
+    e = removeCondition(e, 'grappled', DEFAULT_RULES);
+    e = removeCondition(e, 'restrained', DEFAULT_RULES);
+    expect(e.derived.speed).toBe(40); // Wolf's own speed, no stale zero/leftover effects
+  });
+
+  it('8. repeated recompute is stable — no stale zero, no duplicated effects', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    const once = recomputeDerived(e, DEFAULT_RULES);
+    const twice = recomputeDerived(once, DEFAULT_RULES);
+    expect(once.derived.speed).toBe(0);
+    expect(twice.derived.speed).toBe(0);
+    expect(twice.features.filter(f => f.id === 'grappled_speed')).toHaveLength(1);
+  });
+
+  it('9. Wild Shape + Grappled + an explicit character/manual override -> the override still wins', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = {
+      ...e,
+      characterOverrides: [{
+        id: 'co1', entityId: 'e1', stat: 'speed', operation: 'set', value: 20,
+        label: 'table ruling', active: true, appliedAt: 0, cancelledAt: null,
+      }],
+    };
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(20);
+  });
+
+  it('10. Wild Shape + Grappled + a DM override -> existing DM-wins-over-all precedence still holds', () => {
+    let e = wolfShaped();
+    e = applyCondition(e, 'grappled', 'manual', DEFAULT_RULES, grappledFeatures);
+    e = {
+      ...e,
+      characterOverrides: [{
+        id: 'co1', entityId: 'e1', stat: 'speed', operation: 'set', value: 20,
+        label: 'table ruling', active: true, appliedAt: 0, cancelledAt: null,
+      }],
+      dmOverrides: [{
+        id: 'do1', campaignId: 'c1', entityId: 'e1', dmDeviceId: 'd1',
+        stat: 'speed', operation: 'set', value: 15, active: true,
+        label: 'DM ruling', appliedAt: 1, cancelledAt: null, expiry: 'manual',
+      } as DmOverride],
+    };
+    expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(15);
   });
 });

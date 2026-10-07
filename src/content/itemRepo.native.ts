@@ -11,13 +11,17 @@
 import { Item, asRulesetId } from '../engine/types';
 import { getContentDb } from '../db/contentDb';
 import type { ItemIndexEntry, ItemRepo } from './itemRepo.types';
+import { withOfficialItems } from './packRepos';
 import { baseWeaponIdFromName } from './items/itemBrowse';
+import { hasVerifiedPublicItemProvenance } from './items/srdProvenance';
+import { GENERATED_SRD_ITEMS } from './items/generatedSrdItems';
+import { toItemIndexEntry } from './itemRepo.types';
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
 
 type ItemIndexRow = {
   id: string; name: string; weight: number; cost: string;
-  properties: string; hasDamageEffect: number; weaponRange: string | null;
+  properties: string; hasDamageEffect: number; hasFeatures?: number; weaponRange: string | null;
   srd: number | null; rulesetId: string | null;
 };
 
@@ -26,14 +30,25 @@ const fullCache = new Map<string, Item>();
 
 async function init(): Promise<void> {
   if (index.length > 0) return;
+  // The app's SQLite content DB is the full/private catalog. Public mode must
+  // never hydrate those rows: use the separate canonical-generated artifact.
+  if (SRD_ONLY) {
+    index = GENERATED_SRD_ITEMS
+      .filter(item => hasVerifiedPublicItemProvenance(item.id))
+      .map(toItemIndexEntry);
+    for (const item of GENERATED_SRD_ITEMS) {
+      if (hasVerifiedPublicItemProvenance(item.id)) fullCache.set(item.id, item);
+    }
+    return;
+  }
   try {
     const db = getContentDb();
     const rows = await db.getAllAsync<ItemIndexRow>(
-      'SELECT id, name, weight, cost, properties, hasDamageEffect, weaponRange, srd, rulesetId FROM items'
+      'SELECT id, name, weight, cost, properties, hasDamageEffect, hasFeatures, weaponRange, srd, rulesetId FROM items'
     );
     const built: ItemIndexEntry[] = [];
     for (const r of rows) {
-      if (SRD_ONLY && r.srd !== 1) continue;
+      if (SRD_ONLY && (r.srd !== 1 || !hasVerifiedPublicItemProvenance(r.id))) continue;
       try {
         built.push({
           id:              r.id,
@@ -42,6 +57,7 @@ async function init(): Promise<void> {
           cost:            r.cost,
           properties:      JSON.parse(r.properties) as string[],
           hasDamageEffect: r.hasDamageEffect === 1,
+          hasFeatures:     r.hasFeatures === 1,
           weaponRange:     r.weaponRange,
           srd:             r.srd === null ? undefined : r.srd === 1,
           rulesetId:       r.rulesetId ? asRulesetId(r.rulesetId) : undefined,
@@ -66,6 +82,7 @@ function getIndex(): ItemIndexEntry[] {
 }
 
 async function ensureLoaded(ids: string[]): Promise<void> {
+  if (SRD_ONLY) return;
   const requested = new Set(ids);
   for (const id of ids) {
     const entry = index.find(item => item.id === id);
@@ -103,4 +120,4 @@ function getItemSync(id: string): Item | undefined {
   return fullCache.get(id);
 }
 
-export const itemRepo: ItemRepo = { init, getIndex, ensureLoaded, getItemSync };
+export const itemRepo: ItemRepo = withOfficialItems({ init, getIndex, ensureLoaded, getItemSync });

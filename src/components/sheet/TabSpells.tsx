@@ -16,31 +16,51 @@ import { grantEntitlement } from '../../engine/entitlements';
 // ============================================================================
 import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
-import { Entity, CampaignRules, ActionCard, Spell, ActivationOption } from '../../engine/types';
+import { Entity, CampaignRules, ActionCard, Spell, ActivationOption, SpellCastingContext } from '../../engine/types';
 import { spellRepo } from '../../content/spellRepo';
 import { resolveSpellById } from '../../content/contentResolution';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { getClassLevels } from '../../engine/multiclass';
-import { castConcentrationSpell } from '../../engine/combat';
+import { castConcentrationSpell, concentrationLinkedEffectNames } from '../../engine/combat';
+import { castButtonStates, castHistoryLabel, confirmEndConcentration } from './spellTabUi';
 import { doubleDiceCount } from '../../engine/dice';
 import { useDiceLogStore } from '../../store/diceLogStore';
 import { UseModal, applyActionCardUse, ActivationOptionModal } from './TabActions';
 import { AddSpellModal } from './AddSpellModal';
+import { PREPARED_CASTER_CLASS_IDS, formatCastingContextLabel, CardGenOptions, isContextLegalForCastMode, needsPreparationOverride } from '../../engine/actionCards';
+import { Alert } from '../../utils/alert';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-/**
- * Classes that use the daily-preparation model: the entity maintains a
- * spellbook (.known) and prepares a subset each long rest (.prepared).
- * All other casters are spontaneous: .known is the full castable list.
- */
-const PREPARED_CASTERS = new Set(['wizard', 'cleric', 'druid', 'paladin']);
 
 const SLOT_ORDINALS: Record<number, string> = {
   1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th',
   6: '6th', 7: '7th', 8: '8th', 9: '9th',
 };
+
+/**
+ * Rules-completeness batch (B1/B8): the ONE place this tab turns a
+ * completed cast into a human-readable timeline label — distinguishing the
+ * spell's own BASE level (card.resourceCost?.spellSlotTier, undefined for a
+ * cantrip) from the CAST level actually paid for (`payment.tier`, the
+ * transient execution-time choice — see SpellPaymentOption's own doc
+ * comment, spellPayment.ts). Only mentions a level at all when it differs
+ * from the base (an upcast) — an ordinary base-level cast keeps the exact
+ * "Cast X" label this tab has always used, so no existing timeline entry's
+ * wording changes. A ritual cast is labeled distinctly (no level to report
+ * — see B2, ritual always casts at base level with no slot).
+ */
+function castLevelLabel(card: ActionCard, payment: SpellPaymentOption | undefined, castMode?: 'ritual'): string {
+  const baseLevel = card.resourceCost?.spellSlotTier;
+  return castHistoryLabel({
+    name: card.name,
+    castMode,
+    ritualCapable: card.ritualEligible === true,
+    baseLevel,
+    castLevel: payment ? Number(payment.tier) : baseLevel,
+    ordinal: l => SLOT_ORDINALS[l] ?? `${l}th`,
+  });
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -57,17 +77,49 @@ interface Props {
    *  verbatim with the Character and Actions tabs (see app/sheet/[id].tsx's
    *  handleEndTurn). */
   onEndTurn: () => void;
+  /** Manually gives back one used spell slot of `tier` (normal or pact) so the
+   *  player can cast again — the same shared handler the Character tab's slot
+   *  "+" button calls (app/sheet/[id].tsx's handleRestoreSlot). */
+  onRestoreSlot: (tier: string, kind?: 'normal' | 'pact') => void;
+  /** Manually ends the current concentration (and its linked effects) — the
+   *  one shared handler both tabs call (app/sheet/[id].tsx). */
+  onEndConcentration: (spellName: string) => void;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
+function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlot, onEndConcentration }: Props) {
   const [activeCard, setActiveCard] = useState<ActionCard | null>(null);
-  const [pendingOptionCard, setPendingOptionCard] = useState<ActionCard | null>(null);
+  // Rules-engine blocker RE-AUDIT closure (2F): carries the bypass/context
+  // decision ALONGSIDE the card, not just the card alone — see
+  // TabActions.tsx's PendingActionUse for the identical fix and its own doc
+  // comment on why the old bare-card version was a real bug (a chosen
+  // source/Cast-Anyway decision was silently discarded by the option picker).
+  const [pendingUse, setPendingUse] = useState<{
+    card: ActionCard;
+    bypassSpellPreparation?: boolean;
+    selectedSpellCastingContext?: SpellCastingContext;
+    bypassIncapacitated?: boolean;
+    /** Rules-completeness batch (ritual casting) — see TabActions.tsx's
+     *  PendingActionUse.castMode for the identical fix. */
+    castMode?: 'ritual';
+  } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const homebrewSpells = useHomebrewStore(s => s.spells);
   const [addSpellOpen, setAddSpellOpen] = useState(false);
+
+  // Rules-engine blocker RE-AUDIT closure (dependency inversion, 1B/1D):
+  // the ONE place this tab resolves the authoritative merged official +
+  // homebrew + active-ruleset content — the engine (actionCards.ts/
+  // actionUse.ts/entitlements.ts) never reads useHomebrewStore itself
+  // anymore; it's computed here, in the application/UI layer, and passed
+  // down explicitly to every engine call that needs it.
+  const mergedContentDB = useHomebrewStore(s => s.getMergedContentDB(entity.rulesetId));
+  const cardContent: Pick<CardGenOptions, 'classDefs' | 'homebrewSpells'> = useMemo(
+    () => ({ classDefs: mergedContentDB.classes, homebrewSpells: mergedContentDB.spells }),
+    [mergedContentDB],
+  );
 
   // Mirrors the latest `entity` prop for handlers that span an async gap —
   // bug fix: addSpell (below) used to read the `entity` closed over at the
@@ -113,14 +165,37 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
     const next = level === 0
       ? { ...block, cantrips: [...new Set([...block.cantrips, spellId])] }
       : { ...block, known:    [...new Set([...block.known,    spellId])] };
-    const spellName = resolveSpellById(spellId, homebrewSpells)?.name ?? spellId;
-    onEntityUpdate(grantEntitlement({ ...current, spellcasting: next }, { kind: level === 0 ? 'cantrip_access' : 'spell_access', key: spellId, sourceKind: 'manual' }), `Learned ${spellName}`);
+    const addedSpell = resolveSpellById(spellId, homebrewSpells);
+    const spellName = addedSpell?.name ?? spellId;
+    // Rules-engine blocker fix (closure 1C, re-audit 1F): this used to
+    // always stamp sourceKind:'manual', even for a spell that's actually on
+    // one of the character's OWN classes' spell lists — isSpellPreparationLegal
+    // then treated it as permanently exempt from preparation (manual sources
+    // never require prep), letting a "+ Add Additional Spell" Wizard/Cleric
+    // pick silently bypass preparation forever. Tags the real class source
+    // when EXACTLY ONE of the character's classes has this spell on its
+    // list (Spell.classes) — the same single-candidate rule the migration
+    // path (entitlements.ts's reclassifyManualSpellSources) uses. Zero
+    // candidates (not on any of their classes' lists at all) stays an
+    // ordinary manual grant. 2+ candidates is genuine unresolved ambiguity
+    // (the player didn't say which class they're adding it as) — tagged via
+    // ambiguousClassIds rather than a silent guess, so Cast later offers an
+    // explicit source choice instead of behaving as globally unrestricted.
+    const candidateClassIds = getClassLevels(current)
+      .map(c => c.classId as string)
+      .filter(classId => (addedSpell?.classes ?? []).includes(classId));
+    const source = candidateClassIds.length === 1
+      ? { sourceKind: 'class' as const, sourceId: candidateClassIds[0] }
+      : candidateClassIds.length >= 2
+        ? { sourceKind: 'manual' as const, ambiguousClassIds: candidateClassIds }
+        : { sourceKind: 'manual' as const };
+    onEntityUpdate(grantEntitlement({ ...current, spellcasting: next }, { kind: level === 0 ? 'cantrip_access' : 'spell_access', key: spellId, ...source }), `Learned ${spellName}`);
   }
 
   // Multiclass-aware: a character is a "prepared caster" for this tab's
   // purposes if ANY of their classes prepares spells — matches identity.classId
   // for single-class characters (getClassLevels' legacy fallback).
-  const isPreparedCaster = getClassLevels(entity).some(c => PREPARED_CASTERS.has(c.classId));
+  const isPreparedCaster = getClassLevels(entity).some(c => PREPARED_CASTER_CLASS_IDS.has(c.classId));
   const preparedSet      = new Set(spellcasting.prepared);
 
   // ── Spell cards ───────────────────────────────────────────────────────────
@@ -141,11 +216,11 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
   const spellMap = useMemo(() => {
     const map = new Map<string, Spell>();
     for (const card of spellCards) {
-      const sp = resolveSpellById(card.featureId, homebrewSpells);
+      const sp = resolveSpellById(card.featureId, homebrewSpells, entity.rulesetId);
       if (sp) map.set(card.featureId, sp);
     }
     return map;
-  }, [spellCards, homebrewSpells]);
+  }, [spellCards, homebrewSpells, entity.rulesetId]);
 
   // ── Group cards by spell level ────────────────────────────────────────────
   // Level is inferred from resourceCost.spellSlotTier; cantrips have null cost → level 0.
@@ -165,7 +240,7 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
   // ── Cast handler (mirrors TabActions.handleUse exactly) ──────────────────
 
   const { requestPayment, paymentChooser } = useSpellPayment(entity);
-  const performCast = useCallback((card: ActionCard, option?: ActivationOption, payment?: SpellPaymentOption) => {
+  const performCast = useCallback((card: ActionCard, option?: ActivationOption, payment?: SpellPaymentOption, bypassPreparation?: boolean, selectedContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => {
     // Bug fix (architecture review U5): this used to hand-duplicate
     // applyActionCardUse's spell-slot/resource-spend logic without ever
     // calling markActionSlotUsed — casting a spell from this tab consumed
@@ -173,7 +248,14 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
     // character could still use an Actions-tab feature that same turn.
     // Delegating to the shared implementation also picks up its
     // abilityEffects application, which this handler never had at all.
-    let updated = applyActionCardUse(entity, card, rules, option, payment);
+    // `bypassPreparation` is the table-first Quick Override ("Cast
+    // Anyway") — see applyActionCardUse's own doc comment. A normal legal
+    // cast and a Quick Override cast both converge on this exact same
+    // call; there is no separate cast implementation for either.
+    // `bypassIncapacitated` (HIGH batch, C) is the SAME "Use Anyway" flag
+    // TabActions.tsx's handleUse threads through — independent of, and
+    // combinable with, bypassPreparation (C7).
+    let updated = applyActionCardUse(entity, card, rules, option, payment, bypassPreparation, selectedContext, cardContent, bypassIncapacitated, castMode);
     if (updated === entity) return;
 
     // applyActionCardUse's own concentration check only looks up official
@@ -192,31 +274,164 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
       }
     }
 
-    onEntityUpdate(updated, `Cast ${card.name}`);
+    onEntityUpdate(updated, castLevelLabel(card, payment, castMode));
     setActiveCard(card);
-  }, [entity, onEntityUpdate, spellMap, rules]);
+  }, [entity, onEntityUpdate, spellMap, rules, cardContent]);
 
-  const handleCast = useCallback((card: ActionCard) => {
-    // A-57 (item 10): a spell with discrete use-time options (e.g. a
-    // homebrew spell authored with an ActivationOption tier choice) must
-    // resolve the picker BEFORE spending — this call site used to always
-    // cast with chosenOption undefined, silently falling back to the
-    // card's default cost. No official spell content uses `options` today
-    // (only Divine Smite, a class feature, does), so this is currently a
-    // dormant-but-correct path, not yet exercised by real content.
+  // Rules-engine blocker RE-AUDIT closure (2F): the LAST step of every cast
+  // path below — after a casting source (if any choice existed) and a
+  // preparation Cast Anyway decision (if any) are both already resolved.
+  // An activation-option card (e.g. Divine Smite's spell-slot tier) defers
+  // to the option picker, preserving that already-decided bypass/context
+  // instead of discarding it — see pendingUse's own doc comment for why
+  // this matters (the old flow silently lost it here).
+  const proceedToPaymentOrOptions = useCallback((card: ActionCard, bypassSpellPreparation: boolean, selectedContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => {
     if (card.activation.options && card.activation.options.length > 0) {
-      setPendingOptionCard(card);
+      setPendingUse({ card, bypassSpellPreparation, selectedSpellCastingContext: selectedContext, bypassIncapacitated, castMode });
       return;
     }
-    requestPayment(card, undefined, payment => performCast(card, undefined, payment));
+    // Rules-completeness batch (ritual casting), A4: never request a slot
+    // payment (the chooser never opens) for a ritual cast.
+    if (castMode === 'ritual') {
+      performCast(card, undefined, undefined, bypassSpellPreparation, selectedContext, bypassIncapacitated, castMode);
+      return;
+    }
+    requestPayment(card, undefined, payment => performCast(card, undefined, payment, bypassSpellPreparation, selectedContext, bypassIncapacitated));
   }, [performCast, requestPayment]);
 
+  // Rules-engine HIGH-batch closure (C4/C7): the LAST step before actually
+  // proceeding to payment/options — after any preparation decision is
+  // already resolved, checks whether status (0HP/Unconscious) still needs
+  // its own one-off "Use Anyway" on top. Mirrors ActionCardRow's
+  // finalizeUse exactly (TabActions.tsx).
+  const finalizeCast = useCallback((card: ActionCard, bypassSpellPreparation: boolean, selectedContext?: SpellCastingContext, castMode?: 'ritual') => {
+    if (card.incapacitatedOverridable) {
+      Alert.alert(
+        `${card.name}: ${card.unavailableReason ?? 'Incapacitated'}`,
+        'Cast it anyway as a one-off table ruling? This does not change HP, conditions, or death-save state.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Use Anyway', onPress: () => proceedToPaymentOrOptions(card, bypassSpellPreparation, selectedContext, true, castMode) },
+        ],
+      );
+      return;
+    }
+    proceedToPaymentOrOptions(card, bypassSpellPreparation, selectedContext, undefined, castMode);
+  }, [proceedToPaymentOrOptions]);
+
+  // Rules-engine blocker RE-AUDIT closure (1C/1E) — when a spell has 2+
+  // MECHANICALLY DISTINCT casting sources (e.g. a Wizard/Sorcerer character
+  // sharing a spell), casting proceeds via a SPECIFIC chosen context, never
+  // a silent tie-break. A prep-blocked context selected intentionally still
+  // offers Cast Anyway for THAT context; a legal one casts directly. Single-
+  // context spells (the overwhelming majority) skip this entirely and fall
+  // through to the unchanged flow below.
+  // Rules-completeness batch (ritual casting), one-issue closure: checks the
+  // SELECTED context against the ACTUAL cast mode (isContextLegalForCastMode
+  // — `ritualLegal` for a ritual attempt, `legal` for a normal one), never a
+  // bare `context.legal` unconditionally — that was exactly the bug this
+  // closure fixes (a legal Wizard-spellbook ritual was still prompting Cast
+  // Anyway because the check never looked at castMode at all).
+  // needsPreparationOverride further distinguishes "genuinely blocked by
+  // preparation on a source that can cast this way at all" (offer the
+  // override) from "this source has no ritual-casting capability
+  // whatsoever" (silently decline — Cast Anyway can't fix that, and
+  // applyActionCardUse refuses it unconditionally regardless).
+  const castViaContext = useCallback((card: ActionCard, context: SpellCastingContext, castMode?: 'ritual') => {
+    if (needsPreparationOverride(context, castMode)) {
+      Alert.alert(
+        `${card.name} is not prepared.`,
+        'You can cast it anyway for this one time — it will not be added to your prepared spells, and everything else (slot, concentration, etc.) still applies normally.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cast Anyway', onPress: () => finalizeCast(card, true, context, castMode) },
+        ],
+      );
+      return;
+    }
+    if (!isContextLegalForCastMode(context, castMode)) return; // ritual-incapable source — nothing to override, decline silently
+    finalizeCast(card, false, context, castMode);
+  }, [finalizeCast]);
+
+  // Every decision that used to start directly at handleCast — source
+  // choice, preparation override — now runs identically for both a normal
+  // and a ritual cast, carrying `castMode` through unchanged. Ritual does
+  // NOT bypass preparation on its own (see applyActionCardUse's castMode
+  // doc comment) — an unprepared ritual-eligible spell still prompts the
+  // SAME Cast Anyway here, exactly like a normal cast — UNLESS the SELECTED
+  // context's own `ritualLegal` says otherwise (a Wizard ritual straight
+  // from the spellbook), checked live below rather than via the static,
+  // generation-time, normal-legality-only `card.preparationOverridable`
+  // flag — the exact mismatch this closure fixes.
+  const proceedCast = useCallback((card: ActionCard, castMode?: 'ritual') => {
+    if (card.spellCastingContexts && card.spellCastingContexts.length > 1) {
+      Alert.alert(
+        `Cast ${card.name} as...`,
+        undefined,
+        [
+          ...card.spellCastingContexts.map(ctx => ({
+            text: formatCastingContextLabel(entity, ctx, cardContent.classDefs),
+            onPress: () => castViaContext(card, ctx, castMode),
+          })),
+          { text: 'Cancel', style: 'cancel' as const },
+        ],
+      );
+      return;
+    }
+
+    const context = card.spellCastingContext;
+    if (context) {
+      castViaContext(card, context, castMode);
+      return;
+    }
+    // No SpellCastingContext at all — shouldn't happen for a card rendered
+    // in this tab (every card here is spell-sourced), but preserved as the
+    // original static fallback for safety.
+    if (card.preparationOverridable) {
+      Alert.alert(
+        `${card.name} is not prepared.`,
+        'You can cast it anyway for this one time — it will not be added to your prepared spells, and everything else (slot, concentration, etc.) still applies normally.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cast Anyway', onPress: () => finalizeCast(card, true, undefined, castMode) },
+        ],
+      );
+      return;
+    }
+    finalizeCast(card, false, undefined, castMode);
+  }, [entity, castViaContext, cardContent, finalizeCast]);
+
+  // Rules-completeness batch (ritual casting), A3: an explicit peer choice
+  // — never a silent default to either mode — offered only when the spell
+  // is actually ritual-capable through some source the character has. It used
+  // to be a popup ("Cast as... Normally / Ritual") behind a single Cast
+  // button, which hid that there were two different ways to pay; now a
+  // ritual-capable row shows two separate buttons, "Ritual" (no slot, +10
+  // min) and "Cast" (spends a slot), so the choice is visible at a glance.
+  // Both funnel into the same proceedCast the popup used, unchanged.
+  const handleSlotCast   = useCallback((card: ActionCard) => proceedCast(card, undefined), [proceedCast]);
+  const handleRitualCast = useCallback((card: ActionCard) => proceedCast(card, 'ritual'), [proceedCast]);
+
+  // Manual End Concentration (confirm first — it also removes the spell's
+  // linked effects). Name resolved the same homebrew-first way the banner does.
+  const handleEndConcentrationPress = useCallback(() => {
+    const id = entity.spellcasting?.concentrating;
+    if (!id) return;
+    const name = spellMap.get(id)?.name ?? resolveSpellById(id, homebrewSpells)?.name ?? id;
+    confirmEndConcentration(name, concentrationLinkedEffectNames(entity), () => onEndConcentration(name));
+  }, [entity, spellMap, homebrewSpells, onEndConcentration]);
+
   const handleChooseOption = useCallback((option: ActivationOption) => {
-    const card = pendingOptionCard;
-    setPendingOptionCard(null);
-    if (!card) return;
-    requestPayment(card, option, payment => performCast(card, option, payment));
-  }, [performCast, pendingOptionCard, requestPayment]);
+    const pending = pendingUse;
+    setPendingUse(null);
+    if (!pending) return;
+    const { card, bypassSpellPreparation, selectedSpellCastingContext, bypassIncapacitated, castMode } = pending;
+    if (castMode === 'ritual') {
+      performCast(card, option, undefined, bypassSpellPreparation, selectedSpellCastingContext, bypassIncapacitated, castMode);
+      return;
+    }
+    requestPayment(card, option, payment => performCast(card, option, payment, bypassSpellPreparation, selectedSpellCastingContext, bypassIncapacitated));
+  }, [performCast, pendingUse, requestPayment]);
 
   // ── Prepared toggle (prepared casters only) ──────────────────────────────
 
@@ -268,11 +483,19 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
 
       {/* Concentration banner */}
       {spellcasting.concentrating && (
-        <View style={styles.concBanner}>
-          <Text style={styles.concBannerTxt}>
+        <View style={[styles.concBanner, styles.concBannerRow]}>
+          <Text style={[styles.concBannerTxt, styles.concBannerLabel]}>
             🧠 Concentrating: {spellMap.get(spellcasting.concentrating)?.name ?? spellcasting.concentrating}
             {spellcasting.concentratingDuration?.unit === 'rounds' && ` · ${spellcasting.concentratingDuration.remaining}r`}
           </Text>
+          <Pressable
+            style={styles.concEndBtn}
+            onPress={handleEndConcentrationPress}
+            hitSlop={6}
+            accessibilityLabel="End concentration"
+          >
+            <Text style={styles.concEndBtnTxt}>End</Text>
+          </Pressable>
         </View>
       )}
 
@@ -291,7 +514,13 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
       {sortedLevels.map(level => {
         const cards    = grouped.get(level)!;
         const slotKey  = String(level) as keyof typeof spellcasting.slots;
-        const slotData = level > 0 ? spellcasting.slots[slotKey] : null;
+        // Every slot pool at this tier — ordinary slots AND a Warlock's pact
+        // slots (they live in a separate pool, and a pure Warlock has none of
+        // the ordinary kind) — each gets its own count and restore button.
+        const slotPools = level === 0 ? [] : ([
+          { kind: 'normal' as const, data: spellcasting.slots[slotKey] },
+          { kind: 'pact'   as const, data: spellcasting.pactSlots?.[slotKey] },
+        ]).filter(p => p.data && p.data.total > 0);
 
         return (
           <View key={level} style={styles.levelSection}>
@@ -302,19 +531,32 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
                   ? 'CANTRIPS'
                   : `${SLOT_ORDINALS[level]?.toUpperCase() ?? `LEVEL ${level}`} LEVEL`}
               </Text>
-              {slotData && slotData.total > 0 && (
-                <View style={[
-                  styles.slotBadge,
-                  slotData.used >= slotData.total && styles.slotBadgeEmpty,
-                ]}>
-                  <Text style={[
-                    styles.slotBadgeTxt,
-                    slotData.used >= slotData.total && styles.slotBadgeTxtEmpty,
-                  ]}>
-                    {slotData.total - slotData.used}/{slotData.total} slots
-                  </Text>
-                </View>
-              )}
+              <View style={styles.slotPools}>
+                {slotPools.map(({ kind, data }) => {
+                  const empty = data!.used >= data!.total;
+                  return (
+                    <View key={kind} style={styles.slotPool}>
+                      {/* Restore one used slot so the player can cast again —
+                          disabled when nothing is spent. Same shared handler
+                          as the Character tab's slot "+". */}
+                      <Pressable
+                        style={[styles.slotRestoreBtn, data!.used === 0 && styles.slotRestoreBtnDisabled]}
+                        disabled={data!.used === 0}
+                        hitSlop={8}
+                        onPress={() => onRestoreSlot(String(level), kind)}
+                        accessibilityLabel={`Restore a ${kind === 'pact' ? 'pact ' : ''}level ${level} slot`}
+                      >
+                        <Text style={[styles.slotRestoreBtnTxt, data!.used === 0 && styles.slotRestoreBtnTxtDisabled]}>+</Text>
+                      </Pressable>
+                      <View style={[styles.slotBadge, empty && styles.slotBadgeEmpty]}>
+                        <Text style={[styles.slotBadgeTxt, empty && styles.slotBadgeTxtEmpty]}>
+                          {kind === 'pact' ? 'Pact ' : ''}{data!.total - data!.used}/{data!.total} slots
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
 
             {/* Spell rows */}
@@ -323,10 +565,26 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
               const isExpanded = expandedId === card.featureId;
               const isPrepared = preparedSet.has(card.featureId);
 
+              // Table-first Quick Override (rules-engine blocker A): a
+              // spell blocked ONLY by preparation stays fully discoverable
+              // and actionable — not dimmed/hidden like a genuinely
+              // unavailable card (no slot, action already used, etc.).
+              // Tapping Cast opens the "Cast Anyway" prompt (handleSlotCast);
+              // the button is never disabled for this reason alone.
+              const blockedOnlyByPreparation = card.preparationOverridable === true;
+              // Rules-engine HIGH-batch closure (C): same "stays actionable,
+              // prompts Cancel/Use Anyway" treatment for 0HP/Unconscious.
+              // Rules-completeness batch (ritual casting): a ritual-eligible
+              // spell is never hard-disabled by a missing spell slot alone
+              // (ritual spends none) — the slot Cast button greys out but the
+              // separate Ritual button stays live. Execution still
+              // revalidates fresh regardless. See castButtonStates.
+              const { slotCastDisabled, showRitual, rowDimmed: genuinelyUnavailable } = castButtonStates(card);
+
               return (
                 <View key={card.featureId} style={[
                   styles.spellCard,
-                  !card.available && styles.spellCardUnavail,
+                  genuinelyUnavailable && styles.spellCardUnavail,
                 ]}>
                   <View style={styles.spellRow}>
                     {/* Left — tap to expand */}
@@ -335,10 +593,15 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
                       onPress={() => setExpandedId(isExpanded ? null : card.featureId)}
                     >
                       <View style={styles.spellNameLine}>
-                        <Text style={[styles.spellName, !card.available && styles.spellNameDim]}>
+                        <Text style={[styles.spellName, genuinelyUnavailable && styles.spellNameDim]}>
                           {card.name}
                         </Text>
                         <View style={styles.spellTags}>
+                          {blockedOnlyByPreparation && (
+                            <View style={styles.tagUnprepared}>
+                              <Text style={styles.tagUnpreparedTxt}>Not Prepared</Text>
+                            </View>
+                          )}
                           {spell?.concentration && (
                             <View style={styles.tagConc}>
                               <Text style={styles.tagConcTxt}>Conc</Text>
@@ -372,13 +635,25 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
                           </Text>
                         </Pressable>
                       )}
+                      {/* Ritual-capable spells show TWO distinct ways to cast:
+                          Ritual (no slot, +10 min) and Cast (spends a slot). */}
+                      {showRitual && (
+                        <Pressable
+                          style={styles.ritualBtn}
+                          onPress={() => handleRitualCast(card)}
+                          accessibilityLabel={`Cast ${card.name} as a ritual, no spell slot`}
+                        >
+                          <Text style={styles.ritualBtnTxt}>Ritual</Text>
+                        </Pressable>
+                      )}
                       <Pressable
-                        style={[styles.castBtn, !card.available && styles.castBtnDisabled]}
-                        onPress={() => handleCast(card)}
-                        disabled={!card.available}
+                        style={[styles.castBtn, slotCastDisabled && styles.castBtnDisabled]}
+                        onPress={() => handleSlotCast(card)}
+                        disabled={slotCastDisabled}
+                        accessibilityLabel={showRitual ? `Cast ${card.name} using a spell slot` : `Cast ${card.name}`}
                       >
-                        <Text style={[styles.castBtnTxt, !card.available && styles.castBtnTxtDisabled]}>
-                          {card.available ? 'Cast' : 'N/A'}
+                        <Text style={[styles.castBtnTxt, slotCastDisabled && styles.castBtnTxtDisabled]}>
+                          {slotCastDisabled ? 'N/A' : 'Cast'}
                         </Text>
                       </Pressable>
                     </View>
@@ -438,9 +713,10 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
 
       <ActivationOptionModal
         entity={entity}
-        card={pendingOptionCard}
+        card={pendingUse?.card ?? null}
         onChoose={handleChooseOption}
-        onClose={() => setPendingOptionCard(null)}
+        onClose={() => setPendingUse(null)}
+        bypassIncapacitated={pendingUse?.bypassIncapacitated}
       />
 
       {/* Add Spell picker modal — rich multi-axis filtering */}
@@ -531,6 +807,42 @@ const styles = StyleSheet.create({
     fontSize:   FontSize.sm,
     textAlign:  'center',
   },
+  concBannerRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  concBannerLabel: { flex: 1, textAlign: 'left' },
+  concEndBtn: {
+    backgroundColor:   Colors.red + '22',
+    borderRadius:      Radius.md,
+    borderWidth:       1,
+    borderColor:       Colors.red + '66',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical:   Spacing.xs,
+  },
+  concEndBtnTxt: { fontSize: FontSize.sm, color: Colors.red, fontWeight: FontWeight.bold },
+
+  // Per-level slot pools (ordinary + pact), each with its restore button
+  slotPools: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  slotPool:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  slotRestoreBtn: {
+    width: 22, height: 22, borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.blue + '66',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  slotRestoreBtnDisabled:    { borderColor: Colors.border, opacity: 0.5 },
+  slotRestoreBtnTxt:         { fontSize: FontSize.sm, color: Colors.blue, fontWeight: FontWeight.bold, lineHeight: FontSize.sm + 2 },
+  slotRestoreBtnTxtDisabled: { color: Colors.textDim },
+
+  // Ritual cast — gold, to match the "Ritual" tag and stay clearly distinct
+  // from the blue slot-spending Cast button beside it.
+  ritualBtn: {
+    backgroundColor:   Colors.gold + '22',
+    borderRadius:      Radius.md,
+    borderWidth:       1,
+    borderColor:       Colors.gold + '88',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical:   Spacing.xs,
+    alignItems:        'center',
+  },
+  ritualBtnTxt: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.bold },
 
   // Empty
   empty:      { alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.sm },
@@ -623,6 +935,15 @@ const styles = StyleSheet.create({
     paddingVertical:   1,
   },
   tagRitualTxt:{ fontSize: 9, color: Colors.gold, fontWeight: FontWeight.bold },
+  tagUnprepared: {
+    backgroundColor: Colors.textDim + '22',
+    borderRadius:    Radius.sm,
+    borderWidth:     1,
+    borderColor:     Colors.textDim + '66',
+    paddingHorizontal: 5,
+    paddingVertical:   1,
+  },
+  tagUnpreparedTxt: { fontSize: 9, color: Colors.textDim, fontWeight: FontWeight.bold },
   expandCaret: { fontSize: 9, color: Colors.textDim, marginLeft: 'auto' },
   spellMeta:   { fontSize: FontSize.xs, color: Colors.textSecondary },
 

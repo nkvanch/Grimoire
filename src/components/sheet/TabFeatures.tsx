@@ -2,7 +2,7 @@
 // Tab 4 — Features grouped by source, plus spells if applicable.
 import { useState, memo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { Entity, FeatureInstance, ActionCard, CampaignRules } from '../../engine/types';
+import { Entity, FeatureInstance, ActionCard, CampaignRules, RulesetId } from '../../engine/types';
 import { resolveChoice, applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity } from '../../engine/leveling';
 import { recomputeDerived } from '../../engine/pipeline';
 import { eligibleExpertiseOptions, eligibleToolOptions, eligibleLanguageOptions } from '../../engine/choiceEligibility';
@@ -15,6 +15,11 @@ import { SpellChoicePicker } from '../SpellChoicePicker';
 import { RepeatedChoicePicker, RepeatedChoiceOption } from '../RepeatedChoicePicker';
 import { RemoveFeatureModal } from './RemoveFeatureModal';
 import { AddCustomFeatureModal } from './AddCustomFeatureModal';
+import { GrantRewardModal } from './GrantRewardModal';
+import { ModeGroupPanel } from './ModeGroupPanel';
+import { WeaponMasteryPanel } from './WeaponMasteryPanel';
+import { ReplaceChoicePanel } from './ReplaceChoicePanel';
+import { ReplaceSpellPanel } from './ReplaceSpellPanel';
 import { ChangeBackgroundModal } from './ChangeBackgroundModal';
 import { spellRepo } from '../../content/spellRepo';
 import { spellProgressFor, groupPendingSpellChoices } from '../../content/creationProgress';
@@ -76,9 +81,9 @@ function FeatureRow({ feature, onRemove }: { feature: FeatureInstance; onRemove?
   );
 }
 
-function SpellCardRow({ card }: { card: ActionCard }) {
+function SpellCardRow({ card, rulesetId }: { card: ActionCard; rulesetId?: RulesetId | null }) {
   const [expanded, setExpanded] = useState(false);
-  const spell = spellRepo.getSpellSync(card.featureId);
+  const spell = spellRepo.getSpellSync(card.featureId, rulesetId);
   const borderColor = card.color === 'red' ? Colors.red : card.color === 'green' ? Colors.green : card.color === 'blue' ? Colors.blue : card.color === 'purple' ? Colors.purple : Colors.textDim;
   return (
     <Pressable style={[styles.spellCard, { borderLeftColor: borderColor }]} onPress={() => setExpanded(e => !e)}>
@@ -138,6 +143,7 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
   const [removingFeatureId, setRemovingFeatureId] = useState<string | null>(null);
   const [addFeatOpen, setAddFeatOpen] = useState(false);
   const [addCustomFeatureOpen, setAddCustomFeatureOpen] = useState(false);
+  const [grantRewardOpen, setGrantRewardOpen] = useState(false);
   const [changeBackgroundOpen, setChangeBackgroundOpen] = useState(false);
 
   const pendingChoices = entity.choices.filter(c => !c.resolved);
@@ -245,16 +251,34 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
     : [];
 
   const cantrips = spellCards.filter(c => {
-    const sp = spellRepo.getSpellSync(c.featureId);
+    const sp = spellRepo.getSpellSync(c.featureId, entity.rulesetId);
     return sp?.level === 0;
   });
   const leveled = spellCards.filter(c => {
-    const sp = spellRepo.getSpellSync(c.featureId);
+    const sp = spellRepo.getSpellSync(c.featureId, entity.rulesetId);
     return sp && sp.level > 0;
   });
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+
+      {/* Mode Groups : the active option and its change flow. */}
+      {canResolve && onEntityUpdate && (
+        <ModeGroupPanel entity={entity} rules={rules ?? DEFAULT_RULES} onEntityUpdate={onEntityUpdate} />
+      )}
+
+      {/* Weapon Mastery (2024): the mastered weapon kinds and what their properties do. Hidden without the feature. */}
+      {canResolve && onEntityUpdate && (
+        <WeaponMasteryPanel entity={entity} onEntityUpdate={onEntityUpdate} />
+      )}
+
+      {/* Swappable choices (Fighting Style, Metamagic, Eldritch Invocations, Hunter's Prey, ...): replace one held option. */}
+      {canResolve && onEntityUpdate && (
+        <>
+          <ReplaceChoicePanel entity={entity} rules={rules ?? DEFAULT_RULES} onEntityUpdate={onEntityUpdate} />
+          <ReplaceSpellPanel entity={entity} rules={rules ?? DEFAULT_RULES} onEntityUpdate={onEntityUpdate} />
+        </>
+      )}
 
       {/* Header-level identity action — changes the whole background, not
           one feature, so it's kept visually separate from the feature-list
@@ -275,6 +299,9 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
           <Pressable style={[styles.addFeatBtn, styles.addFeatBtnHalf]} onPress={() => setAddCustomFeatureOpen(true)}>
             <Text style={styles.addFeatBtnTxt}>+ Custom Feature</Text>
           </Pressable>
+          <Pressable style={[styles.addFeatBtn, styles.addFeatBtnHalf]} onPress={() => setGrantRewardOpen(true)}>
+            <Text style={styles.addFeatBtnTxt}>+ Reward</Text>
+          </Pressable>
         </View>
       )}
 
@@ -293,16 +320,19 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
             // group (cantrip / known-spell) renders a row — the rest are
             // folded into that row's aggregated count and resolved via the
             // same modal's chaining, never shown individually.
-            if (def.kind === 'spell' && c.id !== cantripPrimaryId && c.id !== knownSpellPrimaryId) {
+            // A spell choice with its own pool rules (Magical Secrets, Blessed Warrior, Pact of the Tome, Mystic
+            // Arcanum) is never folded into the class's cantrip/spell groups: it keeps its own row.
+            const ownSpellPool = def.kind === 'spell' && !!def.spellFilter;
+            if (def.kind === 'spell' && !ownSpellPool && c.id !== cantripPrimaryId && c.id !== knownSpellPrimaryId) {
               return null;
             }
-            const isCantripGroup = def.kind === 'spell' && c.id === cantripPrimaryId;
+            const isCantripGroup = def.kind === 'spell' && !ownSpellPool && c.id === cantripPrimaryId;
             const spellGroupTotal = isCantripGroup ? cantripPendingTotal : knownSpellPendingTotal;
             // spellProgressFor is the same authoritative done/total calculation
             // app/creation/spells.tsx's "Selected X/Y" header uses — reused here
             // so the sheet and creation flow report identical entitlement math,
             // not a second display-only calculation (item 23's own rule).
-            const spellProgress = def.kind === 'spell' ? spellProgressFor(entity) : null;
+            const spellProgress = def.kind === 'spell' && !ownSpellPool ? spellProgressFor(entity) : null;
             const spellGroupProgress = isCantripGroup ? spellProgress?.cantrips : spellProgress?.spells;
             const spellGroupPrompt = def.kind === 'spell' && spellGroupProgress
               ? `Selected ${spellGroupProgress.done} / ${spellGroupProgress.total} ${isCantripGroup ? 'cantrips' : 'known spells'}.`
@@ -311,7 +341,7 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
             return (
               <View key={c.id} style={styles.pendingRow}>
                 <Text style={styles.pendingPrompt}>{spellGroupPrompt}</Text>
-                {def.kind === 'spell' ? (
+                {def.kind === 'spell' && !ownSpellPool ? (
                   <Text style={styles.pendingMeta}>
                     {(isCantripGroup ? cantripPending : knownSpellPending).length > 1
                       ? `Across levels ${(isCantripGroup ? cantripPending : knownSpellPending).map(x => x.grantedAt).join(', ')}`
@@ -339,7 +369,7 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
                     disabled={!canResolve}
                     onPress={() => setSubclassChoiceOpen(c.id)}
                   >
-                    <Text style={styles.resolveBtnTxt}>Resolve — Choose Subclass →</Text>
+                    <Text style={styles.resolveBtnTxt}>Resolve — Choose {def.subclassLabel ?? 'Subclass'} →</Text>
                   </Pressable>
                 )}
 
@@ -370,7 +400,7 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
                     onPress={() => setSpellChoiceOpen(c.id)}
                   >
                     <Text style={styles.resolveBtnTxt}>
-                      Resolve — Choose {def.id.includes('cantrip') ? 'Cantrips' : 'Spells'} →
+                      Resolve — Choose {def.spellFilter?.label ?? (def.id.includes('cantrip') ? 'Cantrips' : 'Spells')} →
                     </Text>
                   </Pressable>
                 )}
@@ -550,13 +580,13 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
           {cantrips.length > 0 && (
             <View style={styles.spellSubGroup}>
               <Text style={styles.spellSubTitle}>CANTRIPS</Text>
-              {cantrips.map(c => <SpellCardRow key={c.featureId} card={c} />)}
+              {cantrips.map(c => <SpellCardRow key={c.featureId} card={c} rulesetId={entity.rulesetId} />)}
             </View>
           )}
           {leveled.length > 0 && (
             <View style={styles.spellSubGroup}>
               <Text style={styles.spellSubTitle}>SPELLS</Text>
-              {leveled.map(c => <SpellCardRow key={c.featureId} card={c} />)}
+              {leveled.map(c => <SpellCardRow key={c.featureId} card={c} rulesetId={entity.rulesetId} />)}
             </View>
           )}
           {spellCards.length === 0 && (
@@ -715,7 +745,8 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
             // as the ASI modal's REPEATED-CHOICE-1 chaining above, scoped to
             // one group so a cantrip pick never auto-opens a known-spell pick.
             const wasCantripChoice = ch.definition.id.includes('cantrip');
-            const remainingInGroup = (wasCantripChoice ? cantripPending : knownSpellPending)
+            const wasOwnPool = !!ch.definition.spellFilter;
+            const remainingInGroup = wasOwnPool ? 0 : (wasCantripChoice ? cantripPending : knownSpellPending)
               .filter(c => c.id !== ch.id).length;
             return (
               <SpellChoicePicker
@@ -725,8 +756,8 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
                 onClose={() => setSpellChoiceOpen(null)}
                 onResolved={(updated) => {
                   onEntityUpdate(updated);
-                  const next = updated.choices.find(c =>
-                    !c.resolved && c.definition.kind === 'spell' && c.definition.id.includes('cantrip') === wasCantripChoice,
+                  const next = wasOwnPool ? undefined : updated.choices.find(c =>
+                    !c.resolved && c.definition.kind === 'spell' && !c.definition.spellFilter && c.definition.id.includes('cantrip') === wasCantripChoice,
                   );
                   setSpellChoiceOpen(next ? next.id : null);
                 }}
@@ -914,6 +945,16 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
           rules={rules ?? DEFAULT_RULES}
           onConfirm={(updated) => { onEntityUpdate?.(updated); setAddCustomFeatureOpen(false); }}
           onCancel={() => setAddCustomFeatureOpen(false)}
+        />
+      )}
+
+      {grantRewardOpen && (
+        <GrantRewardModal
+          visible
+          entity={entity}
+          rules={rules ?? DEFAULT_RULES}
+          onConfirm={(updated) => { onEntityUpdate?.(updated); setGrantRewardOpen(false); }}
+          onCancel={() => setGrantRewardOpen(false)}
         />
       )}
 

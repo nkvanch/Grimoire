@@ -3,29 +3,79 @@
 import { useState, useCallback, useEffect, memo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { Entity, ActionCard, CampaignRules, ActivationOption } from '../../engine/types';
-import { endWildShape } from '../../engine/combat';
-import { getTriggeredFeatures, isFeatureAvailable } from '../../engine/actionCards';
+import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext } from '../../engine/types';
+import { endWildShape, endAttackSequence } from '../../engine/combat';
+import { collectAllEffects } from '../../engine/pipeline';
+import { getTriggeredFeatures, isFeatureAvailable, formatCastingContextLabel, CardGenOptions, isContextLegalForCastMode, needsPreparationOverride } from '../../engine/actionCards';
 import { applyActionCardUse } from '../../engine/actionUse';
 import { useSpellPayment } from './SpellPaymentChooser';
 import { doubleDiceCount } from '../../engine/dice';
 import { useDiceLogStore } from '../../store/diceLogStore';
 import { DiceRoll } from '../../engine/types';
 import { ManualRollInput } from '../ManualRollInput';
+import { Alert } from '../../utils/alert';
+import { useHomebrewStore } from '../../store/homebrewStore';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
+/**
+ * Rules-engine blocker RE-AUDIT closure (dependency inversion, 1B/1D): the
+ * ONE place this file resolves the authoritative merged official + homebrew
+ * + active-ruleset content — the engine (actionCards.ts/actionUse.ts) never
+ * reads useHomebrewStore itself; it's computed here, in the UI layer, and
+ * passed down explicitly to every engine call that needs it. Called from
+ * both ActionCardRow (the chooser's labels) and TabActionsInner (the actual
+ * cast) — getMergedContentDB is internally memoized by its own inputs, so
+ * this is one resolution, not two merge implementations.
+ */
+export function useCardContent(entity: Entity): Pick<CardGenOptions, 'classDefs' | 'homebrewSpells' | 'races' | 'items'> {
+  const mergedContentDB = useHomebrewStore(s => s.getMergedContentDB(entity.rulesetId));
+  return { classDefs: mergedContentDB.classes, homebrewSpells: mergedContentDB.spells, races: mergedContentDB.races, items: mergedContentDB.items };
+}
+
 export { applyActionCardUse } from '../../engine/actionUse';
+
+type CardLike = Pick<ActionCard, 'featureId' | 'sourceKind' | 'sourceId'>;
+
+/**
+ * Item-identity closure (pass 3, finding G): the ONE canonical identity for
+ * an ActionCard, used for React keys AND favorite matching/storage alike —
+ * `featureId` alone collides whenever two owned instances of the same item
+ * (or an item and Additional Equipment/another grant of it) both author the
+ * same feature, since sourceKind/sourceId (see actionUse.ts's own
+ * stale-card-rejection fix) are the only things that actually distinguish
+ * them. Non-item cards (class/spell/race/synthetic) have no instance to
+ * disambiguate, so their identity stays exactly `featureId` — unchanged
+ * from every card's identity before this closure.
+ */
+export function actionCardIdentity(card: CardLike): string {
+  return card.sourceKind === 'item' && card.sourceId ? `item:${card.sourceId}:${card.featureId}` : card.featureId;
+}
+
 /**
  * True if an action card is favorited — checks Entity.favoriteActionIds
- * first (the primary mechanism, works for ANY card: feature-backed,
- * weapon-attack, spell-based, or synthetic like Unarmed Strike), falling
- * back to a legacy true Feature.favoriteTag for characters saved before
- * favoriteActionIds existed (that field only ever got set on Feature-backed
- * cards, since spell/synthetic cards had no way to be favorited before this
- * fix — see favoriteActionIds' doc comment in types.ts).
+ * first, for the card's exact modern identity (the primary mechanism,
+ * works for ANY card: feature-backed, weapon-attack, spell-based, or
+ * synthetic like Unarmed Strike). Item-identity closure (pass 3, finding
+ * G): also accepts a bare `featureId` string (used by every pre-existing
+ * caller and test that predates per-instance identity — a non-item card's
+ * identity IS its featureId, so this is lossless for them) alongside the
+ * narrow legacy-compatibility fallback below.
+ *
+ * For an ITEM card specifically, a bare `featureId` entry in
+ * favoriteActionIds (written by toggleFavoriteTag before this closure, when
+ * no instance-aware identity existed yet) is also honored — deliberately
+ * BROADER matching than the modern identity, since that old entry can't
+ * know which instance the player meant. This is intentional, documented
+ * legacy compatibility, not a second source of truth: toggleFavoriteTag
+ * below converts it away the first time ANY instance of that card is
+ * toggled, so the ambiguity never persists past one interaction.
  */
-export function isFavoriteCard(entity: Entity, featureId: string): boolean {
-  if ((entity.favoriteActionIds ?? []).includes(featureId)) return true;
+export function isFavoriteCard(entity: Entity, card: string | CardLike): boolean {
+  const featureId = typeof card === 'string' ? card : card.featureId;
+  const identity   = typeof card === 'string' ? card : actionCardIdentity(card);
+  const favorites = entity.favoriteActionIds ?? [];
+  if (favorites.includes(identity)) return true;
+  if (identity !== featureId && favorites.includes(featureId)) return true; // legacy item-card fallback
   const f = entity.features.find(x => x.id === featureId)
     ?? entity.inventory.equipped.flatMap(inst => inst.features).find(x => x.id === featureId);
   return f?.favoriteTag === true;
@@ -40,13 +90,26 @@ export function isFavoriteCard(entity: Entity, featureId: string): boolean {
  * Feature at all). Toggling off also clears a legacy Feature.favoriteTag if
  * present, so switching off a pre-migration favorite actually turns it off
  * rather than isFavoriteCard's fallback keeping it lit.
+ *
+ * Item-identity closure (pass 3, finding G): stores/removes the card's
+ * exact modern identity (see actionCardIdentity), never a bare featureId
+ * for an item card — favoriting instance A must never implicitly favorite
+ * instance B merely because they share featureId. When turning OFF an item
+ * card that's currently favorited via the legacy bare-featureId fallback
+ * (isFavoriteCard's own doc comment), this also removes that bare entry —
+ * the player just told this app "this is off," and leaving the shared
+ * legacy entry in place would keep every OTHER same-feature instance lit
+ * with no way to turn it off independently. This is the one place that
+ * ambiguous legacy state gets resolved into the modern per-instance model.
  */
-export function toggleFavoriteTag(entity: Entity, featureId: string): Entity {
+export function toggleFavoriteTag(entity: Entity, card: string | CardLike): Entity {
+  const featureId = typeof card === 'string' ? card : card.featureId;
+  const identity   = typeof card === 'string' ? card : actionCardIdentity(card);
   const current = entity.favoriteActionIds ?? [];
-  if (isFavoriteCard(entity, featureId)) {
+  if (isFavoriteCard(entity, card)) {
     return {
       ...entity,
-      favoriteActionIds: current.filter(id => id !== featureId),
+      favoriteActionIds: current.filter(id => id !== identity && id !== featureId),
       features: entity.features.map(f => f.id === featureId ? { ...f, favoriteTag: false } : f),
       inventory: {
         ...entity.inventory,
@@ -57,7 +120,19 @@ export function toggleFavoriteTag(entity: Entity, featureId: string): Entity {
       },
     };
   }
-  return { ...entity, favoriteActionIds: [...current, featureId] };
+  return { ...entity, favoriteActionIds: [...current, identity] };
+}
+
+/**
+ * Extra Attack sequence closure: a fresh, opaque correlation token for one
+ * Attack-action sequence — see AttackSequenceUse's own doc comment
+ * (types.ts) for why this never needs to be unguessable/cryptographic. It
+ * only correlates this UI's own successive calls against the engine's own
+ * authoritative entity.attackSequence record; it grants no authority by
+ * itself.
+ */
+function generateSequenceId(): string {
+  return `attack-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 const CARD_COLORS: Record<ActionCard['color'], string> = {
@@ -66,6 +141,39 @@ const CARD_COLORS: Record<ActionCard['color'], string> = {
   blue:   Colors.blue,
   purple: Colors.purple,
   gray:   Colors.textDim,
+};
+
+/**
+ * Rules-engine blocker RE-AUDIT closure (2F — activation-option context
+ * preservation): the transient UI/application state for a cast that's
+ * paused waiting on an activation-option choice. Codex found that choosing
+ * a casting source (and/or a preparation Cast Anyway decision) BEFORE the
+ * option picker opened was silently discarded — the old flow only
+ * remembered the bare `card`, so `handleChooseOption` always executed with
+ * bypassSpellPreparation/selectedSpellCastingContext both undefined,
+ * re-prompting or wrongly blocking a cast the player had already resolved.
+ * This is deliberately local component state, not persisted anywhere on
+ * the character.
+ */
+type PendingActionUse = {
+  card: ActionCard;
+  bypassSpellPreparation?: boolean;
+  selectedSpellCastingContext?: SpellCastingContext;
+  /**
+   * Rules-engine HIGH-batch closure (C7/C8): the SAME `bypassIncapacitated`
+   * flag applyActionCardUse accepts (actionUse.ts) — carried alongside the
+   * card exactly like bypassSpellPreparation above, so a "Use Anyway"
+   * decision made before an activation-option picker opens survives into
+   * handleChooseOption instead of being silently discarded (the same bug
+   * class closure 2F already fixed for bypassSpellPreparation).
+   */
+  bypassIncapacitated?: boolean;
+  /** Rules-completeness batch (ritual casting): the SAME `castMode`
+   *  decision already made before the activation-option picker opened —
+   *  carried alongside every other already-resolved decision here so it
+   *  survives into handleChooseOption, exactly like bypassSpellPreparation/
+   *  bypassIncapacitated above (same bug class those two already fixed). */
+  castMode?: 'ritual';
 };
 
 // ── Use Result Modal ──────────────────────────────────────────────────────────
@@ -90,7 +198,7 @@ export function UseModal({ card, onRoll, onClose }: UseModalProps) {
   // closes). Without this, the previous spell's result lingers: the modal shows
   // a stale number and the `!result` guard hides the fresh Roll button, so a
   // different spell appears to "reuse" the last roll instead of rolling anew.
-  const cardKey = card?.featureId ?? null;
+  const cardKey = card ? actionCardIdentity(card) : null;
   useEffect(() => {
     setResult(null);
     setCrit(false);
@@ -162,9 +270,17 @@ interface ActivationOptionModalProps {
   card:     ActionCard | null;
   onChoose: (option: ActivationOption) => void;
   onClose:  () => void;
+  /**
+   * Rules-engine HIGH-batch closure (C7): the SAME `bypassIncapacitated`
+   * decision the player already made (before this picker opened) —
+   * threaded through so an option row isn't disabled a SECOND time by the
+   * exact status restriction they already agreed to override. Never
+   * bypasses a genuinely missing resource/payment for that option.
+   */
+  bypassIncapacitated?: boolean;
 }
 
-export function ActivationOptionModal({ entity, card, onChoose, onClose }: ActivationOptionModalProps) {
+export function ActivationOptionModal({ entity, card, onChoose, onClose, bypassIncapacitated }: ActivationOptionModalProps) {
   if (!card || !card.activation.options || card.activation.options.length === 0) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -175,7 +291,7 @@ export function ActivationOptionModal({ entity, card, onChoose, onClose }: Activ
           {card.activation.options.map(opt => (
             <Pressable key={opt.id} style={styles.optionRow}
               disabled={!isFeatureAvailable({ activation: { ...card.activation, options: undefined,
-                resourceCost: opt.resourceCost ?? card.resourceCost } }, entity).available}
+                resourceCost: opt.resourceCost ?? card.resourceCost } }, entity, bypassIncapacitated).available}
               onPress={() => onChoose(opt)}>
               <Text style={styles.optionLabel}>{opt.label}</Text>
               {opt.description && <Text style={styles.optionDesc}>{opt.description}</Text>}
@@ -194,14 +310,196 @@ export function ActivationOptionModal({ entity, card, onChoose, onClose }: Activ
 
 interface CardRowProps {
   card:    ActionCard;
-  onUse:   (card: ActionCard) => void;
+  /** Rules-engine blocker RE-AUDIT closure (1C) — needed to resolve the
+   *  merged/ruleset-aware class list for the "Cast as..." chooser's labels
+   *  (formatCastingContextLabel). */
+  entity:  Entity;
+  /**
+   * Rules-engine blocker closure (1F — Quick Override on all normal cast
+   * surfaces): the second param is the SAME `bypassSpellPreparation` flag
+   * applyActionCardUse already accepts (actionUse.ts). The third param
+   * (closure 1B/1D) is the EXACT SpellCastingContext the player is casting
+   * through — passed straight to applyActionCardUse's own matching param.
+   * The fourth param (HIGH batch, C4) is the SAME `bypassIncapacitated`
+   * flag applyActionCardUse also accepts — "Use Anyway" for a card blocked
+   * ONLY by 0HP/Unconscious. All optional so every existing non-spell
+   * caller (a plain feature card's [Use]) is unaffected.
+   */
+  onUse:   (card: ActionCard, bypassSpellPreparation?: boolean, selectedSpellCastingContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => void;
   /** Omit to hide the star entirely (not offered everywhere a card might render). */
   isFavorite?:       boolean;
   onToggleFavorite?: (card: ActionCard) => void;
 }
 
-export function ActionCardRow({ card, onUse, isFavorite, onToggleFavorite }: CardRowProps) {
+/**
+ * Rules-engine blocker closure (1F): Codex found an unprepared spell's card
+ * on the Actions tab and on Favorites showed a hard-disabled "N/A" with no
+ * Quick Override — table-first "Cast Anyway" (see TabSpells.tsx's own
+ * identical prompt) only existed on the Spells tab. ActionCardRow is the
+ * ONE component both of those surfaces already render through (TabActions'
+ * own Section, and TabCharacter.tsx's Favorites section) — fixing it here
+ * once covers every normal cast surface without a second/third
+ * implementation, per the task's own "create/reuse one shared action-use
+ * attempt path" requirement.
+ *
+ * `card.preparationOverridable` (see its own doc comment, types.ts) is true
+ * ONLY when preparation is the entire reason a card is blocked — the button
+ * stays enabled and labeled "Use" in that case (never "N/A"), and tapping
+ * it prompts Cancel/Cast Anyway instead of calling onUse directly. Any
+ * OTHER unavailability (no slot, action economy spent, ...) is unaffected:
+ * still a hard-disabled "N/A", exactly as before.
+ *
+ * Rules-engine blocker RE-AUDIT closure (1C) — when the card carries 2+
+ * MECHANICALLY DISTINCT casting sources (card.spellCastingContexts), tapping
+ * Use shows a "Cast as..." chooser instead of silently picking one; a
+ * deliberately-selected prep-blocked source still offers its own Cast
+ * Anyway. Single-source spells (the overwhelming majority) and every
+ * non-spell card skip this entirely.
+ *
+ * Rules-engine HIGH-batch closure (C): `card.incapacitatedOverridable` (see
+ * its own doc comment, types.ts) is true ONLY when 0HP/Unconscious is the
+ * entire remaining reason a card is blocked — same "stays enabled, prompts
+ * Cancel/Use Anyway instead of a hard N/A" pattern as preparationOverridable
+ * above, and the two compose independently (C7): a spell blocked by BOTH
+ * preparation and status resolves the preparation decision first (via
+ * castViaContext/the existing prompt below), then finalizeUse checks status
+ * on top before actually calling onUse — so either, both, or neither
+ * override can apply to one cast without one masking the other.
+ */
+export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorite }: CardRowProps) {
   const borderColor = CARD_COLORS[card.color];
+  const blockedOnlyByPreparation = card.preparationOverridable === true;
+  const blockedByIncapacitation = card.incapacitatedOverridable === true;
+  const overridable = blockedOnlyByPreparation || blockedByIncapacitation;
+  // Rules-completeness batch (ritual casting): a ritual-eligible spell is
+  // never hard-disabled by a missing spell slot alone — ritual mode spends
+  // none — so the row stays tappable and lets handlePress below offer the
+  // ritual path even when card.available is false purely for that reason.
+  // Execution (applyActionCardUse) revalidates ritual eligibility fresh
+  // regardless, so this is a display-only relaxation, never a legality one.
+  const genuinelyUnavailable = !card.available && !overridable && !card.ritualEligible;
+  const cardContent = useCardContent(entity);
+
+  // Rules-engine HIGH-batch closure (C4): the LAST step before actually
+  // calling onUse — after any preparation decision is already resolved,
+  // checks whether status (0HP/Unconscious) still needs its own one-off
+  // "Use Anyway" on top. card.unavailableReason already carries the exact
+  // "At 0 HP"/"Unconscious" text (see generateSpellCard/generateActionCard),
+  // so the prompt always reflects the entity's real current state.
+  //
+  // `castMode` (rules-completeness batch — ritual casting) rides alongside
+  // every other already-resolved decision (context, preparation override,
+  // incapacitation override) all the way to onUse, exactly like
+  // bypassSpellPreparation/context do — never a separate, parallel cast path.
+  function finalizeUse(bypassSpellPreparation: boolean, context?: SpellCastingContext, castMode?: 'ritual') {
+    if (blockedByIncapacitation) {
+      Alert.alert(
+        `${card.name}: ${card.unavailableReason ?? 'Incapacitated'}`,
+        'Use it anyway as a one-off table ruling? This does not change HP, conditions, or death-save state.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Use Anyway', onPress: () => onUse(card, bypassSpellPreparation, context, true, castMode) },
+        ],
+      );
+      return;
+    }
+    onUse(card, bypassSpellPreparation, context, undefined, castMode);
+  }
+
+  // Rules-completeness batch (ritual casting), one-issue closure: checks the
+  // SELECTED context against the ACTUAL cast mode (isContextLegalForCastMode
+  // — `ritualLegal` for a ritual attempt, `legal` for a normal one), never a
+  // bare `context.legal` unconditionally — that was exactly the bug this
+  // closure fixes (a legal Wizard-spellbook ritual was still prompting Cast
+  // Anyway because the check never looked at castMode at all).
+  // needsPreparationOverride further distinguishes "genuinely blocked by
+  // preparation on a source that can cast this way at all" (offer the
+  // override) from "this source has no ritual-casting capability
+  // whatsoever" (silently decline — Cast Anyway can't fix that, and
+  // applyActionCardUse refuses it unconditionally regardless).
+  function castViaContext(context: SpellCastingContext, castMode?: 'ritual') {
+    if (needsPreparationOverride(context, castMode)) {
+      Alert.alert(
+        `${card.name} is not prepared.`,
+        'Cast it anyway as a one-off? This does not add it to your prepared list.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cast Anyway', onPress: () => finalizeUse(true, context, castMode) },
+        ],
+      );
+      return;
+    }
+    if (!isContextLegalForCastMode(context, castMode)) return; // ritual-incapable source — nothing to override, decline silently
+    finalizeUse(false, context, castMode);
+  }
+
+  // Every decision that used to start directly at handlePress — context
+  // choice, preparation override — now runs identically for BOTH a normal
+  // cast and a ritual cast, just carrying `castMode` through unchanged.
+  // Ritual does NOT bypass preparation on its own (see castMode's own doc
+  // comment, actionUse.ts) — an unprepared ritual-eligible spell still
+  // prompts the SAME Cast Anyway here, exactly like a normal cast — UNLESS
+  // the SELECTED context's own `ritualLegal` says otherwise (a Wizard
+  // ritual straight from the spellbook), checked live below rather than
+  // via the static, generation-time, normal-legality-only
+  // `blockedOnlyByPreparation` flag — the exact mismatch this closure fixes.
+  function proceed(castMode?: 'ritual') {
+    if (card.spellCastingContexts && card.spellCastingContexts.length > 1) {
+      const classDefs = cardContent.classDefs;
+      Alert.alert(
+        `Cast ${card.name} as...`,
+        undefined,
+        [
+          ...card.spellCastingContexts.map(ctx => ({
+            text: formatCastingContextLabel(entity, ctx, classDefs),
+            onPress: () => castViaContext(ctx, castMode),
+          })),
+          { text: 'Cancel', style: 'cancel' as const },
+        ],
+      );
+      return;
+    }
+    const context = card.spellCastingContext;
+    if (context) {
+      castViaContext(context, castMode);
+      return;
+    }
+    // No SpellCastingContext at all — a non-spell feature card, for which
+    // `preparationOverridable`/ritual casting were never a concept in the
+    // first place (see generateActionCard vs generateSpellCard). Unchanged.
+    if (blockedOnlyByPreparation) {
+      Alert.alert(
+        `${card.name} is not prepared.`,
+        'Cast it anyway as a one-off? This does not add it to your prepared list.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Cast Anyway', onPress: () => finalizeUse(true, undefined, castMode) },
+        ],
+      );
+      return;
+    }
+    finalizeUse(false, undefined, castMode);
+  }
+
+  // Rules-completeness batch (ritual casting), A3: an explicit peer choice
+  // — never a silent default to either mode — offered only when the spell
+  // is actually ritual-capable through some source the character has.
+  function handlePress() {
+    if (card.ritualEligible) {
+      Alert.alert(
+        `Cast ${card.name} as...`,
+        undefined,
+        [
+          { text: 'Cast Normally', onPress: () => proceed(undefined) },
+          { text: 'Cast as Ritual (no slot, +10 min)', onPress: () => proceed('ritual') },
+          { text: 'Cancel', style: 'cancel' as const },
+        ],
+      );
+      return;
+    }
+    proceed(undefined);
+  }
+
   return (
     <View style={[styles.card, { borderLeftColor: borderColor }]}>
       {onToggleFavorite && (
@@ -223,12 +521,12 @@ export function ActionCardRow({ card, onUse, isFavorite, onToggleFavorite }: Car
         )}
       </View>
       <Pressable
-        style={[styles.useBtn, !card.available && styles.useBtnDisabled]}
-        disabled={!card.available}
-        onPress={() => onUse(card)}
+        style={[styles.useBtn, genuinelyUnavailable && styles.useBtnDisabled]}
+        disabled={genuinelyUnavailable}
+        onPress={handlePress}
       >
-        <Text style={[styles.useBtnTxt, !card.available && styles.useBtnTxtDisabled]}>
-          {card.available ? 'Use' : 'N/A'}
+        <Text style={[styles.useBtnTxt, genuinelyUnavailable && styles.useBtnTxtDisabled]}>
+          {card.available || overridable || card.ritualEligible ? 'Use' : 'N/A'}
         </Text>
       </Pressable>
     </View>
@@ -237,9 +535,10 @@ export function ActionCardRow({ card, onUse, isFavorite, onToggleFavorite }: Car
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, cards, onUse, favoriteIds, onToggleFavorite }: {
-  title: string; cards: ActionCard[]; onUse: (c: ActionCard) => void;
-  favoriteIds?: Set<string>; onToggleFavorite?: (c: ActionCard) => void;
+function Section({ title, cards, entity, onUse, onToggleFavorite }: {
+  title: string; cards: ActionCard[]; entity: Entity;
+  onUse: (c: ActionCard, bypassSpellPreparation?: boolean, selectedSpellCastingContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => void;
+  onToggleFavorite?: (c: ActionCard) => void;
 }) {
   if (cards.length === 0) return null;
   return (
@@ -247,10 +546,11 @@ function Section({ title, cards, onUse, favoriteIds, onToggleFavorite }: {
       <Text style={styles.sectionTitle}>{title}</Text>
       {cards.map(c => (
         <ActionCardRow
-          key={c.featureId}
+          key={actionCardIdentity(c)}
           card={c}
+          entity={entity}
           onUse={onUse}
-          isFavorite={favoriteIds?.has(c.featureId)}
+          isFavorite={isFavoriteCard(entity, c)}
           onToggleFavorite={onToggleFavorite}
         />
       ))}
@@ -276,8 +576,22 @@ const UNIVERSAL_ACTIONS: { name: string; blurb: string }[] = [
   { name: 'Use an Object', blurb: 'Interact with a second object or feature of the environment this turn, beyond the one free interaction you already get.' },
 ];
 
-function UniversalActionsSection() {
+/** Universal actions a feature/condition forbids: an effect on target `disable_action:<name>`
+ *  (e.g. `disable_action:dash` from the Braced condition) with operation 'set' and a truthy value. */
+function disabledUniversalActions(entity: Entity): Set<string> {
+  const out = new Set<string>();
+  for (const ae of collectAllEffects(entity)) {
+    const e = ae.effect;
+    if (e.operation === 'set' && e.value && e.target.startsWith('disable_action:')) {
+      out.add(e.target.slice('disable_action:'.length).toLowerCase());
+    }
+  }
+  return out;
+}
+
+function UniversalActionsSection({ entity }: { entity: Entity }) {
   const [open, setOpen] = useState(false);
+  const disabled = disabledUniversalActions(entity);
   return (
     <View style={styles.section}>
       <Pressable style={styles.universalHeader} onPress={() => setOpen(o => !o)}>
@@ -286,8 +600,10 @@ function UniversalActionsSection() {
       </Pressable>
       {open && UNIVERSAL_ACTIONS.map(a => (
         <View key={a.name} style={styles.universalRow}>
-          <Text style={styles.universalName}>{a.name}</Text>
-          <Text style={styles.universalBlurb}>{a.blurb}</Text>
+          <Text style={[styles.universalName, disabled.has(a.name.toLowerCase()) && { textDecorationLine: 'line-through', opacity: 0.6 }]}>{a.name}</Text>
+          <Text style={styles.universalBlurb}>
+            {disabled.has(a.name.toLowerCase()) ? "Unavailable right now — an active condition or feature forbids it." : a.blurb}
+          </Text>
         </View>
       ))}
     </View>
@@ -337,10 +653,26 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
   const [activeCard, setActiveCard] = useState<ActionCard | null>(null);
   // A-57: set instead of activeCard when a card declares activation.options
   // — the picker must resolve BEFORE spending, since handleUse below
-  // otherwise spends immediately on tap.
-  const [pendingOptionCard, setPendingOptionCard] = useState<ActionCard | null>(null);
+  // otherwise spends immediately on tap. Rules-engine blocker RE-AUDIT
+  // closure 2F: carries the bypass/context decision ALONGSIDE the card, not
+  // just the card alone — see PendingActionUse's own doc comment.
+  const [pendingUse, setPendingUse] = useState<PendingActionUse | null>(null);
+  // Extra Attack sequence closure: which attack of the CURRENT Attack action
+  // sequence comes next, plus the opaque `sequenceId` token correlating every
+  // call in this sequence — transient UI-only state, never persisted (the
+  // character only ever records entity.attackSequence, the ENGINE's own
+  // authoritative, transient record — see AttackSequenceState's doc comment,
+  // types.ts). `attackNumber`/`totalAttacks` here are for DISPLAY only (which
+  // Alert prompt to show next); they are never trusted by the engine — every
+  // call still passes `{ sequenceId }` and the engine re-derives the real
+  // count from entity.attackSequence itself (Part N: UI may display sequence
+  // state, but engine/application validation enforces it independently).
+  // Null whenever no sequence is in progress (the overwhelmingly common case
+  // for a character without Extra Attack).
+  const [attackSequence, setAttackSequence] = useState<{ sequenceId: string; totalAttacks: number; attackNumber: number } | null>(null);
 
   const { requestPayment, paymentChooser } = useSpellPayment(entity);
+  const cardContent = useCardContent(entity);
   const all        = (entity.actionCards ?? []).filter(c => c.tabs.includes('actions'));
   const actions      = all.filter(c => c.activation.actionType === 'action');
   const bonusActions = all.filter(c => c.activation.actionType === 'bonus_action');
@@ -349,13 +681,146 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
   // attack) rather than costing its own action/bonus action/reaction.
   const freeActions  = all.filter(c => c.activation.actionType === 'free');
 
-  const handleUse = useCallback((card: ActionCard) => {
+  // Extra Attack / action-structure batch, Part C: the Attack action's own
+  // attack opportunities are exactly the cards flagged isWeaponAttack (see
+  // that field's own doc comment, types.ts) — never every 'action'-type
+  // card (that would wrongly include e.g. Second Wind). Shown as a
+  // dedicated "Attack (N attacks)" entry ONLY when the character actually
+  // has more than the base 1 (attackActionAttacks — see DerivedStats' own
+  // doc comment) AND owns at least one such attack right now; a character
+  // without Extra Attack never sees this at all, and their individual
+  // weapon-attack cards below are completely unaffected.
+  const eligibleAttacks = actions.filter(c => c.isWeaponAttack);
+  const attackActionCount = entity.derived.attackActionAttacks ?? 1;
+  const showAttackAction = attackActionCount > 1 && eligibleAttacks.length > 0;
+  const canStartAttackAction = eligibleAttacks.some(c => c.available || c.incapacitatedOverridable);
+
+  // Part C5/C9: one Alert-style chooser per attack, mirroring this file's
+  // existing "Cast as..." context-chooser convention exactly — no target
+  // binding (this app never models targets on any card, so C9's "each
+  // attack may pick its own target" is already true by construction: the
+  // player just says who out loud at the table), no forced same-weapon
+  // (C4: recomputed fresh every call, so attack 2 can pick a different
+  // card than attack 1), and no auto-roll (C5: picking a card here only
+  // resolves payment/economy — the roll/manual-entry UseModal below still
+  // requires its own explicit tap, exactly like a standalone attack).
+  //
+  // Extra Attack sequence closure, Part O: "Done"/"Cancel" both call
+  // closeSequence() — a no-op via endAttackSequence when nothing has
+  // succeeded yet (Cancel before attack 1: entity.attackSequence was never
+  // set), and an explicit close of the authoritative engine-side record
+  // otherwise (Done after 1+ successful attacks) so a stale sequenceId can
+  // never be resumed later in the same turn.
+  function openAttackChooser(attackNumber: number, totalAttacks: number, sequenceId: string) {
+    const eligible = actions.filter(c => c.isWeaponAttack);
+    if (eligible.length === 0) { closeSequence(); return; }
+    Alert.alert(
+      `Attack ${attackNumber} of ${totalAttacks}`,
+      undefined,
+      [
+        ...eligible.map(card => ({
+          text: card.name,
+          onPress: () => handleAttackChoice(card, attackNumber, totalAttacks, sequenceId),
+        })),
+        { text: attackNumber > 1 ? 'Done' : 'Cancel', style: 'cancel' as const, onPress: () => closeSequence() },
+      ],
+    );
+  }
+
+  function closeSequence() {
+    setAttackSequence(null);
+    if (!onEntityUpdate) return;
+    const closed = endAttackSequence(entity);
+    // endAttackSequence is a no-op (returns the same reference) when there
+    // was nothing to close — e.g. Cancel before any attack succeeded — so
+    // this never pushes a spurious no-op update, matching every other
+    // caller's `if (updated === entity) return;` convention in this file.
+    if (closed !== entity) onEntityUpdate(closed);
+  }
+
+  // Part C7/H: calls applyActionCardUse DIRECTLY (weapon attacks never
+  // carry a spell-slot resourceCost, so useSpellPayment's chooser would
+  // just call its commit callback immediately anyway) with the SAME
+  // `sequenceId` token on every call of this sequence — the engine (not
+  // this attackNumber param, which is display-only) decides whether this is
+  // the paying lead attack or a bypass-eligible chained one, by matching the
+  // token against entity.attackSequence (see applyActionCardUse's own doc
+  // comment for the full authority model). Preserves Use Anyway (K13) for a
+  // lead attack blocked only by incapacitation, and preserves item-instance
+  // stale-attack rejection (H2/K14) via the exact same revalidation
+  // applyActionCardUse already does for every card.
+  function handleAttackChoice(card: ActionCard, attackNumber: number, totalAttacks: number, sequenceId: string, bypassIncapacitated?: boolean) {
+    if (!onEntityUpdate || !rules) return;
+    const updated = applyActionCardUse(entity, card, rules, undefined, undefined, undefined, undefined, cardContent, bypassIncapacitated, undefined, { sequenceId });
+    if (updated === entity) {
+      if (!bypassIncapacitated && card.incapacitatedOverridable) {
+        Alert.alert(
+          `${card.name}: ${card.unavailableReason ?? 'Incapacitated'}`,
+          'Use it anyway as a one-off table ruling? This does not change HP, conditions, or death-save state.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Use Anyway', onPress: () => handleAttackChoice(card, attackNumber, totalAttacks, sequenceId, true) },
+          ],
+        );
+        return;
+      }
+      // Stale/removed weapon (H2), an exhausted/rejected sequence, or some
+      // other now-illegal attack — never retargets a different same-
+      // definition instance; the player picks again or ends the sequence.
+      // The already-spent Action (if this isn't the lead attack) is
+      // unaffected either way, and the count never advanced (Part J).
+      Alert.alert(`Can't use ${card.name}`, card.unavailableReason ?? 'That attack is no longer available.', [
+        { text: 'Try Again', onPress: () => openAttackChooser(attackNumber, totalAttacks, sequenceId) },
+        { text: 'End Attack Action', style: 'cancel', onPress: () => closeSequence() },
+      ]);
+      return;
+    }
+    onEntityUpdate(updated);
+    setActiveCard(card); // same roll/manual-entry UseModal every standalone attack already uses
+    // Part C6/C7/E: the NEXT prompt is driven by the engine's OWN post-use
+    // record (updated.attackSequence), never a locally-incremented counter —
+    // null means the engine itself closed the sequence (exhausted after this
+    // attack), so the chooser simply doesn't reopen. This is what makes
+    // "cancel before the first attack" spend nothing (this function is never
+    // called at all) and "stop after attack 1 of 2" leave the Action spent
+    // with the second opportunity discarded — never a second Action, never
+    // forced completion.
+    const active = updated.attackSequence;
+    setAttackSequence(active ? { sequenceId, totalAttacks: active.maxAttacks, attackNumber: active.usedAttacks + 1 } : null);
+  }
+
+  // Part H: the roll/manual-entry modal closing is what advances to the
+  // NEXT attack chooser (if any remain) — so the player sees their damage
+  // result before being asked to pick the next attack, and a sequence with
+  // no attacks left to make (or that was ended early via "Done"/"End
+  // Attack Action") never reopens anything.
+  function handleCloseUseModal() {
+    setActiveCard(null);
+    if (attackSequence) openAttackChooser(attackSequence.attackNumber, attackSequence.totalAttacks, attackSequence.sequenceId);
+  }
+
+  const handleUse = useCallback((card: ActionCard, bypassSpellPreparation?: boolean, selectedSpellCastingContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => {
     if (card.activation.options && card.activation.options.length > 0) {
-      setPendingOptionCard(card);
+      // Rules-engine blocker RE-AUDIT closure 2F (extended, HIGH batch C7/C8):
+      // preserve whatever source/Cast-Anyway/Use-Anyway decision
+      // ActionCardRow already made (bypassSpellPreparation/
+      // selectedSpellCastingContext/bypassIncapacitated/castMode), not just
+      // the bare card — handleChooseOption below reads these back out once
+      // the option is picked.
+      setPendingUse({ card, bypassSpellPreparation, selectedSpellCastingContext, bypassIncapacitated, castMode });
       return;
     }
     if (!onEntityUpdate || !rules) {
       // No update handler — just show the roll modal.
+      setActiveCard(card);
+      return;
+    }
+    // Rules-completeness batch (ritual casting), A4: never request a slot
+    // payment for a ritual cast — the chooser modal simply never opens.
+    if (castMode === 'ritual') {
+      const updated = applyActionCardUse(entity, card, rules, undefined, undefined, bypassSpellPreparation, selectedSpellCastingContext, cardContent, bypassIncapacitated, castMode);
+      if (updated === entity) return;
+      onEntityUpdate(updated);
       setActiveCard(card);
       return;
     }
@@ -366,35 +831,36 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
     // half to run, which previously never fired because this whole call
     // was gated on resourceCost being truthy.
     requestPayment(card, undefined, payment => {
-      const updated = applyActionCardUse(entity, card, rules, undefined, payment);
+      const updated = applyActionCardUse(entity, card, rules, undefined, payment, bypassSpellPreparation, selectedSpellCastingContext, cardContent, bypassIncapacitated);
       if (updated === entity) return;
       onEntityUpdate(updated);
       setActiveCard(card);
     });
-  }, [entity, rules, onEntityUpdate, requestPayment]);
+  }, [entity, rules, onEntityUpdate, requestPayment, cardContent]);
 
   const handleChooseOption = useCallback((option: ActivationOption) => {
-    const card = pendingOptionCard;
-    setPendingOptionCard(null);
-    if (!card) return;
+    const pending = pendingUse;
+    setPendingUse(null);
+    if (!pending) return;
+    const { card, bypassSpellPreparation, selectedSpellCastingContext, bypassIncapacitated, castMode } = pending;
+    if (!onEntityUpdate || !rules) return;
+    if (castMode === 'ritual') {
+      const updated = applyActionCardUse(entity, card, rules, option, undefined, bypassSpellPreparation, selectedSpellCastingContext, cardContent, bypassIncapacitated, castMode);
+      if (updated === entity) return;
+      onEntityUpdate(updated);
+      setActiveCard(card);
+      return;
+    }
     requestPayment(card, option, payment => {
-      if (!onEntityUpdate || !rules) return;
-      const updated = applyActionCardUse(entity, card, rules, option, payment);
+      const updated = applyActionCardUse(entity, card, rules, option, payment, bypassSpellPreparation, selectedSpellCastingContext, cardContent, bypassIncapacitated);
       if (updated === entity) return;
       onEntityUpdate(updated);
       setActiveCard(card);
     });
-  }, [entity, rules, onEntityUpdate, pendingOptionCard, requestPayment]);
+  }, [entity, rules, onEntityUpdate, pendingUse, requestPayment, cardContent]);
 
-  const favoriteIds = new Set([
-    ...(entity.favoriteActionIds ?? []),
-    // Legacy fallback for characters saved before favoriteActionIds existed
-    // — see isFavoriteCard's doc comment.
-    ...entity.features.filter(f => f.favoriteTag).map(f => f.id),
-    ...entity.inventory.equipped.flatMap(inst => inst.features).filter(f => f.favoriteTag).map(f => f.id),
-  ]);
   const handleToggleFavorite = useCallback((card: ActionCard) => {
-    if (onEntityUpdate) onEntityUpdate(toggleFavoriteTag(entity, card.featureId));
+    if (onEntityUpdate) onEntityUpdate(toggleFavoriteTag(entity, card));
   }, [entity, onEntityUpdate]);
 
   function rollForCard(crit: boolean): DiceRoll | null {
@@ -453,24 +919,37 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
           <Text style={styles.emptySubTxt}>Level up or learn spells to unlock abilities.</Text>
         </View>
       )}
-      <Section title="ACTIONS"       cards={actions}      onUse={handleUse} favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <Section title="BONUS ACTIONS" cards={bonusActions} onUse={handleUse} favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <Section title="REACTIONS"     cards={reactions}    onUse={handleUse} favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <Section title="FREE (WITH ANOTHER ACTION)" cards={freeActions} onUse={handleUse} favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <UniversalActionsSection />
+      {/* Extra Attack / action-structure batch, Part I: kept minimal — one
+          entry, only when it's actually meaningful, no combat planner. */}
+      {showAttackAction && (
+        <Pressable
+          style={[styles.attackActionBtn, !canStartAttackAction && styles.attackActionBtnDisabled]}
+          disabled={!canStartAttackAction}
+          onPress={() => openAttackChooser(1, attackActionCount, generateSequenceId())}
+        >
+          <Text style={styles.attackActionBtnTxt}>⚔️ Attack</Text>
+          <Text style={styles.attackActionBtnSub}>{attackActionCount} attacks</Text>
+        </Pressable>
+      )}
+      <Section title="ACTIONS"       cards={actions}      entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
+      <Section title="BONUS ACTIONS" cards={bonusActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
+      <Section title="REACTIONS"     cards={reactions}    entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
+      <Section title="FREE (WITH ANOTHER ACTION)" cards={freeActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
+      <UniversalActionsSection entity={entity} />
       <TriggeredFeaturesSection entity={entity} />
 
       {paymentChooser}
       <UseModal
         card={activeCard}
         onRoll={rollForCard}
-        onClose={() => setActiveCard(null)}
+        onClose={handleCloseUseModal}
       />
       <ActivationOptionModal
         entity={entity}
-        card={pendingOptionCard}
+        card={pendingUse?.card ?? null}
         onChoose={handleChooseOption}
-        onClose={() => setPendingOptionCard(null)}
+        onClose={() => setPendingUse(null)}
+        bypassIncapacitated={pendingUse?.bypassIncapacitated}
       />
     </ScrollView>
   );
@@ -528,6 +1007,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm, paddingVertical: 6,
   },
   endTurnBtnTxt: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+
+  attackActionBtn: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    backgroundColor: Colors.red, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+  },
+  attackActionBtnDisabled: { opacity: 0.4 },
+  attackActionBtnTxt: { color: Colors.white, fontSize: FontSize.md, fontWeight: FontWeight.bold },
+  attackActionBtnSub: { color: Colors.white, fontSize: FontSize.sm },
 
   wildShapeBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,

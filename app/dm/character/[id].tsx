@@ -2,7 +2,8 @@
 // DM read-only character view with override controls on every stat.
 // Mirrors the 6-tab sheet but the DM can't edit notes/inventory directly —
 // instead they use the DM override system on every tappable stat.
-import { useState, useCallback } from 'react';
+import { identityLabelsFor } from '../../../src/store/identityLabelsFor';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCharacterStore } from '../../../src/store/characterStore';
@@ -10,7 +11,8 @@ import { useCampaignStore }  from '../../../src/store/campaignStore';
 import { useSessionStore }   from '../../../src/store/sessionStore';
 import { useHomebrewStore }  from '../../../src/store/homebrewStore';
 import { recomputeDerived }  from '../../../src/engine/pipeline';
-import { applyDamage, applyHealing, applyWildShapeDamage, playerEndTurn } from '../../../src/engine/combat';
+import { applyHealing, playerEndTurn, endConcentration } from '../../../src/engine/combat';
+import { dmDamageMutation } from '../../../src/engine/dmCharacterDamage';
 import { applyCondition, removeCondition } from '../../../src/engine/conditions';
 import { dmFullStatVisibility } from '../../../src/engine/houseRules';
 import { commitSpellPayment, restoreSpellSlot, SlotTier } from '../../../src/engine/spellPayment';
@@ -58,10 +60,21 @@ export default function DmCharacterView() {
   // resources/slots/overrides) landed under "Other" in the timeline
   // filter regardless of its real type, unlike the player's own mutate()
   // in app/sheet/[id].tsx, which always tags one.
+  // Rules-engine blocker RE-AUDIT closure (1D/1E/1F): same explicit merged
+  // content snapshot app/sheet/[id].tsx's own mutate() resolves for player
+  // mutations — resolved once here for every DM-initiated mutation of this
+  // view (damage/heal/conditions/resources/slots/end turn) so a homebrew
+  // character never silently falls back to official-only content.
+  const cardContent = useMemo(() => {
+    if (!entity) return {};
+    const db = getMergedContentDB(entity.rulesetId);
+    return { classDefs: db.classes, homebrewSpells: db.spells, races: db.races, items: db.items };
+  }, [entity?.rulesetId, getMergedContentDB]);
+
   const mutate = useCallback((updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory) => {
     if (!id) return;
-    updateCharacter(id, e => recomputeDerived(updater(e), rules), label, category);
-  }, [id, updateCharacter, rules]);
+    updateCharacter(id, e => recomputeDerived(updater(e), rules, cardContent), label, category);
+  }, [id, updateCharacter, rules, cardContent]);
   // Closure item 16: same 'End Turn'/'combat' label/category the player's
   // own app/sheet/[id].tsx uses for its identical handleEndTurn — the DM
   // view renders the SAME TabCharacter/TabActions components, so pressing
@@ -91,7 +104,7 @@ export default function DmCharacterView() {
         <View style={styles.headerInfo}>
           <Text style={styles.charName}>{entity.identity.name || 'Unnamed'}</Text>
           <Text style={styles.charSub}>
-            👑 DM View · Lv {entity.identity.level} {entity.identity.classId}
+            👑 DM View · Lv {entity.identity.level} {identityLabelsFor(entity).class || entity.identity.classId}
           </Text>
         </View>
         <View style={styles.hpPill}>
@@ -129,9 +142,8 @@ export default function DmCharacterView() {
             // While Wild Shaped, damage/heal must hit the BEAST's hp pool, not
             // the player's real HP underneath — same rule app/sheet/[id].tsx's
             // own handleDamage/handleHeal already apply for player-side controls.
-            onDamage={(amt, dt) => mutate(e => e.wildShapeState?.active
-              ? applyWildShapeDamage(e, amt, rules)
-              : applyDamage(e, amt, rules, dt), `Took ${amt}${dt ? ` ${dt}` : ''} damage`, 'combat')}
+            onDamage={(amt, dt, isNonmagicalAttack) => mutate(e => dmDamageMutation(e, rules, amt, dt, isNonmagicalAttack),
+              `Took ${amt}${dt ? ` ${dt}` : ''} damage`, 'combat')}
             onHeal={amt => mutate(e => e.wildShapeState?.active ? e : applyHealing(e, amt, rules), `Healed ${amt}`, 'combat')}
             onAddCondition={(cId, duration) => {
               // Merged (not official-only CONDITIONS_BY_ID) so a homebrew
@@ -141,10 +153,10 @@ export default function DmCharacterView() {
               // collects one (Permanent/Until Rest/N Rounds), but it was
               // silently dropped here since this callback only declared
               // one parameter.
-              const cond = getMergedContentDB().conditions.find(c => c.id === cId);
+              const cond = getMergedContentDB(entity.rulesetId).conditions.find(c => c.id === cId);
               mutate(e => applyCondition(e, cId, 'dm', rules, cond?.features, duration), `DM: Added condition: ${cond?.name ?? cId}`, 'combat');
             }}
-            onRemoveCondition={cId => mutate(e => removeCondition(e, cId, rules), `DM: Removed condition: ${getMergedContentDB().conditions.find(c => c.id === cId)?.name ?? cId}`, 'combat')}
+            onRemoveCondition={cId => mutate(e => removeCondition(e, cId, rules), `DM: Removed condition: ${getMergedContentDB(entity.rulesetId).conditions.find(c => c.id === cId)?.name ?? cId}`, 'combat')}
             onResourceChange={(rId, delta) => mutate(e => ({
               ...e,
               resources: {
@@ -163,6 +175,7 @@ export default function DmCharacterView() {
               const slots = restoreSpellSlot(e.spellcasting, { kind, tier: tier as SlotTier });
               return slots === e.spellcasting ? e : { ...e, spellcasting: slots };
             }, `DM: Restored level ${tier} spell slot`, 'spells')}
+            onEndConcentration={name => mutate(e => endConcentration(e, rules), `DM: Ended concentration on ${name}`, 'spells')}
             onEntityUpdate={updated => mutate(() => updated, 'DM: Character tab edit', 'other')}
             onEndTurn={handleEndTurn}
           />

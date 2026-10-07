@@ -28,11 +28,11 @@ export const CONTENT_TYPE_PLURALS: Record<ContentCacheType, [string, string]> = 
   race: ['race', 'races'], subrace: ['subrace', 'subraces'], class: ['class', 'classes'],
   subclass: ['subclass', 'subclasses'], spell: ['spell', 'spells'], background: ['background', 'backgrounds'],
   feature: ['feature', 'features'], item: ['item', 'items'], feat: ['feat', 'feats'],
-  monster: ['monster', 'monsters'], condition: ['condition', 'conditions'],
+  monster: ['monster', 'monsters'], condition: ['condition', 'conditions'], spellList: ['spell list', 'spell lists'],
 };
 
 export const CONTENT_TYPE_ORDER: ContentCacheType[] = [
-  'race', 'subrace', 'class', 'subclass', 'background', 'feat', 'spell', 'item', 'feature', 'monster', 'condition',
+  'race', 'subrace', 'class', 'subclass', 'background', 'feat', 'spell', 'spellList', 'item', 'feature', 'monster', 'condition',
 ];
 
 export type CompositionPart = { type: ContentCacheType; count: number };
@@ -103,9 +103,16 @@ export type PackDetail = {
   missingCount: number;
 };
 
+/** How to recognize a dependency that is bundled official content (a subclass's parent Bard, say) rather than homebrew. */
+export type OfficialContentResolver = {
+  isOfficial: (ref: DependencyRef) => boolean;
+  nameOf?: (ref: DependencyRef) => string | undefined;
+};
+
 export function buildPackDetail(
   pack: InstalledPack,
   lookup: (ref: DependencyRef) => HomebrewContent | undefined,
+  official?: OfficialContentResolver,
 ): PackDetail {
   const rulesetSet = new Set<string>();
   const ownedKeys = new Set(pack.itemRefs.map(r => `${r.type}:${r.id}`));
@@ -125,7 +132,13 @@ export function buildPackDetail(
       const key = `${dep.type}:${dep.id}`;
       if (ownedKeys.has(key) || deps.has(key)) continue;
       const depItem = lookup(dep);
-      deps.set(key, { type: dep.type, id: dep.id, name: depItem?.name ?? dep.id, missing: !depItem });
+      // Bundled official content satisfies the dependency: it is outside the pack, but not missing.
+      const isOfficial = !depItem && !!official?.isOfficial(dep);
+      deps.set(key, {
+        type: dep.type, id: dep.id,
+        name: depItem?.name ?? (isOfficial ? (official?.nameOf?.(dep) ?? dep.id) : dep.id),
+        missing: !depItem && !isOfficial,
+      });
     }
   }
 

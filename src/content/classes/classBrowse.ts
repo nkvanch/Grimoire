@@ -23,7 +23,10 @@ export const CASTER_TYPE: Record<string, string> = {
   barbarian: 'Martial', bard: 'Full Caster', cleric: 'Full Caster', druid: 'Full Caster',
   fighter: 'Martial', monk: 'Martial', paladin: 'Half Caster', ranger: 'Half Caster',
   rogue: 'Martial', sorcerer: 'Full Caster', warlock: 'Half Caster', wizard: 'Full Caster',
+  artificer: 'Half Caster',
 };
+// The 2024 (5.5e) classes share their base class's caster type (the 2024 Paladin and Ranger cast from level 1 but stay half casters).
+for (const id of Object.keys(CASTER_TYPE)) CASTER_TYPE[`${id}_2024`] = CASTER_TYPE[id];
 export const CASTER_TYPES = ['Full Caster', 'Half Caster', 'Martial'] as const;
 
 // ── Layer 1: Class Summary metadata ─────────────────────────────────────────────
@@ -151,6 +154,8 @@ export const CLASS_META: Record<string, ClassMeta> = {
     complexity: 'Complex',
     recommendation: 'Make Dexterity your highest ability score, followed by Wisdom, then Constitution. The Hermit background suits a monk.',
   },
+  // Non-SRD classes (Artificer and the private ones) have no entry here: the public app carries no description of them, and a class from an
+  // installed private pack falls back to the defaults derived from its own record.
 };
 
 const ABILITY_NAMES: Record<Ability, string> = {

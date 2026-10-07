@@ -1,3 +1,4 @@
+import { suggestFirst } from '../../src/content/rulesetSuggestion';
 import { grantEntitlements, grantEntitlement, revokeEntitlementsFromChoice } from '../../src/engine/entitlements';
 // app/creation/spells.tsx
 // Step 8: Spell selection for spellcasting classes.
@@ -10,14 +11,16 @@ import { grantEntitlements, grantEntitlement, revokeEntitlementsFromChoice } fro
 //      and write the picks into entity.spellcasting.cantrips / .known.
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { applySpellChoiceToEntity } from '../../src/engine/leveling';
-import { Entity, Spell } from '../../src/engine/types';
+import { Entity, Spell, RulesetId } from '../../src/engine/types';
 import { spellRepo } from '../../src/content/spellRepo';
 import type { SpellIndexEntry } from '../../src/content/spellRepo.types';
 import { mergeSpellIndex } from '../../src/content/contentResolution';
+import { spellListsForClass, filterSpellsForClass, spellSourceLabel } from '../../src/content/spellLists';
 import { AddSpellModal } from '../../src/components/sheet/AddSpellModal';
 import { actionType, ACTION_TYPES } from '../../src/content/spellFilterUtils';
 import { spellSortOptions } from '../../src/content/spells/spellBrowse';
@@ -26,7 +29,8 @@ import { SortControl } from '../../src/components/SortControl';
 import { Alert } from '../../src/utils/alert';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { useBrowseStateStore } from '../../src/store/browseStateStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
 import { SPELLS_AT_L1, readCreationPicks, writeCreationPicks, CreationSpellPicks } from '../../src/content/creationProgress';
@@ -43,9 +47,9 @@ function markVisited(entity: Entity): Entity {
 // ── Spell row (select + expandable description) ───────────────────────────────
 
 function SpellRow({
-  spell, selected, disabled, isHomebrew, onToggle,
+  spell, selected, disabled, isHomebrew, rulesetId, onToggle,
 }: {
-  spell: SpellIndexEntry; selected: boolean; disabled: boolean; isHomebrew?: boolean; onToggle: () => void;
+  spell: SpellIndexEntry; selected: boolean; disabled: boolean; isHomebrew?: boolean; rulesetId?: RulesetId | null; onToggle: () => void;
 }) {
   const [open, setOpen] = useState(false);
   // Tier 1 doesn't carry description — homebrew spells are already full
@@ -59,7 +63,7 @@ function SpellRow({
     if (!open || description !== null || isHomebrew) return;
     let cancelled = false;
     void spellRepo.ensureLoaded([spell.id]).then(() => {
-      if (!cancelled) setDescription(spellRepo.getSpellSync(spell.id)?.description ?? '');
+      if (!cancelled) setDescription(spellRepo.getSpellSync(spell.id, rulesetId)?.description ?? '');
     });
     return () => { cancelled = true; };
   }, [open, spell.id, description, isHomebrew]);
@@ -79,7 +83,7 @@ function SpellRow({
                   <Text style={styles.homebrewTagTxt}>Homebrew</Text>
                 </View>
               )}
-              {!isHomebrew && isNonSrd(spell.srd) && <NonSrdBadge />}
+              {!isHomebrew && isNonSrd(spell.srd, spell.rulesetId) && <NonSrdBadge />}
             </View>
             <Text style={styles.spellMeta}>
               {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}  ·  {spell.school}  ·  {spell.castingTime}
@@ -100,10 +104,12 @@ function SpellRow({
 
 export default function SpellsScreen() {
   const router   = useRouter();
+  const insets   = useSafeAreaInsets();
   const draft    = useCharacterStore(s => s.draft);
   const setDraft = useCharacterStore(s => s.setDraft);
   const rules    = useCharacterStore(s => s.rules);
   const homebrewSpells = useHomebrewStore(s => s.spells);
+  const spellLists      = useHomebrewStore(s => s.spellLists);
 
   // ── ALL hooks first — before any conditional return ──
   // Redirect to name if no draft — must be in useEffect, not render
@@ -118,7 +124,7 @@ export default function SpellsScreen() {
   // (see that table's own comment), so the player landed on "nothing to
   // pick" with no way back to their original choice. Same fix shape as
   // skills.tsx's startEditingSkills / equipment.tsx's startEditingEquipment.
-  const allSpellChoicesForKind = draft ? draft.choices.filter(c => c.definition.kind === 'spell') : [];
+  const allSpellChoicesForKind = draft ? draft.choices.filter(c => c.definition.kind === 'spell' && !c.definition.spellFilter) : [];
   const spellChoices        = allSpellChoicesForKind.filter(c => !c.resolved);
   const resolvedSpellChoices = allSpellChoicesForKind.filter(c =>  c.resolved);
 
@@ -179,7 +185,9 @@ export default function SpellsScreen() {
       const spell = mergeSpellIndex(useHomebrewStore.getState().spells).find(s => s.id === newId);
       if (!spell) return;
       const classId = currentDraft.identity.classId;
-      const eligibleForClass = !spell.classes || spell.classes.length === 0 || spell.classes.includes(classId);
+      const hb = useHomebrewStore.getState();
+      const classSource = hb.getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource;
+      const eligibleForClass = filterSpellsForClass([spell], classId, null, hb.spellLists, classSource).length > 0;
       const targets = SPELLS_AT_L1[classId] ?? { cantrips: 0, spells: 0 };
       if (!eligibleForClass) {
         Alert.alert('Not added', `"${spell.name}" isn't on ${classId}'s spell list, so it wasn't added to your picks. It's saved and available from "+ Add extra from another class."`);
@@ -273,16 +281,20 @@ export default function SpellsScreen() {
   // "pick an extra spell from another class" case (a feat, a homebrew rule,
   // etc.) rather than silently letting every class pick from everything.
   const [otherClasses,   setOtherClasses]   = useState(!!savedFilters.otherClasses);
+  // Which spell list this picker draws from — null means the normal official
+  // class-tag pool. Only meaningful when this class has at least one homebrew
+  // SpellList suggested for it (see the Spell Source filter below).
+  const [activeSpellListId, setActiveSpellListId] = useState<string | null>((savedFilters.activeSpellListId as string) ?? null);
   useEffect(() => {
     setBrowseState(SCREEN_KEY, {
       search, sort: spellSort,
       filters: {
         schoolFilter, castFilter, actionFilter, officialFilter, rulesetFilter,
-        componentFilter: Array.from(componentFilter), otherClasses,
+        componentFilter: Array.from(componentFilter), otherClasses, activeSpellListId,
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, spellSort, schoolFilter, castFilter, actionFilter, officialFilter, rulesetFilter, componentFilter, otherClasses]);
+  }, [search, spellSort, schoolFilter, castFilter, actionFilter, officialFilter, rulesetFilter, componentFilter, otherClasses, activeSpellListId]);
 
   if (!draft) return null;
 
@@ -296,12 +308,17 @@ export default function SpellsScreen() {
   const allSpells: SpellIndexEntry[] = mergeSpellIndex(homebrewSpells);
   const homebrewSpellIds = new Set(homebrewSpells.map(s => s.id));
 
-  // Filter by class — only show spells tagged for this class.
+  // Filter by class — only show spells tagged for this class, OR, if a homebrew Spell List is
+  // active for this picker, exactly that list's spells instead (see content/spellLists.ts).
   // If a spell has no `classes` tag at all (legacy), include it so nothing disappears.
-  // The "add extra from another class" toggle bypasses this restriction entirely.
+  // The "add extra from another class" toggle bypasses both of those restrictions entirely.
+  const classSpellLists = spellListsForClass(spellLists, classId);
+  // The class's own chosen default source (an existing Spell List, or another class's list).
+  const classSpellSource = useHomebrewStore.getState().getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource;
+  const classSourceLabel = spellSourceLabel(classSpellSource, spellLists, useHomebrewStore.getState().getMergedContentDB().classes);
   const classSpells = otherClasses
     ? allSpells
-    : allSpells.filter(s => !s.classes || s.classes.length === 0 || s.classes.includes(classId));
+    : filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource);
 
   // "+ Add Additional Spell" — writes directly into spellcasting.cantrips/
   // .known (mirroring the pre-existing "externally granted" spell pattern
@@ -354,7 +371,7 @@ export default function SpellsScreen() {
         {additionalFlow === 'menu' && (
           <Modal visible transparent animationType="fade" onRequestClose={() => setAdditionalFlow('closed')}>
             <Pressable style={styles.backdrop} onPress={() => setAdditionalFlow('closed')}>
-              <Pressable style={styles.menuSheet} onPress={e => e.stopPropagation()}>
+              <Pressable style={[styles.menuSheet, { paddingBottom: scrollBottomPadding(insets.bottom, Spacing.md) }]} onPress={e => e.stopPropagation()}>
                 <Text style={styles.menuTitle}>Add Additional Spell</Text>
                 <Text style={styles.menuSub}>Browses the whole spell library — doesn't use up your class's spell picks.</Text>
                 <Pressable style={styles.menuBtn} onPress={() => setAdditionalFlow('library')}>
@@ -393,23 +410,36 @@ export default function SpellsScreen() {
   // ── 1. Non-spellcaster ──────────────────────────────────────────────────────
   if (!isSpellcaster) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
         <Text style={styles.heading}>Spells</Text>
         <Text style={styles.sub}>This class does not use spells.</Text>
-        <Pressable style={styles.nextBtn} onPress={() => {
-          setDraft(markVisited(draft));
-          router.push('/creation/hub');
-        }}>
-          <Text style={styles.nextBtnText}>Continue →</Text>
-        </Pressable>
       </ScrollView>
+      <SafeBottomView>
+        <View style={styles.footer}>
+          <Pressable style={styles.nextBtn} onPress={() => {
+            setDraft(markVisited(draft));
+            router.push('/creation/hub');
+          }}>
+            <Text style={styles.nextBtnText}>Continue →</Text>
+          </Pressable>
+        </View>
+      </SafeBottomView>
+      </>
     );
   }
 
   // ── 1b. ChoiceDefinition-based choices already resolved (re-entering) ──────
   if (spellChoices.length === 0 && resolvedSpellChoices.length > 0) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
         <Text style={styles.heading}>Spells</Text>
         <Text style={styles.sub}>Spells already chosen:</Text>
         {resolvedSpellChoices.map(choice => (
@@ -424,13 +454,18 @@ export default function SpellsScreen() {
           <Text style={styles.changeBtnTxt}>✎ Change Spells</Text>
         </Pressable>
         {renderAdditionalSpellSection()}
-        <Pressable style={styles.nextBtn} onPress={() => {
-          setDraft(markVisited(draft));
-          router.push('/creation/hub');
-        }}>
-          <Text style={styles.nextBtnText}>Continue →</Text>
-        </Pressable>
       </ScrollView>
+      <SafeBottomView>
+        <View style={styles.footer}>
+          <Pressable style={styles.nextBtn} onPress={() => {
+            setDraft(markVisited(draft));
+            router.push('/creation/hub');
+          }}>
+            <Text style={styles.nextBtnText}>Continue →</Text>
+          </Pressable>
+        </View>
+      </SafeBottomView>
+      </>
     );
   }
 
@@ -445,11 +480,21 @@ export default function SpellsScreen() {
   // SpellChoicePicker.
   if (spellChoices.length > 0) {
     const isCantripChoice = (id: string) => id.includes('cantrip');
+    // BUGFIX-WARLOCK-SPELLS-1: a pure Warlock's castable level lives in
+    // pactSlots, never sc.slots (see SpellcastingBlock's own doc comment —
+    // pact slots are deliberately excluded from the regular multiclass slot
+    // table). Reading only sc.slots left maxCastableLevel at 0 for a pure
+    // Warlock, so every level-1+ "known spell" choice showed an empty pool
+    // ("No available spells for this choice") even though cantrips worked
+    // fine (cantrips don't depend on this at all). A Warlock multiclassed
+    // into a full/half-caster class still gets the higher of the two tables.
     const maxCastableLevel = (() => {
       const sc = draft.spellcasting;
       if (!sc) return 0;
       const tiers = ['9', '8', '7', '6', '5', '4', '3', '2', '1'] as const;
-      for (const t of tiers) { if ((sc.slots[t]?.total ?? 0) > 0) return Number(t); }
+      for (const t of tiers) {
+        if ((sc.slots[t]?.total ?? 0) > 0 || (sc.pactSlots?.[t]?.total ?? 0) > 0) return Number(t);
+      }
       return 0;
     })();
     const alreadyKnown = new Set([
@@ -570,6 +615,7 @@ export default function SpellsScreen() {
                   selected={selected}
                   disabled={disabled}
                   isHomebrew={homebrewSpellIds.has(spell.id)}
+                  rulesetId={draft?.rulesetId}
                   onToggle={() => toggleInGroup(group, spell.id)}
                 />
               );
@@ -579,19 +625,28 @@ export default function SpellsScreen() {
     };
 
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
         <Text style={styles.heading}>Spells</Text>
         {renderGroup(cantripGroup, 'Cantrips')}
         {renderGroup(knownGroup, 'Known Spells')}
         {renderAdditionalSpellSection()}
-        <Pressable
-          style={[styles.nextBtn, !canConfirm && styles.nextBtnDisabled]}
-          onPress={() => { void handleConfirmChoices(); }}
-          disabled={!canConfirm}
-        >
-          <Text style={styles.nextBtnText}>Confirm Spells →</Text>
-        </Pressable>
       </ScrollView>
+      <SafeBottomView>
+        <View style={styles.footer}>
+          <Pressable
+            style={[styles.nextBtn, !canConfirm && styles.nextBtnDisabled]}
+            onPress={() => { void handleConfirmChoices(); }}
+            disabled={!canConfirm}
+          >
+            <Text style={styles.nextBtnText}>Confirm Spells →</Text>
+          </Pressable>
+        </View>
+      </SafeBottomView>
+      </>
     );
   }
 
@@ -609,7 +664,7 @@ export default function SpellsScreen() {
   const matchesComponents = (s: SpellIndexEntry) =>
     componentFilter.size === 0 || Array.from(componentFilter).some(c => (s.components ?? []).includes(c));
   const spellSortOpts = spellSortOptions(s => homebrewSpellIds.has(s.id));
-  const sortSpells = (list: SpellIndexEntry[]) => sortByOption(list, spellSortOpts, spellSort);
+  const sortSpells = (list: SpellIndexEntry[]) => suggestFirst(sortByOption(list, spellSortOpts, spellSort), draft?.rulesetId);
   // Excludes anything already granted before this screen (e.g. a Divine
   // Domain's "always prepared" spells) — nothing to pick here, it's already
   // on the sheet, and letting it show as pickable would let a player select
@@ -691,7 +746,11 @@ export default function SpellsScreen() {
   const nothingToPick = targets.cantrips === 0 && targets.spells === 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
       <Text style={styles.heading}>Spells</Text>
 
       {nothingToPick ? (
@@ -749,6 +808,18 @@ export default function SpellsScreen() {
               <FilterSection label="Official / Homebrew">
                 <OfficialHomebrewChipRow value={officialFilter} onChange={setOfficialFilter} />
               </FilterSection>
+              {(classSpellLists.length > 0 || !!classSpellSource) && (
+                <FilterSection label="Spell Source">
+                  {/* FilterChipRow hides itself at <=1 option, so "Official" is always an
+                      explicit option here — otherwise a class with exactly one Spell List
+                      would render zero chips and have no way back to the normal pool. */}
+                  <FilterChipRow
+                    options={[{ id: 'official', label: classSourceLabel ? `Class default · ${classSourceLabel}` : 'Official' }, ...classSpellLists.map(l => ({ id: l.id, label: l.name }))]}
+                    value={activeSpellListId ?? 'official'}
+                    onChange={id => setActiveSpellListId(!id || id === 'official' ? null : id)}
+                  />
+                </FilterSection>
+              )}
               {availableRulesets.length > 1 && (
                 <FilterSection label="Ruleset">
                   <FilterChipRow
@@ -817,6 +888,7 @@ export default function SpellsScreen() {
                     selected={pickedCantrips.includes(s.id)}
                     disabled={!pickedCantrips.includes(s.id) && pickedCantrips.length >= targets.cantrips}
                     isHomebrew={homebrewSpellIds.has(s.id)}
+                    rulesetId={draft?.rulesetId}
                     onToggle={() => toggleCantrip(s.id)}
                   />
                 )))}
@@ -842,6 +914,7 @@ export default function SpellsScreen() {
                     selected={pickedSpells.includes(s.id)}
                     disabled={!pickedSpells.includes(s.id) && pickedSpells.length >= targets.spells}
                     isHomebrew={homebrewSpellIds.has(s.id)}
+                    rulesetId={draft?.rulesetId}
                     onToggle={() => toggleSpell(s.id)}
                   />
                 )))}
@@ -851,21 +924,26 @@ export default function SpellsScreen() {
       )}
 
       {renderAdditionalSpellSection()}
-
-      <Pressable
-        style={[styles.nextBtn, !nothingToPick && !canConfirm && styles.nextBtnDisabled]}
-        onPress={() => { void handleConfirm(); }}
-        disabled={!nothingToPick && !canConfirm}
-      >
-        <Text style={styles.nextBtnText}>{nothingToPick ? 'Continue →' : 'Confirm Spells →'}</Text>
-      </Pressable>
     </ScrollView>
+    <SafeBottomView>
+      <View style={styles.footer}>
+        <Pressable
+          style={[styles.nextBtn, !nothingToPick && !canConfirm && styles.nextBtnDisabled]}
+          onPress={() => { void handleConfirm(); }}
+          disabled={!nothingToPick && !canConfirm}
+        >
+          <Text style={styles.nextBtnText}>{nothingToPick ? 'Continue →' : 'Confirm Spells →'}</Text>
+        </Pressable>
+      </View>
+    </SafeBottomView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   heading:   { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.gold, marginBottom: Spacing.xs },
   sub:       { fontSize: FontSize.md, color: Colors.textSecondary, marginBottom: Spacing.lg },
   search: {

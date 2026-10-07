@@ -9,9 +9,13 @@ import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { recomputeDerived } from '../../src/engine/pipeline';
 import { recalculateAllHP } from '../../src/engine/leveling';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
+import { spellRepo } from '../../src/content/spellRepo';
+import { spellIdsOnEntity } from '../../src/content/spellRepo.types';
 import { Ability } from '../../src/engine/types';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { resolveIdentityLabels } from '../../src/content/identityLabels';
 
 const ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const ABILITY_LABELS: Record<Ability, string> = {
@@ -30,6 +34,7 @@ export default function ReviewScreen() {
   const setDraft  = useCharacterStore(s => s.setDraft);
   const rules     = useCharacterStore(s => s.rules);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
+  const homebrewSubclasses = useHomebrewStore(s => s.subclasses);
   // Re-audit A09/A01 (item 11): saveDraft() now reports whether the
   // durable write actually succeeded (see characterStore.ts's own doc
   // comment) instead of always clearing the draft and navigating away
@@ -48,6 +53,8 @@ export default function ReviewScreen() {
 
   const { identity, stats, derived, resources, features, choices } = draft;
   const pendingChoices = choices.filter(c => !c.resolved);
+  // Display names (same merged official + homebrew content as elsewhere); the stored ids are untouched.
+  const labels = resolveIdentityLabels(draft, getMergedContentDB(draft.rulesetId), homebrewSubclasses);
 
   // Compute race bonuses to show effective scores in the grid
   const raceBonuses: Partial<Record<Ability, number>> = {};
@@ -87,12 +94,24 @@ export default function ReviewScreen() {
     // directly into the character's persisted starting HP below, so the
     // previous official-wins bypass was real data corruption, not just a
     // display bug (audit finding CONTENT-1/2/3/4).
-    const cls = getMergedContentDB().classes.find(c => c.id === draft.identity.classId);
+    const contentDB = getMergedContentDB(draft.rulesetId);
+    const cardContent = { classDefs: contentDB.classes, homebrewSpells: contentDB.spells, races: contentDB.races, items: contentDB.items };
+    const cls = contentDB.classes.find(c => c.id === draft.identity.classId);
     const hpAbility: Ability = (cls ? getProgressionForClass(cls).hpAbility : undefined) ?? 'con';
-    let finalDraft = recomputeDerived(draft, rules);
+    // SPELL-WARM-1: on device the spell database only returns full spell data
+    // for ids that were explicitly loaded, and a spell with no data gets NO
+    // action card (the Spells tab lists cards). The picked spells were loaded
+    // by the Spells step, but anything added another way — "+ Add Additional
+    // Spell", a homebrew round trip — never was, so the character was saved
+    // with the spell in its Known list (hence "already added") but no card
+    // (hence missing from the Spells tab until an app restart re-derived it).
+    // Load every spell the draft references before the cards are generated,
+    // exactly like loadCharacters does at boot.
+    await spellRepo.ensureLoaded(spellIdsOnEntity(draft));
+    let finalDraft = recomputeDerived(draft, rules, cardContent);
     finalDraft     = recalculateAllHP(finalDraft, rules, hpAbility);
     // 3. Run recomputeDerived one more time so derived.ac etc. use the corrected stats.
-    finalDraft     = recomputeDerived(finalDraft, rules);
+    finalDraft     = recomputeDerived(finalDraft, rules, cardContent);
     setDraft(finalDraft);
     const saved = await saveDraft();
     setSaving(false);
@@ -106,7 +125,11 @@ export default function ReviewScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
       <Text style={styles.heading}>Review Character</Text>
 
       {/* Identity */}
@@ -114,9 +137,10 @@ export default function ReviewScreen() {
         <Text style={styles.sectionTitle}>Identity</Text>
         <Row label="Name"       value={identity.name} />
         <Row label="Level"      value={String(identity.level)} />
-        <Row label="Race"       value={identity.raceId || '—'} />
-        <Row label="Class"      value={identity.classId || '—'} />
-        <Row label="Background" value={identity.backgroundId || '—'} />
+        <Row label="Race"       value={labels.subrace ? `${labels.race} (${labels.subrace})` : (labels.race || '—')} />
+        <Row label="Class"      value={labels.class || '—'} />
+        {labels.subclass && <Row label="Subclass"   value={labels.subclass} />}
+        <Row label="Background" value={labels.background || '—'} />
       </View>
 
       {/* Combat stats */}
@@ -169,6 +193,13 @@ export default function ReviewScreen() {
         </View>
       )}
 
+      {/* Starting gear is saved as carried, not worn: AC and attacks count only what is equipped. */}
+      {draft.inventory.carried.length > 0 && (
+        <Text style={styles.warningText}>
+          Your starting gear is added to Carried. Equip armor, a shield and weapons from the Items tab to count them in AC and attacks.
+        </Text>
+      )}
+
       {/* Save */}
       {saveError && (
         <View style={styles.warningBox}>
@@ -176,14 +207,19 @@ export default function ReviewScreen() {
           <Text style={styles.warningText}>{saveError}</Text>
         </View>
       )}
-      <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
-        <Text style={styles.saveBtnText}>{saving ? 'Saving…' : '⚔️  Save Character'}</Text>
-      </Pressable>
-
-      <Pressable style={styles.backBtn} onPress={safeGoBack}>
-        <Text style={styles.backBtnText}>← Go back</Text>
-      </Pressable>
     </ScrollView>
+    <SafeBottomView>
+      <View style={styles.footer}>
+        <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
+          <Text style={styles.saveBtnText}>{saving ? 'Saving…' : '⚔️  Save Character'}</Text>
+        </Pressable>
+
+        <Pressable style={styles.backBtn} onPress={safeGoBack}>
+          <Text style={styles.backBtnText}>← Go back</Text>
+        </Pressable>
+      </View>
+    </SafeBottomView>
+    </>
   );
 }
 
@@ -198,7 +234,8 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
 
   heading: { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.gold, marginBottom: Spacing.xl },
 

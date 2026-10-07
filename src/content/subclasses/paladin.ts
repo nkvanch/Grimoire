@@ -4,7 +4,6 @@
 // Oath spells: like the pre-existing Devotion/Ancients, none of the new
 // subclasses below grant oath spells via a known_spells Grant (the
 // Cleric/Druid domainSpells()/circleSpells() pattern). About a third of the
-// real oath spell lists (Armor of Agathys, Sanctuary, Guiding Bolt, Sleep,
 // Alarm, Commune, and others) aren't in this codebase's spell library yet,
 // so wiring the ones that ARE present would produce a subclass-by-subclass
 // patchwork of some oath levels granting spells and others silently not.

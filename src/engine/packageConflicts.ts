@@ -20,7 +20,7 @@
 //                  "Class A must reference F2, not old F" failure mode the
 //                  spec calls out.
 import {
-  Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, Issue,
+  Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, Issue, SpellList,
 } from './types';
 import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
 import { GrimoirePack, GrimoirePackHomebrew } from './backup';
@@ -47,6 +47,7 @@ const HOMEBREW_CATEGORIES: { key: keyof GrimoirePackHomebrew; type: ContentCache
   { key: 'feats',       type: 'feat' },
   { key: 'monsters',    type: 'monster' },
   { key: 'conditions',  type: 'condition' },
+  { key: 'spellLists',  type: 'spellList' },
 ];
 
 /** Every {type, id, item} triple actually present in a package's homebrew payload. */
@@ -215,6 +216,11 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
       return {
         ...cls,
         startingEquipment: cls.startingEquipment?.map(id => remapId(remap, 'item', id)),
+        spellListSource: cls.spellListSource
+          ? (cls.spellListSource.kind === 'list'
+              ? { kind: 'list' as const, listId: remapId(remap, 'spellList', cls.spellListSource.listId) }
+              : { kind: 'class' as const, classId: remapId(remap, 'class', cls.spellListSource.classId) })
+          : undefined,
         levelFeatures: (cls.levelFeatures as (DraftTrait & { level: number })[] | undefined)?.map(trait => {
           if (trait.effectKind !== 'spell_grant') return trait;
           return {
@@ -239,6 +245,10 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
     }
     case 'spell':
       return item;
+    case 'spellList': {
+      const sl = item as SpellList;
+      return { ...sl, spellIds: sl.spellIds.map(id => remapId(remap, 'spell', id)) } as HomebrewContent;
+    }
   }
 }
 

@@ -9,12 +9,27 @@
 // the player tracks manually — the description states the full benefit.
 // ============================================================================
 import { Feat, Feature, Effect, Ability } from '../../engine/types';
+import { ORIGIN_FEATS_2024 } from './origin2024';
+import { MORE_FEATS_2024 } from './feats2024';
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function abilityBonus(ability: Ability, amount = 1): Effect {
+  return { type: 'stat_modifier', target: ability, operation: 'add', value: amount, condition: null };
+}
+
+function statBonus(target: string, amount: number): Effect {
+  return { type: 'stat_modifier', target, operation: 'add', value: amount, condition: null };
+}
 
 // Reminder-only, same mechanism DerivedStats.advantageStates already uses
 // elsewhere (e.g. infusions/index.ts, Barbarian's Feral Instinct) — shown to
 // the player so they remember to roll 2d20, not auto-applied to any roll.
 function advantage(target: string): Effect {
   return { type: 'stat_modifier', target, operation: 'advantage', value: null, condition: null };
+}
+function resistance(damageType: string): Effect {
+  return { type: 'grant_resistance', target: damageType, operation: 'resistance', value: null, condition: null };
 }
 
 function feat(
@@ -51,7 +66,30 @@ function feat(
   return { id, name, prerequisite, description, source, feature, abilityChoice, skillChoice, srd };
 }
 
+// Ability-option shorthands for choice feats.
+const ALL_ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+function choose(options: Ability[], amount = 1, grantsSaveProficiency = false) {
+  return grantsSaveProficiency
+    ? { options, amount, grantsSaveProficiency: true }
+    : { options, amount };
+}
+
+function skillPicks(
+  picks: { id: string; label: string; mode: 'proficiency' | 'expertise'; from: 'any' | 'proficient' }[],
+) {
+  return { picks };
+}
+
 const PHB = "Player's Handbook";
+const XGE = "Xanathar's Guide to Everything";
+const TCE = "Tasha's Cauldron of Everything";
+const FTD = "Fizban's Treasury of Dragons";
+const GG  = 'Glory of the Giants';
+const ERLW = 'Eberron: Rising from the Last War';
+const SDQ  = 'Dragonlance: Shadow of the Dragon Queen';
+const PS   = 'Planescape: Adventures in the Multiverse';
+const SCC  = "Strixhaven: A Curriculum of Chaos";
+const TOH  = 'Tome of Heroes';
 
 // ── feats ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +103,7 @@ const allFeatEntries: Feat[] = [
 ];
 
 /** Every feat, unfiltered. Prefer ALL_FEATS below in app code. */
-export const FULL_FEAT_LIBRARY: Feat[] = allFeatEntries;
+export const FULL_FEAT_LIBRARY: Feat[] = [...allFeatEntries, ...ORIGIN_FEATS_2024, ...MORE_FEATS_2024];
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
 

@@ -26,7 +26,9 @@ import { itemRepo } from '../content/itemRepo';
 import { itemIdsOnEntity } from '../content/itemRepo.types';
 import { recomputeDerived } from '../engine/pipeline';
 import { useHomebrewStore } from './homebrewStore';
-import { hydrateItemInstanceDefinitionFacts, resolveItemDefinition } from '../engine/itemMechanics';
+import { hydrateItemInstanceDefinitionFacts, resolveItemDefinition, hydrateLegacyItemInstanceIds } from '../engine/itemMechanics';
+import { stripTransientRuntimeState } from '../engine/combat';
+import { validateEntityDeep } from '../engine/entityValidation';
 
 export type { EntityMeta };
 
@@ -42,7 +44,16 @@ export type { EntityMeta };
  * below) must have already warmed via ensureLoaded — this function itself
  * stays synchronous so it's a drop-in map over the character list.
  */
-function hydrateItemFeatures(entity: Entity): Entity {
+function hydrateItemFeatures(rawEntity: Entity): Entity {
+  // Item-identity closure (pass 2, finding A): id backfill is now the ONE
+  // shared, reusable hydrator (itemMechanics.ts) — also called from
+  // characterPortable.ts (portable import) and applyIncomingEntity
+  // (backup restore / inbound sync), so no path can insert an
+  // identity-less legacy item into normal runtime state. See its own doc
+  // comment for why the id must be deterministic here specifically (this
+  // function runs on every load; loadCharacters() doesn't write the
+  // hydrated result back to SQLite by itself).
+  const entity = hydrateLegacyItemInstanceIds(rawEntity);
   function hydrateInstance(inst: ItemInstance): ItemInstance {
     const def = resolveItemDefinition(inst.itemId);
     return hydrateItemInstanceDefinitionFacts(inst, def);
@@ -255,6 +266,7 @@ export function makeEmptyEntity(id: string, kind: Entity['kind'] = 'character'):
     spellAttackBonus:  null,
     kiSaveDC:          null,
     abilityBasedDC:    { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    attackActionAttacks: 1,
   };
 
   return {
@@ -509,7 +521,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       // can find them by id, same as any normal character; they're
       // deliberately excluded from characterMeta/the character list below,
       // since they're not independently-playable characters.
-      const characters = preHydration.map(hydrateItemFeatures).map(hydrateMissingResources);
+      // Extra Attack sequence closure (Part B4): defense-in-depth —
+      // entityRepo.ts's own parseEntityRow (behind loadAllEntities above)
+      // already strips attackSequence on every row read; re-stripping here
+      // is a safe no-op once already null, and guarantees the invariant
+      // holds even if loadCharacters is ever fed entities from elsewhere.
+      const characters = preHydration.map(hydrateItemFeatures).map(hydrateMissingResources).map(stripTransientRuntimeState);
 
       // Warm the Tier-2 spell cache for every known/prepared/cantrip spell
       // across every loaded character, once, before the engine pipeline
@@ -526,7 +543,18 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       // ever triggers a recompute. The comment above already described this
       // as the intent; the actual call was missing.
       const rules = get().rules;
-      const recomputed = characters.map(c => recomputeDerived(c, rules));
+      // Rules-engine blocker RE-AUDIT closure (dependency inversion, 1D):
+      // recomputeDerived's action-card/spell-context generation needs the
+      // real merged official+homebrew+ruleset content to reflect a
+      // homebrew class's own casting policy — resolved HERE (the
+      // application/store layer), passed down explicitly; the engine
+      // itself never reads useHomebrewStore. Each character resolves its
+      // OWN ruleset (getMergedContentDB is internally memoized per input
+      // set, so this is cheap even across many characters on one ruleset).
+      const recomputed = characters.map(c => {
+        const contentDB = useHomebrewStore.getState().getMergedContentDB(c.rulesetId);
+        return recomputeDerived(c, rules, { classDefs: contentDB.classes, homebrewSpells: contentDB.spells, races: contentDB.races, items: contentDB.items });
+      });
 
       set({ characters: recomputed, isLoading: false });
     } catch (e) {
@@ -538,8 +566,16 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   // ── Draft management ──────────────────────────────────────────────────────
 
   setDraft: (entity) => {
-    set({ draft: entity });
-    saveDraftState(entity).catch(e => console.error('[characterStore] failed to persist creation draft:', e));
+    // Extra Attack sequence closure (final single-issue closure, Part 4):
+    // a creation draft should never legitimately carry an in-progress
+    // Attack sequence (drafts aren't in combat), but strip defensively
+    // before it ever lands in Zustand state or the persisted draft row —
+    // trivial (a no-op whenever already null/undefined) and keeps the
+    // invariant "draft state never carries attackSequence" true at every
+    // point, not just at load/commit.
+    const stripped = stripTransientRuntimeState(entity);
+    set({ draft: stripped });
+    saveDraftState(stripped).catch(e => console.error('[characterStore] failed to persist creation draft:', e));
   },
   clearDraft: () => {
     set({ draft: null });
@@ -547,8 +583,16 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   },
 
   saveDraft: async () => {
-    const { draft, characters } = get();
-    if (!draft) return false;
+    const { draft: rawDraft, characters } = get();
+    if (!rawDraft) return false;
+    // Extra Attack sequence closure (final single-issue closure, Part 2):
+    // defense-in-depth at the draft-to-character COMMIT boundary — never
+    // trusts that draft load (or any other path that could have populated
+    // `draft` state) already stripped it. Protects against a legacy
+    // persisted draft, malformed/injected draft state, or a future
+    // alternate draft-loading path, independent of whether the read-side
+    // fix in draftRepo.ts's loadDraftState is also in place.
+    const draft = stripTransientRuntimeState(rawDraft);
 
     const exists = characters.some(c => c.id === draft.id);
     const updated = exists
@@ -729,7 +773,20 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }
   },
 
-  applyIncomingEntity: async (entity) => {
+  applyIncomingEntity: async (rawEntity) => {
+    // Item-identity closure (pass 2, finding A/A4): an inbound full
+    // snapshot (backup restore OR live device sync) can carry a legacy
+    // entity whose items predate ItemInstance.id — hydrate with the SAME
+    // shared, pure function used by boot load and portable import before
+    // it's exposed to any code path below (the ownedCharacterId early
+    // return, Tier-2 warming, and the eventual `set`/persist). A no-op for
+    // an entity that already has ids on everything.
+    //
+    // Extra Attack sequence closure (Part B4): also strips any attackSequence
+    // the incoming snapshot carries — this covers BOTH live sync AND backup
+    // restore (app/backup.tsx reuses this exact function), so neither path
+    // can resurrect a stale, already-paid-for sequence token.
+    const entity = stripTransientRuntimeState(hydrateLegacyItemInstanceIds(rawEntity));
     // Bug fix (architecture review P1, S0): an incoming FULL snapshot for a
     // character THIS device already has locally AND currently owns/controls
     // (syncManager.ownedCharacterId) used to unconditionally overwrite local
@@ -805,6 +862,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       }));
     }
     let merged: Entity | null = null;
+    let rejected = false;
     set(state => {
       const next = state.characters.map(c => {
         if (c.id !== entityId) return c;
@@ -812,11 +870,43 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         // merging, same reasoning as applyIncomingEntity above — the patch
         // itself may carry an unrelated `revision` value from the sender,
         // which must not leak into this device's own monotonic counter.
-        merged = { ...deepMerge(c, patch), revision: (c.revision ?? 0) + 1 };
+        const rawMerged = { ...deepMerge(c, patch), revision: (c.revision ?? 0) + 1 };
+        // Item-identity closure (pass 3, finding B): a patch is a PARTIAL
+        // fragment — hydrating it in isolation could invent an id from the
+        // wrong array position (the patch's own inventory arrays don't
+        // necessarily line up with the full entity's). Hydrate the FULL
+        // merged entity instead, with the SAME shared hydrator every other
+        // ingress uses, so an incoming patch that introduces an
+        // identity-less legacy item is normalized before it's ever exposed
+        // to Zustand/persisted — no app restart required.
+        //
+        // Extra Attack sequence closure (Part B4/B7): also strips
+        // attackSequence from the MERGED result — deepMerge(c, patch) would
+        // otherwise let an incoming patch SET (or merge fields into) this
+        // device's own in-progress sequence, since the patch is a caller-
+        // supplied Record<string, unknown> deep-merged onto the current
+        // entity with no per-field allowlist.
+        const hydrated = stripTransientRuntimeState(hydrateLegacyItemInstanceIds(rawMerged));
+        // Hydration only ever fills what's MISSING — it never rewrites
+        // malformed or duplicate SUPPLIED ids, so validating afterward
+        // still catches genuinely bad incoming data (a malformed id, a
+        // duplicate nonempty id across two rows) without hydration masking
+        // it. Reject the whole patch rather than exposing/persisting
+        // invalid state — the safest behavior when a sync peer sends
+        // something structurally wrong.
+        if (!validateEntityDeep(hydrated).valid) {
+          rejected = true;
+          return c;
+        }
+        merged = hydrated;
         return merged;
       });
-      return { characters: next };
+      return rejected ? state : { characters: next };
     });
+    if (rejected) {
+      reportPersistOutcome('applyIncomingPatch', new Error('Incoming patch produced an invalid entity — rejected.'));
+      return;
+    }
     if (merged) {
       saveEntity(merged).then(
         () => reportPersistOutcome('applyIncomingPatch', null),
@@ -829,9 +919,21 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // silently doing nothing is the safe behavior rather than guessing.
   },
 
-  importCharacter: async (entity) => {
+  importCharacter: async (rawEntity) => {
     try {
-      if (await persistedCharacterExists(entity.id)) return false;
+      if (await persistedCharacterExists(rawEntity.id)) return false;
+      // Item-identity closure (pass 2, finding A/A3): defense-in-depth —
+      // characterPortable.ts's own parsePortableCharacter already hydrates
+      // missing ItemInstance ids before returning, but this is the generic
+      // entry point any future import path could call directly; hydrating
+      // again here is a safe no-op once ids already exist, and guarantees
+      // the invariant holds regardless of caller.
+      //
+      // Extra Attack sequence closure (Part B4): same defense-in-depth for
+      // attackSequence — parsePortableCharacter already strips it, but this
+      // generic entry point re-strips unconditionally so the invariant
+      // holds even for a future caller that bypasses that parse step.
+      const entity = stripTransientRuntimeState(hydrateLegacyItemInstanceIds(rawEntity));
       await saveEntity(entity);
       set(state => ({ characters: [entity, ...state.characters.filter(c => c.id !== entity.id)] }));
       reportPersistOutcome('importCharacter', null);

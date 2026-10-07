@@ -23,6 +23,7 @@
 // every real official/homebrew spell and item — same "mechanism built and
 // tested, no real content exercises it yet" situation the race/background
 // 2024 proof-of-concept content was in before it existed.
+import { itemsForRuleset, itemIdCandidates } from './itemEditions';
 import { Spell, Item, RulesetId, matchesRuleset } from '../engine/types';
 import { spellRepo } from './spellRepo';
 import { itemRepo } from './itemRepo';
@@ -30,7 +31,7 @@ import { toItemIndexEntry } from './itemRepo.types';
 import type { SpellIndexEntry } from './spellRepo.types';
 import type { ItemIndexEntry } from './itemRepo.types';
 import { MonsterTemplate } from './monsters/types';
-import { ALL_MONSTER_TEMPLATES } from './monsters/srd';
+import { officialMonsters } from './runtimeRules';
 
 /** Official spell index + homebrew, deduped by id (homebrew wins), homebrew filtered by ruleset. */
 export function mergeSpellIndex(homebrewSpells: Spell[], activeRuleset?: RulesetId): SpellIndexEntry[] {
@@ -80,7 +81,8 @@ export function resolveSpellById(id: string, homebrewSpells: Spell[], activeRule
   // ruleset — homebrew already wins by id precedence, so this must NOT fall
   // through to an official spell that happens to share the same id.
   if (candidates.length > 0) return undefined;
-  const official = spellRepo.getSpellSync(id);
+  // The official record resolves to its version under the active ruleset (SRD 5.2.1 text for 2024), if it has one.
+  const official = spellRepo.getSpellSync(id, activeRuleset);
   if (!official) return undefined;
   return matchesRuleset(official.rulesetId, activeRuleset) ? official : undefined;
 }
@@ -89,7 +91,8 @@ export function resolveSpellById(id: string, homebrewSpells: Spell[], activeRule
 export function mergeItemIndex(homebrewItems: Item[], activeRuleset?: RulesetId): ItemIndexEntry[] {
   const inScope = homebrewItems.filter(i => matchesRuleset(i.rulesetId, activeRuleset));
   const homebrewIds = new Set(inScope.map(i => i.id));
-  const official = itemRepo.getIndex().filter(i => !homebrewIds.has(i.id));
+  // Official items of the active edition: a record for the other edition is left out, and so is a 5e record the edition replaces.
+  const official = itemsForRuleset(itemRepo.getIndex(), activeRuleset).filter(i => !homebrewIds.has(i.id));
   return [...official, ...inScope.map(toItemIndexEntry)];
 }
 
@@ -102,9 +105,9 @@ export function resolveItemById(id: string, homebrewItems: Item[], activeRuleset
   const homebrew = pickByRuleset(candidates, activeRuleset);
   if (homebrew) return homebrew;
   if (candidates.length > 0) return undefined;
-  const official = itemRepo.getItemSync(id);
-  if (!official) return undefined;
-  return matchesRuleset(official.rulesetId, activeRuleset) ? official : undefined;
+  // The edition's own record of the item first (a 5.5e Bag of Holding), then the shared one.
+  const official = itemIdCandidates(id, activeRuleset).map(c => itemRepo.getItemSync(c)).find(i => i && matchesRuleset(i.rulesetId, activeRuleset));
+  return official ?? undefined;
 }
 
 /**
@@ -119,11 +122,11 @@ export function resolveItemById(id: string, homebrewItems: Item[], activeRuleset
 export function mergeMonsterIndex(homebrewMonsters: MonsterTemplate[], activeRuleset?: RulesetId): MonsterTemplate[] {
   const inScope = homebrewMonsters.filter(m => matchesRuleset(m.rulesetId, activeRuleset));
   const homebrewIds = new Set(inScope.map(m => m.id));
-  const official = ALL_MONSTER_TEMPLATES.filter(m => !homebrewIds.has(m.id));
+  const official = officialMonsters().filter(m => !homebrewIds.has(m.id));
   return [...official, ...inScope];
 }
 
 /** Homebrew-first, official fallback — the single-id version of mergeMonsterIndex's precedence. */
 export function resolveMonsterById(id: string, homebrewMonsters: MonsterTemplate[]): MonsterTemplate | undefined {
-  return homebrewMonsters.find(m => m.id === id) ?? ALL_MONSTER_TEMPLATES.find(m => m.id === id);
+  return homebrewMonsters.find(m => m.id === id) ?? officialMonsters().find(m => m.id === id);
 }

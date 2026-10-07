@@ -52,6 +52,33 @@ function bounded(raw: unknown, errors: string[]) {
   visit(raw, 0, 'entity');
 }
 
+/**
+ * Rules-engine blocker RE-AUDIT closure (2G): validates EntitlementRecord.
+ * ambiguousClassIds — a persisted/imported field this app's own migration
+ * (entitlements.ts's reclassifyManualSpellSources) can write, so anything
+ * loaded from disk/import needs the same "malformed input never crashes the
+ * engine" guarantee every other entitlement field already gets here.
+ * Absent (the overwhelming majority of entitlements) is always valid — this
+ * only fires once the field is actually PRESENT. When present it must be:
+ *   - only on a spell_access/cantrip_access entry (the only kinds this
+ *     field has any meaning for — see its own doc comment, types.ts)
+ *   - a non-empty array (an empty array communicates nothing an absent
+ *     field doesn't already say more simply, and this app's own writer
+ *     never produces one — see entitlements.ts's sameStringSet gate)
+ *   - of unique strings only (no numbers/objects/duplicates) — a duplicate
+ *     candidate class id is definitionally malformed data, not a
+ *     legitimately ambiguous case with itself listed twice
+ */
+function validAmbiguousClassIds(entry: Obj): boolean {
+  if (entry.ambiguousClassIds === undefined) return true;
+  if (entry.kind !== 'spell_access' && entry.kind !== 'cantrip_access') return false;
+  const v = entry.ambiguousClassIds;
+  if (!Array.isArray(v) || v.length === 0) return false;
+  if (!v.every(string)) return false;
+  if (new Set(v).size !== v.length) return false;
+  return true;
+}
+
 function requiredArray(parent: Obj, key: string, errors: string[]): unknown[] | null {
   if (!Array.isArray(parent[key])) { errors.push(`${key}: required array`); return null; }
   return parent[key] as unknown[];
@@ -91,6 +118,17 @@ function validateFeature(raw: unknown, path: string, errors: string[]) {
 
 function validateItemInstance(raw: unknown, path: string, errors: string[]) {
   if (!object(raw)) { errors.push(`${path}: must be an object`); return; }
+  // Item-identity closure: `id` (the owned-instance identity, distinct from
+  // `itemId`/the shared definition reference) is optional ONLY for
+  // backward compatibility with a character saved before this field
+  // existed — characterStore.ts's load hydration backfills it before the
+  // engine ever sees the entity, so a well-formed LIVE entity always has
+  // one; this validator still accepts its absence (a structural migration
+  // gap, not malformed data) but rejects it if present and not a nonempty
+  // string. Cross-instance duplicate-id detection happens one level up
+  // (across BOTH equipped and carried together), where every ItemInstance
+  // on the entity is in scope at once.
+  if (raw.id !== undefined && (!string(raw.id) || !raw.id)) errors.push(`${path}.id: must be a nonempty string when present`);
   if (!string(raw.itemId) || !raw.itemId) errors.push(`${path}.itemId: required string`);
   if (!finite(raw.quantity) || raw.quantity <= 0) errors.push(`${path}.quantity: must be finite and positive`);
   if (!boolean(raw.attuned)) errors.push(`${path}.attuned: required boolean`);
@@ -207,7 +245,8 @@ export function validateEntityDeep(raw: unknown): ValidationResult {
           || !string(entry.key) || !entry.key || !string(entry.sourceKind) || !SOURCE_KINDS.has(entry.sourceKind)
           || (entry.sourceId !== undefined && !string(entry.sourceId))
           || (entry.choiceId !== undefined && !string(entry.choiceId))
-          || (entry.amount !== undefined && !finite(entry.amount))) {
+          || (entry.amount !== undefined && !finite(entry.amount))
+          || !validAmbiguousClassIds(entry)) {
           errors.push(`entitlements[${i}]: malformed entitlement`);
         }
       });
@@ -228,12 +267,29 @@ export function validateEntityDeep(raw: unknown): ValidationResult {
   }
 
   if (!object(raw.inventory)) errors.push('inventory: required object');
-  else for (const key of ['equipped', 'carried']) {
-    const list = raw.inventory[key];
-    if (!Array.isArray(list)) errors.push(`inventory.${key}: required array`);
-    else {
-      if (list.length > LIMITS.maxInventory) errors.push(`inventory.${key}: too many entries`);
-      list.forEach((item, i) => validateItemInstance(item, `inventory.${key}[${i}]`, errors));
+  else {
+    for (const key of ['equipped', 'carried']) {
+      const list = raw.inventory[key];
+      if (!Array.isArray(list)) errors.push(`inventory.${key}: required array`);
+      else {
+        if (list.length > LIMITS.maxInventory) errors.push(`inventory.${key}: too many entries`);
+        list.forEach((item, i) => validateItemInstance(item, `inventory.${key}[${i}]`, errors));
+      }
+    }
+    // Item-identity closure: two owned instances (anywhere on this ONE
+    // entity — equipped and carried together) must never share the same
+    // `id` — that would make them indistinguishable again exactly the way
+    // this closure exists to prevent (equip/attune/remove would no longer
+    // reliably target one specific copy). Only checks instances that
+    // actually carry an id (see validateItemInstance's own doc comment for
+    // why an absent id is a migration gap, not malformed data).
+    const equippedList = Array.isArray(raw.inventory.equipped) ? raw.inventory.equipped : [];
+    const carriedList  = Array.isArray(raw.inventory.carried)  ? raw.inventory.carried  : [];
+    const seenIds = new Set<string>();
+    for (const item of [...equippedList, ...carriedList]) {
+      if (!object(item) || !string(item.id) || !item.id) continue;
+      if (seenIds.has(item.id)) errors.push(`inventory: duplicate ItemInstance id "${item.id}"`);
+      seenIds.add(item.id);
     }
   }
 

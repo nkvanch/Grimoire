@@ -16,7 +16,9 @@ import { compendiumHref, legacyHomebrewViewRedirect, CompendiumMode } from '../.
 
 function CreatePanel() {
   const router = useRouter();
-  const ruleProfiles = useCustomRuleProfileStore(s => s.profiles);
+  const allRuleProfiles = useCustomRuleProfileStore(s => s.profiles);
+  // Built-in presets (5e / 5.5e) are read-only; only the player's own profiles are listed for editing.
+  const ruleProfiles = allRuleProfiles.filter(p => p.source.kind !== 'preset');
   const ITEMS = [
     { label: '⚔️  New Race',        route: '/homebrew/race-builder'  },
     { label: '🧬  New Subrace',      route: '/homebrew/subrace-builder' },
@@ -26,6 +28,7 @@ function CreatePanel() {
     { label: '🧰  New Item',         route: '/homebrew/item-builder'  },
     { label: '💎  Rare Items',       route: '/homebrew/rare-items'    },
     { label: '✨  New Spell',        route: '/homebrew/spell-builder' },
+    { label: '📗  New Spell List',   route: '/homebrew/spell-list-builder' },
     { label: '📖  New Feature',      route: '/homebrew/feature-editor' },
     { label: '🌟  New Feat',         route: '/homebrew/feat-builder' },
     { label: '🐉  New Monster',      route: '/homebrew/monster-builder' },

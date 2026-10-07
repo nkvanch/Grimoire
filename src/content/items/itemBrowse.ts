@@ -33,7 +33,6 @@ export function isMagic(i: ItemIndexEntry): boolean {
 
 // Canonical D&D 5e base weapons → { martial, ranged }. Magic weapons are typed
 // only "Magic Weapon", so we recover the class from the base-weapon name in
-// the item name (e.g. "Flame Tongue Greatsword" → greatsword → martial melee).
 type WeaponClass = { martial: boolean; ranged: boolean };
 const BASE_WEAPONS: Record<string, WeaponClass> = {
   club: { martial: false, ranged: false },
@@ -109,6 +108,8 @@ export function baseWeaponIdFromName(name: string): string | null {
 /** Recover a weapon's { martial, ranged } class from its name, or null. */
 export function classifyWeaponByName(i: ItemIndexEntry): WeaponClass | null {
   const name = i.name.toLowerCase();
+  // Ammunition and its containers name a weapon ("Case, crossbow bolt", "Crossbow Bolts (20)") without being one.
+  if (/\b(case|quiver|bolts?|bullets?|needles?)\b/.test(name) && !i.hasDamageEffect) return null;
   for (const base of BASE_WEAPON_KEYS_BY_LENGTH) {
     if (name.includes(base)) return BASE_WEAPONS[base];
   }

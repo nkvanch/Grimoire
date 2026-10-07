@@ -10,7 +10,7 @@ export const spellAnimateObjects: Spell = {
   duration: 'Concentration, up to 1 minute',
   description: 'Objects come to life at your command. Choose up to ten nonmagical objects within range that are not being worn or carried. Medium targets count as two objects, Large targets count as four objects, Huge targets count as eight objects. You can\'t animate any object larger than Huge. Each target animates and becomes a creature under your control until the spell ends or until reduced to 0 hit points. As a bonus action, you can mentally command any creature you made with this spell if the creature is within 500 feet of you (if you control multiple creatures, you can command any or all of them at the same time, issuing the same command to each one).',
   upcast: 'When you cast this spell using a slot of 6th level or higher, you can animate two additional objects for each slot level above 5th.',
-  ritual: false, concentration: true, srd: true, classes: [ 'bard', 'sorcerer', 'wizard'],
+  ritual: false, concentration: true, srd: true, classes: ['artificer', 'bard', 'sorcerer', 'wizard'],
 };
 
 export const spellWallOfForce: Spell = {
@@ -81,14 +81,6 @@ export const spellScrying: Spell = {
   upcast: null, ritual: false, concentration: true, srd: true, classes: ['bard', 'cleric', 'druid', 'warlock', 'wizard'],
 };
 
-export const spellDestructiveWave: Spell = {
-  id: 'destructive_wave', name: 'Destructive Wave', level: 5, school: 'Evocation',
-  castingTime: '1 action', range: 'Self (30-foot radius)', components: ['V'],
-  duration: 'Instantaneous',
-  description: 'You strike the ground, creating a burst of divine energy that ripples outward from you. Each creature you choose within 30 feet of you must succeed on a Constitution saving throw or take 5d6 thunder damage, as well as 5d6 radiant or necrotic damage (your choice), and be knocked prone. A creature that succeeds on its saving throw takes half as much damage and isn\'t knocked prone.',
-  upcast: null, ritual: false, concentration: false, srd: true, classes: ['paladin'],
-};
-
 export const spellGeas: Spell = {
   id: 'geas', name: 'Geas', level: 5, school: 'Enchantment',
   castingTime: '1 minute', range: '60 feet', components: ['V'],
@@ -108,6 +100,5 @@ export const NEW_LEVEL5: Spell[] = [
   spellInsectPlague,
   spellDominatePerson,
   spellScrying,
-  spellDestructiveWave,
   spellGeas,
 ];

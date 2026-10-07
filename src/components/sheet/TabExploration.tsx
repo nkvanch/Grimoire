@@ -11,6 +11,7 @@
 //    starred-only. Spells show all known, with level + tap-for-description.
 //  • Fly/swim/climb come from derived.movement (grant_movement effects). Empty
 //    until a race/item/spell grants them.
+import { findBeastForm } from '../../content/runtimeRules';
 import { useState, memo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
 import {
@@ -108,7 +109,7 @@ interface Props {
   entity: Entity;
   rules: CampaignRules;
   onEntityUpdate: (updated: Entity) => void;
-  onDamage: (amount: number, damageType?: string) => void;
+  onDamage: (amount: number, damageType?: string, isNonmagicalAttack?: boolean) => void;
   onHeal: (amount: number) => void;
   onAddCondition: (condId: string, duration: DurationTracker | null) => void;
   onRemoveCondition: (condId: string) => void;
@@ -197,14 +198,21 @@ function TabExplorationInner({
   // onDamage, since Zustand updates synchronously" pattern as TabCharacter.
   const [concOpen, setConcOpen] = useState(false);
   const [concDamage, setConcDamage] = useState(0);
-  function handleDamage(amount: number, damageType?: string) {
-    onDamage(amount, damageType);
+  function handleDamage(amount: number, damageType?: string, isNonmagicalAttack?: boolean) {
+    onDamage(amount, damageType, isNonmagicalAttack);
     const fresh = useCharacterStore.getState().characters.find(c => c.id === entity.id);
     if (fresh?.spellcasting?.concentrating) {
       setConcDamage(amount);
       setConcOpen(true);
     }
   }
+  // Rules-engine blocker RE-AUDIT closure (3A): same visibility rule as
+  // TabCharacter.tsx's HpModal — shown only while transformed into a form
+  // that actually declares nonmagicalPhysicalResistance.
+  const activeBeastForm = entity.wildShapeState?.active
+    ? findBeastForm(entity.wildShapeState!.formId)
+    : undefined;
+  const showNonmagicalOption = !!activeBeastForm?.nonmagicalPhysicalResistance;
   const [condOpen, setCondOpen] = useState(false);
   const [customCond, setCustomCond] = useState('');
   const [spellDetail, setSpellDetail] = useState<Spell | null>(null);
@@ -399,6 +407,7 @@ function TabExplorationInner({
           <SpellList
             ids={[...entity.spellcasting.cantrips, ...entity.spellcasting.known]}
             onTap={setSpellDetail}
+            rulesetId={entity.rulesetId}
           />
         </Section>
       )}
@@ -425,6 +434,7 @@ function TabExplorationInner({
         onDamage={handleDamage}
         onHeal={(n) => { onHeal(n); }}
         onClose={() => setHpOpen(false)}
+        showNonmagicalOption={showNonmagicalOption}
       />
 
       <ConcentrationModal
@@ -484,8 +494,10 @@ function TabExplorationInner({
 
       {/* Spell detail */}
       <Modal visible={!!spellDetail} transparent animationType="slide" onRequestClose={() => setSpellDetail(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setSpellDetail(null)}>
-          <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
+        <View style={styles.backdrop}>
+          {/* SCROLL-TOUCH-1: backdrop is a sibling, not an ancestor, of the sheet (see TabInventory AddItemModal) */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSpellDetail(null)} accessible={false} />
+          <View style={styles.sheet}>
             {spellDetail && (
               <ScrollView>
                 <Text style={styles.spellDetailName}>{spellDetail.name}</Text>
@@ -505,8 +517,8 @@ function TabExplorationInner({
             <Pressable style={styles.secondaryBtn} onPress={() => setSpellDetail(null)}>
               <Text style={styles.secondaryBtnTxt}>Close</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       {/* Add feat */}
@@ -545,12 +557,12 @@ function FeatureRow({ feature, onToggleStar }: {
 }
 
 // ── Spell list grouped by level ──────────────────────────────────────────────
-function SpellList({ ids, onTap }: { ids: string[]; onTap: (s: Spell) => void }) {
+function SpellList({ ids, onTap, rulesetId }: { ids: string[]; onTap: (s: Spell) => void; rulesetId?: Entity["rulesetId"] }) {
   const resolved = ids
-    .map(id => spellRepo.getSpellSync(id))
+    .map(id => spellRepo.getSpellSync(id, rulesetId))
     .filter((s): s is Spell => !!s)
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  const unknown = ids.filter(id => !spellRepo.getSpellSync(id));
+  const unknown = ids.filter(id => !spellRepo.getSpellSync(id, rulesetId));
 
   if (resolved.length === 0 && unknown.length === 0) {
     return <Text style={styles.emptyNote}>None known</Text>;

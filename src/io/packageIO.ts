@@ -25,6 +25,7 @@ import { detectConflictsDetailed, PackageConflict } from '../engine/packageConfl
 import { DependencyRef } from '../engine/contentDependencies';
 import { HomebrewContent } from '../db/contentCacheRepo';
 import { identifyGrimoireImport, WRONG_HOMEBREW_IMPORTER_MESSAGE } from './importEnvelope';
+import { isOfficialPackFile, previewOfficialPack, OfficialPackPreview } from '../content/officialPackService';
 
 function sanitize(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
@@ -57,7 +58,7 @@ export async function exportPackage(
   /** Optional file-name stem; defaults to the package name. */
   filenameHint?: string,
 ): Promise<void> {
-  const pack = createPackageContentPack(homebrew, contents, meta, deviceId, Constants.expoConfig?.version ?? '0.1.0');
+  const pack = createPackageContentPack(homebrew, contents, meta, deviceId, Constants.expoConfig?.version ?? '1.0.0');
   const json = JSON.stringify(pack, null, 2);
   const filename = `${sanitize(filenameHint ?? meta.name)}.grimoire-pack`;
 
@@ -93,14 +94,33 @@ export type PackageImportPreview = {
  * exactly, just with the richer package-specific diagnostics. Returns null
  * if the user cancels the picker.
  */
+/** A first-party content pack (the SRD packs) was picked instead of a homebrew package: it has its own confirm step. */
+export type OfficialPackImport = { kind: 'official'; preview: OfficialPackPreview };
+
 export async function pickAndValidatePackage(
   knownRulesetIds: Set<string>,
   localLookup:     (ref: DependencyRef) => (HomebrewContent & { rulesetId?: string }) | undefined,
-): Promise<PackageImportPreview | null> {
+  /** Whether a reference points at bundled official content (see content/officialRefs.ts). */
+  isOfficialRef:   (ref: DependencyRef) => boolean = () => false,
+): Promise<PackageImportPreview | OfficialPackImport | null> {
   const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
   if (result.canceled || !result.assets?.[0]) return null;
 
   const content = await FileSystem.readAsStringAsync(result.assets[0].uri);
+  return validatePackageText(content, result.assets[0].name ?? null, knownRulesetIds, localLookup, isOfficialRef);
+}
+
+/**
+ * The same validation for a file that is already text: one the player picked (above) or one downloaded from a link
+ * (content/packDownload.ts). Nothing is imported or installed; the preview is what the player confirms.
+ */
+export async function validatePackageText(
+  content:         string,
+  fileName:        string | null,
+  knownRulesetIds: Set<string>,
+  localLookup:     (ref: DependencyRef) => (HomebrewContent & { rulesetId?: string }) | undefined,
+  isOfficialRef:   (ref: DependencyRef) => boolean = () => false,
+): Promise<PackageImportPreview | OfficialPackImport> {
   if (content.length > MAX_PACKAGE_FILE_BYTES) {
     throw new Error(`That file is ${Math.round(content.length / 1024 / 1024)}MB, which is larger than a real homebrew package should be (limit: ${Math.round(MAX_PACKAGE_FILE_BYTES / 1024 / 1024)}MB). It may be corrupted.`);
   }
@@ -112,8 +132,10 @@ export async function pickAndValidatePackage(
   }
 
   if (identifyGrimoireImport(data) === 'character') throw new Error(WRONG_HOMEBREW_IMPORTER_MESSAGE);
+  // A first-party content pack is installed as the app's official content, not saved as homebrew.
+  if (isOfficialPackFile(data)) return { kind: 'official', preview: previewOfficialPack(data) };
 
-  const validation = validatePackageForImport(data, knownRulesetIds, localLookup);
+  const validation = validatePackageForImport(data, knownRulesetIds, localLookup, isOfficialRef);
   if (validation.blocking.length > 0) {
     const shown = validation.blocking.slice(0, 5).join('\n');
     const more = validation.blocking.length > 5 ? `\n…and ${validation.blocking.length - 5} more.` : '';
@@ -126,7 +148,7 @@ export async function pickAndValidatePackage(
   // needs the whole local item, not just its display name, so there's no
   // longer a separate name-only lookup to keep in sync with this one.
   const { conflicts, identical } = detectConflictsDetailed(pack.homebrew, (type, id) => localLookup({ type, id }));
-  const rawName = result.assets[0].name ?? pack.name ?? 'Imported Package';
+  const rawName = fileName ?? pack.name ?? 'Imported Package';
   return {
     pack,
     validation,

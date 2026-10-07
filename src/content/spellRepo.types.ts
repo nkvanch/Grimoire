@@ -47,8 +47,8 @@ export interface SpellRepo {
   getIndex(): SpellIndexEntry[];
   /** Warms the Tier-2 full-record cache for the given ids. Idempotent. */
   ensureLoaded(ids: string[]): Promise<void>;
-  /** Synchronous full-record lookup. Only returns a hit for ids already passed to ensureLoaded(). */
-  getSpellSync(id: string): Spell | undefined;
+  /** Synchronous full-record lookup. Only returns a hit for ids already passed to ensureLoaded(). With a ruleset, a spell that has a version under it (SRD 5.2.1 text for 2024) resolves to that version. */
+  getSpellSync(id: string, rulesetId?: RulesetId | null): Spell | undefined;
 }
 
 /**
@@ -61,13 +61,25 @@ export interface SpellRepo {
  * that only touched some of these fields).
  */
 export function spellIdsOnEntity(
-  entity: { spellcasting?: Partial<Entity['spellcasting']> | null; features?: Feature[] }
+  entity: {
+    spellcasting?: Partial<Entity['spellcasting']> | null;
+    features?: Feature[];
+    entitlements?: readonly { kind: string; key: string }[];
+  }
 ): string[] {
   const ids = new Set<string>();
   if (entity.spellcasting) {
     for (const id of entity.spellcasting.cantrips ?? []) ids.add(id);
     for (const id of entity.spellcasting.known ?? [])    ids.add(id);
     for (const id of entity.spellcasting.prepared ?? []) ids.add(id);
+  }
+  // Spell/cantrip ACCESS entitlements are authoritative: recomputeDerived
+  // rebuilds spellcasting.known/cantrips from them. Right after a grant (e.g.
+  // creation's "+ Add Additional Spell") the lists haven't been re-derived
+  // yet, so an added cantrip lives ONLY here — without this it would never
+  // be loaded and would end up with no action card.
+  for (const r of entity.entitlements ?? []) {
+    if (r.kind === 'spell_access' || r.kind === 'cantrip_access') ids.add(r.key);
   }
   for (const feature of entity.features ?? []) {
     if (feature.source?.kind === 'spell') ids.add(feature.source.refId);

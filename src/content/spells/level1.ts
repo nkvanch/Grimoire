@@ -10,16 +10,16 @@ export const spellChromaticOrb: Spell = {
   duration: 'Instantaneous',
   description: 'You hurl a 4-inch-diameter sphere of energy at a creature you can see within range. You choose acid, cold, fire, lightning, poison, or thunder for the type of orb you create, and then make a ranged spell attack. On a hit, the creature takes 3d8 damage of the type you chose.',
   upcast: 'When you cast this spell using a slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.',
-  ritual: false, concentration: false, srd: true, classes: ['sorcerer', 'wizard'],
+  ritual: false, concentration: false, srd: false, classes: ['sorcerer', 'wizard'],
 };
 
-export const spellWitchBolt: Spell = {
-  id: 'witch_bolt', name: 'Witch Bolt', level: 1, school: 'Evocation',
-  castingTime: '1 action', range: '30 feet', components: ['V', 'S', 'M'],
-  duration: 'Concentration, up to 1 minute',
-  description: 'A beam of crackling blue energy lances out toward a creature within range, forming a sustained arc of lightning between you and the target. Make a ranged spell attack. On a hit, the target takes 1d12 lightning damage. On each of your turns for the duration, you can use your action to deal 1d12 lightning damage to the target automatically. The spell ends if you use your action to do anything else, if the target is ever outside the spell\'s range, or if the target has total cover from you.',
-  upcast: 'When you cast this spell using a slot of 2nd level or higher, the initial damage increases by 1d12 for each slot level above 1st.',
-  ritual: false, concentration: true, srd: true, classes: ['sorcerer', 'warlock', 'wizard'],
+export const spellIceKnife: Spell = {
+  id: 'ice_knife', name: 'Ice Knife', level: 1, school: 'Conjuration',
+  castingTime: '1 action', range: '60 feet', components: ['S', 'M'],
+  duration: 'Instantaneous',
+  description: 'You create a shard of ice and fling it at one creature within range. Make a ranged spell attack. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of the point where the ice exploded must succeed on a Dexterity saving throw or take 2d6 cold damage.',
+  upcast: 'When you cast this spell using a slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.',
+  ritual: false, concentration: false, srd: false, classes: ['druid', 'sorcerer', 'wizard'],
 };
 
 export const spellInflictWounds: Spell = {
@@ -53,7 +53,7 @@ export const spellIdentify: Spell = {
   castingTime: '1 minute', range: 'Touch', components: ['V', 'S', 'M'],
   duration: 'Instantaneous',
   description: 'You choose one object that you must touch throughout the casting of the spell. If it is a magic item or some other magic-imbued object, you learn its properties and how to use them, whether it requires attunement, and how many charges it has, if any. You learn whether any spells are affecting the item and what they are. If the item was created by a spell, you learn which spell created it. If you instead touch a creature throughout the casting, you learn what spells, if any, are currently affecting it.',
-  upcast: null, ritual: true, concentration: false, srd: true, classes: [ 'bard', 'wizard'],
+  upcast: null, ritual: true, concentration: false, srd: true, classes: ['artificer', 'bard', 'wizard'],
 };
 
 export const spellComprehendLanguages: Spell = {
@@ -77,7 +77,7 @@ export const spellJump: Spell = {
   castingTime: '1 action', range: 'Touch', components: ['V', 'S', 'M'],
   duration: '1 minute',
   description: 'You touch a creature. The creature\'s jump distance is tripled until the spell ends.',
-  upcast: null, ritual: false, concentration: false, srd: true, classes: [ 'druid', 'ranger', 'sorcerer', 'wizard'],
+  upcast: null, ritual: false, concentration: false, srd: true, classes: ['artificer', 'druid', 'ranger', 'sorcerer', 'wizard'],
 };
 
 export const spellLongstrider: Spell = {
@@ -86,7 +86,7 @@ export const spellLongstrider: Spell = {
   duration: '1 hour',
   description: 'You touch a creature. The target\'s speed increases by 10 feet until the spell ends.',
   upcast: 'When you cast this spell using a spell slot of 2nd level or higher, you can target one additional creature for each slot level above 1st.',
-  ritual: false, concentration: false, srd: true, classes: [ 'bard', 'druid', 'ranger', 'wizard'],
+  ritual: false, concentration: false, srd: true, classes: ['artificer', 'bard', 'druid', 'ranger', 'wizard'],
 };
 
 export const spellExpeditiousRetreat: Spell = {
@@ -94,7 +94,7 @@ export const spellExpeditiousRetreat: Spell = {
   castingTime: '1 bonus action', range: 'Self', components: ['V', 'S'],
   duration: 'Concentration, up to 10 minutes',
   description: 'This spell allows you to move at an incredible pace. When you cast this spell, and then as a bonus action on each of your turns until the spell ends, you can take the Dash action.',
-  upcast: null, ritual: false, concentration: true, srd: true, classes: [ 'sorcerer', 'warlock', 'wizard'],
+  upcast: null, ritual: false, concentration: true, srd: true, classes: ['artificer', 'sorcerer', 'warlock', 'wizard'],
 };
 
 export const spellFogCloud: Spell = {
@@ -148,7 +148,7 @@ export const spellGrease: Spell = {
   castingTime: '1 action', range: '60 feet', components: ['V', 'S', 'M'],
   duration: '1 minute',
   description: 'Slick grease covers the ground in a 10-foot square centered on a point within range and turns it into difficult terrain for the duration. When the grease appears, each creature standing in its area must succeed on a Dexterity saving throw or fall prone. A creature that enters the area or ends its turn there must also succeed on a Dexterity saving throw or fall prone.',
-  upcast: null, ritual: false, concentration: false, srd: true, classes: [ 'wizard'],
+  upcast: null, ritual: false, concentration: false, srd: true, classes: ['artificer', 'wizard'],
 };
 
 export const spellEntangle: Spell = {
@@ -199,12 +199,12 @@ export const spellHellishRebuke: Spell = {
   description: 'You point your finger, and the creature that damaged you is momentarily surrounded by hellish flames. The creature must make a Dexterity saving throw. It takes 2d10 fire damage on a failed save, or half as much damage on a successful one.',
   upcast: 'When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.',
   ritual: false, concentration: false, srd: true,
-  classes: ['warlock',],
+  classes: ['warlock', 'abyss_knight'],
 };
 
 export const NEW_LEVEL1: Spell[] = [
   spellChromaticOrb,
-  spellWitchBolt,
+  spellIceKnife,
   spellInflictWounds,
   spellBane,
   spellShieldOfFaith,

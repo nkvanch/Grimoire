@@ -8,9 +8,11 @@
 // across launches. If a user edits a built-in, the edited version is upserted
 // to SQLite; on next load the SQLite copy takes precedence over the built-in.
 // ============================================================================
+import { conditionsForRuleset } from '../content/conditions/resolve';
+import { officialContentVersion } from '../content/officialSource';
 import { create } from 'zustand';
 import {
-  Race, Subrace, CharClass, HomebrewSubclass, Spell, Feature, Background, Item, Feat, Condition, ContentDB,
+  Race, Subrace, CharClass, HomebrewSubclass, Spell, Feature, Background, Item, Feat, Condition, SpellList, ContentDB,
   RulesetId, matchesRuleset,
 } from '../engine/types';
 import { MonsterTemplate } from '../content/monsters/types';
@@ -20,14 +22,19 @@ import {
   ContentCacheType, HomebrewContent, ContentVersionEntry,
 } from '../db/contentCacheRepo';
 import { getMeta, setMeta } from '../db/appMetaRepo';
-import { BUILTIN_HOMEBREW } from '../content/builtinHomebrew';
+import { BUILTIN_HOMEBREW, BUILTIN_HOMEBREW_IDS } from '../content/builtinHomebrew';
 import { globalContentDB } from '../content/classes/library';
+import { registerHomebrewConditions } from '../content/conditions/index';
 
 // ids of built-in items for fast lookup
-const BUILTIN_IDS = new Set<string>([
-  ...BUILTIN_HOMEBREW.classes.map(c => c.id),
-  ...BUILTIN_HOMEBREW.races.map(r => r.id),
-]);
+const BUILTIN_IDS = BUILTIN_HOMEBREW_IDS;
+
+/** Built-ins not deleted by the user and not overridden by a user-edited SQLite copy (that copy
+ *  wins), followed by the SQLite entries. Order is irrelevant — every picker dedups by id. */
+function withBuiltins<T extends { id: string }>(builtin: readonly T[], stored: T[], deleted: Set<string>): T[] {
+  const have = new Set(stored.map(x => x.id));
+  return [...builtin.filter(b => !deleted.has(b.id) && !have.has(b.id)), ...stored];
+}
 
 /** Persist the set of deleted built-in ids to app_meta. */
 async function persistDeletedBuiltins(ids: Set<string>): Promise<void> {
@@ -72,6 +79,7 @@ type HomebrewStore = {
   feats:       Feat[];
   monsters:    MonsterTemplate[];
   conditions:  Condition[];
+  spellLists:  SpellList[];
   isLoading:   boolean;
 
   /** Load all homebrew from SQLite and merge built-in homebrew. */
@@ -104,20 +112,47 @@ type HomebrewStore = {
 // the app (race-detail.tsx, class-detail.tsx, TabCharacter.tsx,
 // dm/encounter.tsx's QuickPanel, several homebrew builders) call this
 // unmemoized, so a single re-render could redo this merge several times.
-// Single-entry reference-equality cache: since the store's own content
-// arrays only get NEW references on an actual load/save/delete (never
-// mutated in place — confirmed via loadHomebrew's `set({...})` calls and
-// saveItem/deleteItem below), comparing by `===` against the previous
-// call's inputs is a safe, correct way to skip redoing the merge when
-// nothing has actually changed. `bannedIds` callers that construct a fresh
-// Set every render (see race-detail.tsx) simply won't benefit from this
-// cache themselves — the majority of call sites (which pass no bannedIds)
-// still do, with no correctness change either way.
+// Reference-equality cache keyed on the full argument tuple: since the
+// store's own content arrays only get NEW references on an actual load/
+// save/delete (never mutated in place — confirmed via loadHomebrew's
+// `set({...})` calls and saveItem/deleteItem below), comparing by `===`
+// against a previous call's inputs is a safe, correct way to skip redoing
+// the merge when nothing has actually changed. `bannedIds` callers that
+// construct a fresh Set every render (see race-detail.tsx) simply won't
+// benefit from this cache themselves — the majority of call sites (which
+// pass no bannedIds) still do, with no correctness change either way.
+//
+// Combat/Spells crash closure: this was a SINGLE-entry cache until this
+// batch — reproduced live (web preview) as a genuine "Maximum update depth
+// exceeded" on both the Combat and Spells tabs. Root cause: within one
+// render tree, one component reads this through a Zustand selector that
+// CALLS it with one argument shape (e.g. `s => s.getMergedContentDB(entity.
+// rulesetId)` — TabCharacter.tsx's useCardContent, TabSpells.tsx's own
+// call), while a sibling/child in the SAME tree (LevelUpSection inside
+// TabCharacter.tsx, AddSpellModal under TabSpells.tsx) calls it directly in
+// its own render body with a DIFFERENT shape (`getMergedContentDB()`, no
+// args). A single-entry cache means the second call evicts the first
+// call's entry; when Zustand's useSyncExternalStore machinery re-invokes
+// the ORIGINAL selector right after commit to verify the snapshot hasn't
+// changed, it gets a cache miss, recomputes, and returns a new object
+// reference — which reads as "snapshot changed since render" and forces
+// another re-render, repeating forever. Actions/Abilities/Features/Items
+// never crashed because nothing in their own tree calls this with a second,
+// different argument shape. Widening to a small multi-entry cache (find-by-
+// key instead of a single slot) fixes this at the actual fault line — the
+// cache's own fragility — rather than chasing down and re-auditing every
+// current and future call site across the app for argument consistency.
 type MergedContentDBCacheKey = readonly [
   unknown[], unknown[], unknown[], unknown[], unknown[], unknown[], unknown[], unknown[], unknown[],
-  RulesetId | undefined, Set<string> | undefined,
+  RulesetId | undefined, Set<string> | undefined, number,
 ];
-let mergedContentDBCache: { key: MergedContentDBCacheKey; value: ContentDB } | null = null;
+// Small LRU, not unbounded — a handful of distinct argument shapes are
+// legitimately in real use across the app at once (bare, ruleset-scoped,
+// banned-ids-scoped); capping keeps this from growing without bound if a
+// caller ever passes a fresh bannedIds Set every render (which never hits
+// the cache anyway — see the doc comment above).
+const MERGED_CONTENT_DB_CACHE_MAX = 6;
+let mergedContentDBCacheEntries: { key: MergedContentDBCacheKey; value: ContentDB }[] = [];
 
 /** The per-type upsert-into-array patch for ONE item — factored out of
  *  saveItem so saveItems (item 14's atomic batch import) can fold N items
@@ -135,6 +170,7 @@ function applyOneItem(state: HomebrewStore, type: ContentCacheType, item: Homebr
     case 'feat':       return { feats:       [...state.feats.filter(f => f.id !== (item as Feat).id),           item as Feat] };
     case 'monster':    return { monsters:    [...state.monsters.filter(m => m.id !== (item as MonsterTemplate).id), item as MonsterTemplate] };
     case 'condition':  return { conditions:  [...state.conditions.filter(c => c.id !== (item as Condition).id), item as Condition] };
+    case 'spellList':  return { spellLists:  [...state.spellLists.filter(sl => sl.id !== (item as SpellList).id), item as SpellList] };
     default:           return state;
   }
 }
@@ -151,6 +187,7 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
   feats:       [],
   monsters:    [],
   conditions:  [],
+  spellLists:  [],
   isLoading:   false,
 
   loadHomebrew: async () => {
@@ -161,35 +198,22 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
         loadDeletedBuiltins(),
       ]);
 
-      const sqliteClasses     = (all.class      ?? []) as CharClass[];
-      const sqliteRaces        = (all.race       ?? []) as Race[];
-      const sqliteClassIds    = new Set(sqliteClasses.map(c => c.id));
-      const sqliteRaceIds     = new Set(sqliteRaces.map(r => r.id));
-
-      // Inject built-in homebrew that hasn't been deleted and hasn't been
-      // overridden by a user-edited SQLite copy (SQLite copy takes precedence).
-      const builtinClasses = BUILTIN_HOMEBREW.classes.filter(
-        c => !deletedIds.has(c.id) && !sqliteClassIds.has(c.id)
-      );
-      const builtinRaces = BUILTIN_HOMEBREW.races.filter(
-        r => !deletedIds.has(r.id) && !sqliteRaceIds.has(r.id)
-      );
+      const sqliteClasses = (all.class ?? []) as CharClass[];
+      const sqliteRaces   = (all.race  ?? []) as Race[];
 
       set({
-        // Built-ins first so SQLite copies (edits) appear after and
-        // dedup logic in pickers uses the last occurrence — but since
-        // SQLite copies filtered out by id above, order doesn't matter.
-        classes:     [...builtinClasses, ...sqliteClasses],
-        races:       [...builtinRaces,   ...sqliteRaces],
+        classes:     withBuiltins(BUILTIN_HOMEBREW.classes,    sqliteClasses, deletedIds),
+        races:       withBuiltins(BUILTIN_HOMEBREW.races,      sqliteRaces,   deletedIds),
         subraces:    (all.subrace    ?? []) as Subrace[],
-        subclasses:  (all.subclass   ?? []) as HomebrewSubclass[],
-        spells:      (all.spell      ?? []) as Spell[],
+        subclasses:  withBuiltins(BUILTIN_HOMEBREW.subclasses, (all.subclass ?? []) as HomebrewSubclass[], deletedIds),
+        spells:      withBuiltins(BUILTIN_HOMEBREW.spells,     (all.spell    ?? []) as Spell[],            deletedIds),
         backgrounds: (all.background ?? []) as Background[],
-        features:    (all.feature    ?? []) as Feature[],
-        items:       (all.item       ?? []) as Item[],
-        feats:       (all.feat       ?? []) as Feat[],
-        monsters:    (all.monster    ?? []) as MonsterTemplate[],
-        conditions:  (all.condition  ?? []) as Condition[],
+        features:    withBuiltins(BUILTIN_HOMEBREW.features, (all.feature ?? []) as Feature[], deletedIds),
+        items:       withBuiltins(BUILTIN_HOMEBREW.items,      (all.item     ?? []) as Item[],             deletedIds),
+        feats:       withBuiltins(BUILTIN_HOMEBREW.feats,      (all.feat     ?? []) as Feat[],             deletedIds),
+        monsters:    withBuiltins(BUILTIN_HOMEBREW.monsters,   (all.monster  ?? []) as MonsterTemplate[],  deletedIds),
+        conditions:  withBuiltins(BUILTIN_HOMEBREW.conditions, (all.condition ?? []) as Condition[],       deletedIds),
+        spellLists:  (all.spellList  ?? []) as SpellList[],
         isLoading:   false,
       });
     } catch (e) {
@@ -202,11 +226,10 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
     const { races, subraces, classes, spells, backgrounds, features, items, feats, conditions } = get();
     const cacheKey: MergedContentDBCacheKey = [
       races, subraces, classes, spells, backgrounds, features, items, feats, conditions,
-      activeRuleset, bannedIds,
+      activeRuleset, bannedIds, officialContentVersion(),
     ];
-    if (mergedContentDBCache && cacheKey.every((v, i) => v === mergedContentDBCache!.key[i])) {
-      return mergedContentDBCache.value;
-    }
+    const hit = mergedContentDBCacheEntries.find(entry => cacheKey.every((v, i) => v === entry.key[i]));
+    if (hit) return hit.value;
     // Item 15 (campaign content manifest) — banned homebrew packs' content
     // ids, pre-computed by the caller (packDiagnostics.ts's
     // bannedContentIds()) from the active campaign's Campaign.bannedPackIds.
@@ -252,14 +275,16 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
       backgrounds: notBanned(homebrewWinsById(globalContentDB.backgrounds, backgrounds).filter(b => matchesRuleset(b.rulesetId, activeRuleset))),
       // Now includes homebrew conditions too (A-35) — previously official-only,
       // the one content type with zero homebrew authoring support at all.
-      conditions:  notBanned(homebrewWinsById(globalContentDB.conditions, conditions).filter(c => matchesRuleset(c.rulesetId, activeRuleset))),
+      conditions:  notBanned(homebrewWinsById(conditionsForRuleset(globalContentDB.conditions, activeRuleset), conditions).filter(c => matchesRuleset(c.rulesetId, activeRuleset))),
       // Same rationale as .spells above — official item content lives in
       // itemRepo now, not globalContentDB.
       items:       notBanned(items),
       features:    notBanned(homebrewWinsById(globalContentDB.features, features)),
       feats:       notBanned(homebrewWinsById(globalContentDB.feats ?? [], feats).filter(f => matchesRuleset(f.rulesetId, activeRuleset))),
     };
-    mergedContentDBCache = { key: cacheKey, value: result };
+    // Most-recently-used first; evict the oldest entry once over the cap.
+    mergedContentDBCacheEntries = [{ key: cacheKey, value: result }, ...mergedContentDBCacheEntries]
+      .slice(0, MERGED_CONTENT_DB_CACHE_MAX);
     return result;
   },
 
@@ -300,6 +325,7 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
         case 'feat':       return { feats:       state.feats.filter(f => f.id !== id) };
         case 'monster':    return { monsters:    state.monsters.filter(m => m.id !== id) };
         case 'condition':  return { conditions:  state.conditions.filter(c => c.id !== id) };
+        case 'spellList':  return { spellLists:  state.spellLists.filter(sl => sl.id !== id) };
         default:           return state;
       }
     });
@@ -327,8 +353,19 @@ export const useHomebrewStore = create<HomebrewStore>((set, get) => ({
         case 'feat':       return { feats:       [...state.feats.filter(f => f.id !== id),              restored as Feat] };
         case 'monster':    return { monsters:    [...state.monsters.filter(m => m.id !== id),           restored as MonsterTemplate] };
         case 'condition':  return { conditions:  [...state.conditions.filter(c => c.id !== id),         restored as Condition] };
+        case 'spellList':  return { spellLists:  [...state.spellLists.filter(sl => sl.id !== id),       restored as SpellList] };
         default:           return state;
       }
     });
   },
 }));
+
+// Keep the engine-side homebrew condition lookup (content/conditions/index.ts) in step with the
+// store, so an ability that applies a homebrew condition by id attaches that condition's features.
+let lastConditions: Condition[] | null = null;
+useHomebrewStore.subscribe(state => {
+  if (state.conditions !== lastConditions) {
+    lastConditions = state.conditions;
+    registerHomebrewConditions(state.conditions);
+  }
+});

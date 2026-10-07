@@ -21,7 +21,7 @@ import { Alert } from '../../src/utils/alert';
 import { mergeItemIndex, resolveItemById } from '../../src/content/contentResolution';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
-import { newDraftTrait, TraitEditorModal, COMMON_TOOLS, disambiguateId } from '../../src/components/homebrew/TraitEditor';
+import { newDraftTrait, TraitEditorModal, COMMON_TOOLS, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
 import { globalContentDB } from '../../src/content/classes/library';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
 import { simulate } from '../../src/engine/simulate';
@@ -50,6 +50,21 @@ const SPELL_STYLES = [
   { key: 'full', label: 'Full Caster', sub: 'Wizard/Cleric slots' },
   { key: 'half', label: 'Half Caster', sub: 'Paladin/Ranger slots' },
   { key: 'pact', label: 'Pact Magic',  sub: 'Warlock-style slots' },
+] as const;
+/**
+ * Rules-engine blocker closure (2C — homebrew class preparation policy):
+ * production spell-card generation now reads CharClass.spellPreparationPolicy
+ * for real legality/DC — see actionCards.ts's isSpellPreparationLegal/
+ * resolveSpellCastingContexts — so a homebrew caster needs a way to author
+ * it. Slot Table (SPELL_STYLES above) can't stand in for this: it's a
+ * completely separate axis (Sorcerer and Wizard are both 'full' Slot Table
+ * but opposite preparation policies), so this is a genuinely new field, not
+ * a relabeled existing one.
+ */
+const SPELL_PREP_POLICIES = [
+  { key: 'known', label: 'Known Spells', sub: "Fixed list, always castable — Sorcerer/Bard/Warlock-style" },
+  { key: 'spellbook_prepared', label: 'Spellbook + Prepared', sub: 'Owns a spellbook, prepares a subset daily — Wizard-style' },
+  { key: 'full_list_prepared', label: 'Full-List Prepared', sub: 'Prepares directly from the whole class list daily — Cleric/Druid-style' },
 ] as const;
 
 const DEFAULT_ASI_LEVELS = [4, 8, 12, 16, 19];
@@ -91,6 +106,7 @@ export default function ClassBuilderScreen() {
   const saveItem = useHomebrewStore(s => s.saveItem);
   const homebrewItems = useHomebrewStore(s => s.items);
   const homebrewClasses = useHomebrewStore(s => s.classes);
+  const savedSpellLists = useHomebrewStore(s => s.spellLists);
   const { editId } = useLocalSearchParams<{ editId?: string }>();
   const editing = editId ? homebrewClasses.find(c => c.id === editId) ?? null : null;
   const draftRulesetId = useCharacterStore(s => s.draft?.rulesetId);
@@ -132,7 +148,16 @@ export default function ClassBuilderScreen() {
   // selected = the player picks at creation (spellcastingAbilityOptions).
   const [spellAbilities,  setSpellAbilities]  = useState<Ability[]>(['cha']);
   const [spellStyle,      setSpellStyle]      = useState<'full'|'half'|'pact'>('full');
+  const [spellPrepPolicy, setSpellPrepPolicy] = useState<'known'|'spellbook_prepared'|'full_list_prepared'>('known');
   const [spellStartLevel, setSpellStartLevel] = useState('1');
+  // Where this class's spell choices come from: 'own' (spells tagged for this class), another class's
+  // spell list ('class:<id>'), or one of the player's saved Spell Lists ('list:<id>').
+  const [spellSource, setSpellSource] = useState<string>('own');
+  // Classes whose spell list can be borrowed: every spellcasting class, official or homebrew (not this one).
+  const borrowableClasses = useMemo(() => {
+    const all = [...globalContentDB.classes, ...homebrewClasses.filter(c => !globalContentDB.classes.some(o => o.id === c.id))];
+    return all.filter(c => c.id !== editing?.id && (c.spellcastingAbility || (c.spellcastingAbilityOptions?.length ?? 0) > 0 || c.spellcastingStyle));
+  }, [homebrewClasses, editing?.id]);
 
   // ── Per-level features
   const [levelFeatures, setLevelFeatures] = useState<LevelFeature[]>([]);
@@ -182,7 +207,14 @@ export default function ClassBuilderScreen() {
       : ['cha']
     );
     setSpellStyle(editing.spellcastingStyle ?? 'full');
+    setSpellPrepPolicy(
+      editing.spellPreparationPolicy === 'spellbook_prepared' || editing.spellPreparationPolicy === 'full_list_prepared'
+        ? editing.spellPreparationPolicy : 'known'
+    );
     setSpellStartLevel(String(editing.spellcastingStartLevel ?? 1));
+    setSpellSource(editing.spellListSource
+      ? (editing.spellListSource.kind === 'list' ? `list:${editing.spellListSource.listId}` : `class:${editing.spellListSource.classId}`)
+      : 'own');
     setLevelFeatures((editing.levelFeatures ?? []).map(normalizeLevelFeature));
     setAsiLevels(editing.asiLevels ?? [...DEFAULT_ASI_LEVELS]);
     // CHOICE-AUTHORING-1: CharClass.levelChoices stores already-compiled
@@ -317,7 +349,11 @@ export default function ClassBuilderScreen() {
       spellcastingAbility:     isCaster && spellAbilities.length === 1 ? spellAbilities[0] : undefined,
       spellcastingAbilityOptions: isCaster && spellAbilities.length >= 2 ? spellAbilities : undefined,
       spellcastingStyle:       isCaster ? spellStyle   : undefined,
+      spellPreparationPolicy:  isCaster && spellPrepPolicy !== 'known' ? spellPrepPolicy : undefined,
       spellcastingStartLevel:  isCaster && startLvl > 1 ? startLvl : undefined,
+      spellListSource:         isCaster && spellSource.startsWith('list:') ? { kind: 'list' as const, listId: spellSource.slice(5) }
+                               : isCaster && spellSource.startsWith('class:') ? { kind: 'class' as const, classId: spellSource.slice(6) }
+                               : undefined,
       asiLevels:               JSON.stringify(asiLevels) !== JSON.stringify(DEFAULT_ASI_LEVELS)
                                  ? asiLevels : undefined,
       levelFeatures:           levelFeatures.length > 0 ? levelFeatures : undefined,
@@ -476,7 +512,7 @@ export default function ClassBuilderScreen() {
 
         <Text style={styles.fieldLabel}>Class Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
-          placeholder="e.g. Ranger" placeholderTextColor={Colors.textDim} />
+          placeholder="e.g. Runesmith" placeholderTextColor={Colors.textDim} />
 
         <Text style={styles.fieldLabel}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />
@@ -704,6 +740,66 @@ export default function ClassBuilderScreen() {
               );
             })}
 
+            <Text style={styles.fieldLabel}>Preparation Model</Text>
+            <Text style={styles.hint}>
+              How this class's LEVELED spells (not cantrips) become castable —
+              independent of Slot Table above (Wizard and Sorcerer are both
+              Full Caster but opposite preparation models).
+            </Text>
+            {SPELL_PREP_POLICIES.map(p => {
+              const active = spellPrepPolicy === p.key;
+              return (
+                <Pressable key={p.key}
+                  style={[styles.styleRow, active && styles.styleRowActive]}
+                  onPress={() => setSpellPrepPolicy(p.key)}
+                >
+                  <View style={[styles.styleRadio, active && styles.styleRadioActive]}>
+                    {active && <View style={styles.styleRadioDot} />}
+                  </View>
+                  <View>
+                    <Text style={[styles.styleLabel, active && styles.styleLabelActive]}>
+                      {p.label}
+                    </Text>
+                    <Text style={styles.styleSub}>{p.sub}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+
+            <Text style={styles.fieldLabel}>Spell List</Text>
+            <Text style={styles.hint}>
+              Which spells this class picks from by default. Choose one of your saved Spell Lists or borrow
+              another class's list. (A player can still switch to a different list while picking.)
+            </Text>
+            <View style={styles.chipRow}>
+              <Pressable style={[styles.chip, spellSource === 'own' && styles.chipActive]} onPress={() => setSpellSource('own')}>
+                <Text style={[styles.chipTxt, spellSource === 'own' && styles.chipTxtActive]}>This class's own</Text>
+              </Pressable>
+            </View>
+            {savedSpellLists.length > 0 && (
+              <>
+                <Text style={styles.hint}>Your Spell Lists</Text>
+                <View style={styles.chipRow}>
+                  {savedSpellLists.map(l => (
+                    <Pressable key={l.id} style={[styles.chip, spellSource === `list:${l.id}` && styles.chipActive]} onPress={() => setSpellSource(`list:${l.id}`)}>
+                      <Text style={[styles.chipTxt, spellSource === `list:${l.id}` && styles.chipTxtActive]}>{l.name} ({l.spellIds.length})</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+            <Text style={styles.hint}>Another class's list</Text>
+            <View style={styles.chipRow}>
+              {borrowableClasses.map(c => (
+                <Pressable key={c.id} style={[styles.chip, spellSource === `class:${c.id}` && styles.chipActive]} onPress={() => setSpellSource(`class:${c.id}`)}>
+                  <Text style={[styles.chipTxt, spellSource === `class:${c.id}` && styles.chipTxtActive]}>{c.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {savedSpellLists.length === 0 && (
+              <Text style={styles.hint}>No saved Spell Lists yet. Create one under Homebrew, then pick it here.</Text>
+            )}
+
             <Text style={styles.fieldLabel}>Spellcasting Begins at Level</Text>
             <TextInput
               style={[styles.input, styles.smallInput]}
@@ -736,7 +832,7 @@ export default function ClassBuilderScreen() {
                 <Pressable key={f.localId} style={styles.featureItem} onPress={() => setOpenFeatureId(f.localId)}>
                   <View style={styles.featureItemBody}>
                     <Text style={styles.featureItemName}>{f.name}</Text>
-                    <Text style={styles.featureItemDesc} numberOfLines={1}>{EFFECT_KIND_LABELS[f.effectKind]}</Text>
+                    <Text style={styles.featureItemDesc} numberOfLines={1}>{EFFECT_KIND_LABELS[f.effectKind] ?? TRAIT_KIND_LABELS[f.effectKind]}</Text>
                   </View>
                   <Pressable
                     style={styles.featureDeleteBtn}

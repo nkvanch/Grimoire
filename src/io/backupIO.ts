@@ -5,6 +5,8 @@
 // writes a file and opens the OS share sheet so the user chooses where it
 // goes (their own cloud drive, email to themselves, etc.) — Grimoire itself
 // never transmits it anywhere.
+import { withRequiredPacks } from '../content/requiredPacks';
+import { installedOfficialPacks } from '../content/officialPackService';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -82,10 +84,10 @@ export async function exportBackup(
   deviceId:   string | null,
 ): Promise<void> {
   const pack = createBackupPack(
-    characters,
+    characters.map(c => (c.kind === 'character' ? withRequiredPacks(c, installedOfficialPacks()) : c)),
     homebrew,
     deviceId,
-    Constants.expoConfig?.version ?? '0.1.0',
+    Constants.expoConfig?.version ?? '1.0.0',
   );
 
   const json     = JSON.stringify(pack, null, 2);
@@ -114,7 +116,7 @@ export async function exportContentPack(
   const pack = createContentPack(
     homebrew,
     deviceId,
-    Constants.expoConfig?.version ?? '0.1.0',
+    Constants.expoConfig?.version ?? '1.0.0',
   );
 
   const json     = JSON.stringify(pack, null, 2);

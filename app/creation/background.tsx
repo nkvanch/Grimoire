@@ -1,5 +1,9 @@
 // app/creation/background.tsx
 // Background list + detail page with personality trait selectors.
+import { applyBackgroundOriginFeat, revokeBackgroundOriginFeat } from '../../src/engine/originFeat';
+import { rulesetLabel } from '../../src/content/rulesets';
+import { suggestFirst } from '../../src/content/rulesetSuggestion';
+import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
 import { View, Text, FlatList, Pressable, StyleSheet, TextInput, ScrollView } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -16,11 +20,15 @@ import { sortByOption } from '../../src/content/contentQuery';
 import { SortControl } from '../../src/components/SortControl';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
+import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
+import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import {
   FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow,
   ActiveFilterChips, ZeroResultsState,
 } from '../../src/components/FilterChipRow';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { useBrowseStateStore } from '../../src/store/browseStateStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
 
@@ -203,12 +211,14 @@ export default function BackgroundScreen() {
   const availableTools = Array.from(new Set(globalContentDB.backgrounds.flatMap(b => b.toolProficiencies ?? [])))
     .sort().map(t => ({ id: t, label: t }));
 
-  const backgrounds = officialFilter === 'homebrew' ? [] : sortByOption(globalContentDB.backgrounds.filter(b =>
+  useOfficialContentVersion();   // follow pack installs and removals while this list is open
+  const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
+  const backgrounds = officialFilter === 'homebrew' ? [] : suggestFirst(sortByOption(globalContentDB.backgrounds.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) &&
     (!rulesetFilter || b.rulesetId === rulesetFilter) &&
     (skillFilter.size === 0 || Array.from(skillFilter).some(s => backgroundSkillGrants(b).includes(s))) &&
     (toolFilter.size === 0 || Array.from(toolFilter).some(t => (b.toolProficiencies ?? []).includes(t)))
-  ), sortOptions, sort);
+  ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewBackgrounds = officialFilter === 'official' ? [] : sortByOption(homebrewBackgrounds.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) &&
     (skillFilter.size === 0 || Array.from(skillFilter).some(s => backgroundSkillGrants(b).includes(s))) &&
@@ -225,9 +235,13 @@ export default function BackgroundScreen() {
   }
   const noResults = backgrounds.length === 0 && filteredHomebrewBackgrounds.length === 0;
 
-  return (
-    <View style={styles.container}>
+  // SCROLL-HEADER-1: see race.tsx's identical comment — heading/search/
+  // filters now scroll away with the list instead of staying pinned above it.
+  const listHeader = (
+    <>
       <Text style={styles.heading}>Select Background</Text>
+      <MissingRulesetContentBanner ruleset={suggestedRuleset} />
+      {suggestedRuleset ? <Text style={{ textAlign: 'center', color: Colors.textDim, fontSize: FontSize.xs, marginTop: -Spacing.sm, marginBottom: Spacing.sm }}>{rulesetLabel(suggestedRuleset)} content is listed first.</Text> : null}
       <View style={styles.divider} />
 
       <View style={styles.searchRow}>
@@ -267,18 +281,26 @@ export default function BackgroundScreen() {
         </View>
       )}
       <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
+    </>
+  );
 
+  return (
+    <View style={styles.container}>
       {noResults ? (
-        <ZeroResultsState
-          hasActiveFilters={activeFilterChips.length > 0}
-          emptyMessage="No backgrounds match your search."
-          onClearFilters={clearAllFilters}
-        />
+        <ScrollView contentContainerStyle={[styles.list, { paddingBottom: scrollBottomPadding(insets.bottom) }]}>
+          {listHeader}
+          <ZeroResultsState
+            hasActiveFilters={activeFilterChips.length > 0}
+            emptyMessage="No backgrounds match your search."
+            onClearFilters={clearAllFilters}
+          />
+        </ScrollView>
       ) : (
         <FlatList
           data={backgrounds}
           keyExtractor={b => b.id}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing.xxl }]}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={[styles.list, { paddingBottom: scrollBottomPadding(insets.bottom) }]}
           renderItem={({ item }) => (
             <Pressable
               style={styles.row}
@@ -288,12 +310,8 @@ export default function BackgroundScreen() {
               {/* Distinguishes same-named ruleset variants (e.g. the paused
                   5.5e proof-slice's "Acolyte" alongside the classic one) —
                   audit finding RULESET-DUP-1. */}
-              {item.rulesetId && (
-                <View style={styles.rulesetTag}>
-                  <Text style={styles.rulesetTagTxt}>{item.rulesetId}</Text>
-                </View>
-              )}
-              {isNonSrd(item.srd) && <NonSrdBadge />}
+              <EditionBadge item={item} official />
+              {isNonSrd(item.srd, item.rulesetId) && <NonSrdBadge />}
               <Text style={styles.rowArrow}>›</Text>
             </Pressable>
           )}
@@ -421,7 +439,7 @@ function BackgroundDetail({ id }: { id: string }) {
     }
 
     let updated = {
-      ...draft!,
+      ...revokeBackgroundOriginFeat(draft!),
       identity: { ...draft!.identity, backgroundId: bg!.id },
       // Remove old background features; new ones applied below.
       features: draft!.features.filter(f => f.source.kind !== 'background'),
@@ -447,6 +465,12 @@ function BackgroundDetail({ id }: { id: string }) {
     // identical pendingChoices handling.
     for (const choice of bg!.pendingChoices ?? []) {
       updated = queueChoice(updated, choice, 0, undefined, { kind: 'background', id: bg!.id });
+    }
+
+    // ...and the Origin feat the (2024) background names: granted for real, with this background as
+    // its source so changing the background removes it again.
+    if (bg!.originFeat) {
+      updated = applyBackgroundOriginFeat(updated, bg!, (getMergedContentDB(updated.rulesetId).feats ?? []).find(f => f.id === bg!.originFeat));
     }
 
     // ...and the flexible ability score choice, compiled into one generated
@@ -499,7 +523,11 @@ function BackgroundDetail({ id }: { id: string }) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
       <View style={styles.headingRow}>
         <Text style={styles.heading}>{bg.name}</Text>
         {isHomebrew && (
@@ -507,7 +535,8 @@ function BackgroundDetail({ id }: { id: string }) {
             <Text style={styles.homebrewTagTxt}>Homebrew</Text>
           </View>
         )}
-        {!isHomebrew && isNonSrd(bg.srd) && <NonSrdBadge />}
+        {!isHomebrew && <EditionBadge item={bg} official />}
+        {!isHomebrew && isNonSrd(bg.srd, bg.rulesetId) && <NonSrdBadge />}
       </View>
       <View style={styles.divider} />
 
@@ -580,7 +609,7 @@ function BackgroundDetail({ id }: { id: string }) {
               </Pressable>
               <Pressable
                 style={[flexStyles.subModeBtn, flexSubMode === '3x1' && flexStyles.subModeBtnActive]}
-                onPress={() => { setFlexSubMode('3x1'); setFlexPicks([]); }}
+                onPress={() => { setFlexSubMode('3x1'); setFlexPicks(flexAbilityOptions.length === 3 ? [...flexAbilityOptions] : []); }}
               >
                 <Text style={[flexStyles.subModeTxt, flexSubMode === '3x1' && flexStyles.subModeTxtActive]}>+1 / +1 / +1</Text>
               </Pressable>
@@ -606,15 +635,19 @@ function BackgroundDetail({ id }: { id: string }) {
         </>
       )}
 
-      <View style={styles.divider} />
-      <Pressable
-        style={[styles.selectBtn, !flexComplete && styles.selectBtnDisabled]}
-        onPress={selectBackground}
-        disabled={!flexComplete}
-      >
-        <Text style={styles.selectBtnText}>Select Background</Text>
-      </Pressable>
     </ScrollView>
+    <SafeBottomView>
+      <View style={styles.footer}>
+        <Pressable
+          style={[styles.selectBtn, !flexComplete && styles.selectBtnDisabled]}
+          onPress={selectBackground}
+          disabled={!flexComplete}
+        >
+          <Text style={styles.selectBtnText}>Select Background</Text>
+        </Pressable>
+      </View>
+    </SafeBottomView>
+    </>
   );
 }
 
@@ -666,7 +699,8 @@ const ppStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   heading:   { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.md },
   headingRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   sub:       { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },

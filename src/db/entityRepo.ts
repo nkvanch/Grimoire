@@ -5,8 +5,10 @@
 // Entities are stored as full JSON blobs. The only separate columns are id,
 // kind, and updatedAt for efficient list/filter queries.
 // ============================================================================
+import { withRequiredPacks } from '../content/requiredPacks';
+import { installedOfficialPacks } from '../content/officialPackService';
 import { Platform } from 'react-native';
-import { Entity } from '../engine/types';
+import { Entity, stripTransientRuntimeState } from '../engine/types';
 import { getDb } from './db';
 import { migrateEntity } from '../engine/multiclass';
 import { validateEntityShape } from '../engine/homebrewValidator';
@@ -29,7 +31,8 @@ export async function saveEntity(entity: Entity): Promise<void> {
        kind      = excluded.kind,
        data      = excluded.data,
        updatedAt = excluded.updatedAt`,
-    [entity.id, entity.kind, JSON.stringify(entity), Date.now()]
+    // The packs this character's content comes from are recorded with it (content/requiredPacks.ts), so a removed pack or another device can say what it needs.
+    [entity.id, entity.kind, JSON.stringify(entity.kind === 'character' ? withRequiredPacks(entity, installedOfficialPacks()) : entity), Date.now()]
   );
 }
 
@@ -87,7 +90,11 @@ function parseEntityRow(r: EntityRow): Entity | null {
       console.error(`[entityRepo] quarantining structurally invalid row id=${r.id}:`, shape.errors);
       return null;
     }
-    return migrated;
+    // Extra Attack sequence closure (Part B4): this is the single choke
+    // point behind every DB read (loadEntity, loadAllEntities,
+    // loadEntitiesByKind) — a row saved mid-Attack-sequence must never come
+    // back with a resumable attackSequence still attached.
+    return stripTransientRuntimeState(migrated);
   } catch (e) {
     console.error(`[entityRepo] skipping malformed row id=${r.id}:`, e);
     return null;

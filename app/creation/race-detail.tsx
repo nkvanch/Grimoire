@@ -15,6 +15,7 @@ import { applyGrant, queueChoice } from '../../src/engine/leveling';
 import { recomputeDerived, applyStatModifiers, collectAllEffects } from '../../src/engine/pipeline';
 import { Entity, Ability, Feature, RACE_CHOICE_PREFIX } from '../../src/engine/types';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import {
   FilterSection, MultiSelectChipRow, OfficialHomebrewChipRow, ActiveFilterChips,
 } from '../../src/components/FilterChipRow';
@@ -23,7 +24,9 @@ import {
   SubraceOwnTrait, SUBRACE_OWN_TRAIT_LABELS, subraceOwnTraits, subraceSortOptions,
 } from '../../src/content/races/subraceBrowse';
 import { sortByOption } from '../../src/content/contentQuery';
+import { currentContentExposure, exposedSubraces } from '../../src/content/contentExposure';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
 
 const ABILITY_LABELS: { key: Ability; label: string }[] = [
   { key: 'str', label: 'STR' }, { key: 'dex', label: 'DEX' }, { key: 'con', label: 'CON' },
@@ -103,6 +106,9 @@ function clearRaceFeatures(entity: Entity): Entity {
     ),
   };
 }
+
+// Build mode is fixed for the app's lifetime; same module-level read the Compendium uses.
+const CONTENT_EXPOSURE = currentContentExposure();
 
 export default function RaceDetailScreen() {
   const router   = useRouter();
@@ -219,9 +225,11 @@ export default function RaceDetailScreen() {
     const newId = usePendingSelectionStore.getState().consumePending('subrace_picker');
     if (newId) setSubRaceId(newId);
   }, [pendingSubrace]);
-  const allSubraces      = race?.subraces ?? [];
   const isHomebrewSubrace = (sr: { id: string }) =>
     !!race && (homebrewRaceIds.includes(race.id) || standaloneHomebrewSubraceIds.has(sr.id));
+  // SRD-only builds list only SRD-tagged subraces of an otherwise-public race
+  // (shared rule in contentExposure.ts); full builds and homebrew are unchanged.
+  const allSubraces      = exposedSubraces(race?.subraces, CONTENT_EXPOSURE, isHomebrewSubrace);
   const availableSubraceTraits = Array.from(new Set(allSubraces.flatMap(sr => Array.from(subraceOwnTraits(sr)))))
     .map(t => ({ id: t, label: SUBRACE_OWN_TRAIT_LABELS[t] }));
   const subraceSortOpts = subraceSortOptions(isHomebrewSubrace);
@@ -252,7 +260,7 @@ export default function RaceDetailScreen() {
   const [flexSubMode, setFlexSubMode] = useState<'2_1' | '3x1'>('2_1');
   const [flexPicks, setFlexPicks] = useState<Ability[]>([]);
   const flexRequiredCount = !flexAsi ? 0
-    : flexAsi.mode.kind === 'two_distinct_plus_one' ? 2
+    : flexAsi.mode.kind === 'two_distinct_plus_one' || flexAsi.mode.kind === 'two_and_one' ? 2
     : flexSubMode === '2_1' ? 2 : 3;
   const flexComplete = !flexAsi || flexPicks.length === flexRequiredCount;
   const flexExcluded = flexAsi?.mode.kind === 'two_distinct_plus_one' ? (flexAsi.mode.exclude ?? []) : [];
@@ -266,6 +274,7 @@ export default function RaceDetailScreen() {
   function flexAmountFor(idx: number): number {
     if (!flexAsi) return 0;
     if (flexAsi.mode.kind === 'two_distinct_plus_one') return 1;
+    if (flexAsi.mode.kind === 'two_and_one') return idx === 0 ? 2 : 1;
     return flexSubMode === '3x1' ? 1 : (idx === 0 ? 2 : 1);
   }
   const canSelect        = (!hasSubraces || subRaceId !== null || subracesOptional)
@@ -369,17 +378,25 @@ export default function RaceDetailScreen() {
     for (const choice of [...(race!.pendingChoices ?? []), ...(chosenSubrace?.pendingChoices ?? [])]) {
       updated = queueChoice(updated, choice, 0);
     }
-    updated = recomputeDerived(updated, rules);
+    const contentDB = getMergedContentDB(updated.rulesetId);
+    updated = recomputeDerived(updated, rules, {
+      classDefs: contentDB.classes, homebrewSpells: contentDB.spells, races: contentDB.races, items: contentDB.items,
+    });
     setDraft(updated);
     router.push('/creation/hub');
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
 
       <View style={styles.headingRow}>
         <Text style={styles.heading}>{race.name}</Text>
-        {!homebrewRaceIds.includes(race.id) && isNonSrd(race.srd) && <NonSrdBadge />}
+        {!homebrewRaceIds.includes(race.id) && <EditionBadge item={race} official />}
+        {!homebrewRaceIds.includes(race.id) && isNonSrd(race.srd, race.rulesetId) && <NonSrdBadge />}
       </View>
       <View style={styles.divider} />
 
@@ -581,20 +598,24 @@ export default function RaceDetailScreen() {
         </>
       )}
 
-      <View style={styles.divider} />
-      <Pressable
-        style={[styles.selectBtn, !canSelect && styles.selectBtnDisabled]}
-        onPress={selectRace}
-        disabled={!canSelect}
-      >
-        <Text style={styles.selectBtnText}>
-          {hasSubraces && !subRaceId && !subracesOptional ? 'Choose a subrace to continue'
-            : hasAncestry && !ancestryId ? 'Choose an ancestry to continue'
-            : !flexComplete ? 'Choose ability scores to continue'
-            : 'Select Race'}
-        </Text>
-      </Pressable>
     </ScrollView>
+    <SafeBottomView>
+      <View style={styles.footer}>
+        <Pressable
+          style={[styles.selectBtn, !canSelect && styles.selectBtnDisabled]}
+          onPress={selectRace}
+          disabled={!canSelect}
+        >
+          <Text style={styles.selectBtnText}>
+            {hasSubraces && !subRaceId && !subracesOptional ? 'Choose a subrace to continue'
+              : hasAncestry && !ancestryId ? 'Choose an ancestry to continue'
+              : !flexComplete ? 'Choose ability scores to continue'
+              : 'Select Race'}
+          </Text>
+        </Pressable>
+      </View>
+    </SafeBottomView>
+    </>
   );
 }
 
@@ -629,7 +650,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   backBtn:   { marginBottom: Spacing.md },
   backBtnText: { fontSize: FontSize.md, color: Colors.gold, fontWeight: FontWeight.bold },
   headingRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.md },

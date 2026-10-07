@@ -18,11 +18,13 @@
 //                  repeatedly, modal stays open (mirrors AddItemModal's
 //                  own in-play behavior) — selections here never count
 //                  toward a required-equipment counter.
+import { itemsForRuleset } from '../content/itemEditions';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Modal, View, Text, Pressable, TextInput, StyleSheet, FlatList } from 'react-native';
 import { ItemFilterConstraint } from '../engine/types';
 import { ItemIndexEntry } from '../content/itemRepo.types';
 import { useHomebrewStore } from '../store/homebrewStore';
+import { useCharacterStore } from '../store/characterStore';
 import { useBrowseStateStore } from '../store/browseStateStore';
 import { mergeItemIndex } from '../content/contentResolution';
 import {
@@ -33,7 +35,7 @@ import { sortByOption, matchesSearchText } from '../content/contentQuery';
 import { SortControl } from './SortControl';
 import { FilterSection, FilterChipRow, MultiSelectChipRow, OfficialHomebrewChipRow } from './FilterChipRow';
 import { NonSrdBadge, isNonSrd } from './NonSrdBadge';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../theme';
 import { isStartingEquipmentItem } from '../content/items/equipmentDisplay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -69,7 +71,8 @@ export function ItemPickerModal({
 }: Props) {
   const insets = useSafeAreaInsets();
   const homebrewItems = useHomebrewStore(s => s.items);
-  const allItems = useMemo(() => mergeItemIndex(homebrewItems), [homebrewItems]);
+  const draftRuleset = useCharacterStore(s => s.draft?.rulesetId);
+  const allItems = useMemo(() => itemsForRuleset(mergeItemIndex(homebrewItems), draftRuleset), [homebrewItems, draftRuleset]);
   const homebrewIds = useMemo(() => new Set(homebrewItems.map(i => i.id)), [homebrewItems]);
 
   const savedBrowse = browseStateKey ? useBrowseStateStore.getState().getBrowseState(browseStateKey) : {};
@@ -147,7 +150,7 @@ export function ItemPickerModal({
         <View style={s.rowInfo}>
           <View style={s.rowNameLine}>
             <Text style={s.rowName}>{item.name}</Text>
-            {!homebrewIds.has(item.id) && isNonSrd(item.srd) && <NonSrdBadge />}
+            {!homebrewIds.has(item.id) && isNonSrd(item.srd, item.rulesetId) && <NonSrdBadge />}
           </View>
           {item.cost && item.cost !== '—' && <Text style={s.rowMeta}>{item.cost}</Text>}
         </View>
@@ -175,8 +178,11 @@ export function ItemPickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={s.backdrop} onPress={handleClose}>
-        <Pressable style={[s.sheet, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]} onPress={e => e.stopPropagation()}>
+      {/* SCROLL-TOUCH-1: sheet is a plain View, backdrop a sibling — a Pressable
+          ancestor claims touches on non-touchable rows and blocks list drags. */}
+      <View style={s.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} accessible={false} />
+        <View style={[s.sheet, { paddingBottom: scrollBottomPadding(insets.bottom, Spacing.md) }]}>
           <View style={s.headerRow}>
             <Text style={s.title}>{title}</Text>
             {mode === 'required' && (
@@ -253,8 +259,8 @@ export function ItemPickerModal({
               <Text style={s.doneBtnTxt}>Done</Text>
             </Pressable>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

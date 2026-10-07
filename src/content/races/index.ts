@@ -2,7 +2,9 @@
 // FILE: src/content/races/index.ts
 // All PHB races expressed as Feature/Effect arrays.
 // ============================================================================
-import { Race, AncestryOption, RACE_CHOICE_PREFIX, ChoiceOption, Feature, } from '../../engine/types';
+import { RACES_2024 } from './races2024';
+import { Race, Subrace, AncestryOption, RACE_CHOICE_PREFIX, ChoiceOption, ChoiceDefinition, Feat, Feature, Ability, RulesetId } from '../../engine/types';
+import { ORIGIN_FEATS_2024 } from '../feats/origin2024';
 
 /** "Elf Weapon Training" — proficiency with longsword/shortsword/shortbow/
  * longbow, granted by most non-Drow elf subraces (High Elf, Wood Elf, and
@@ -72,7 +74,7 @@ export const raceHuman: Race = {
   subracesOptional: true,
   subraces: [
     {
-      id: 'variant_human', name: 'Variant Human', parentId: 'human', srd: true,
+      id: 'variant_human', name: 'Variant Human', parentId: 'human', srd: false,
       replacesBaseFeatureIds: ['human_asi'],
       flexibleAsi: {
         prompt: 'Two different ability scores of your choice each increase by 1.',
@@ -94,6 +96,90 @@ export const raceHuman: Race = {
           level: null, effects: [], actions: [], choices: [], passive: true,
         },
       ],
+    },
+  ],
+};
+
+/**
+ * 2024 PHB ("5.5e") revised Human — Phase 5 end-to-end proof-of-concept for
+ * the ruleset-tagging pipeline built in Phases 3/4 (branded RulesetId,
+ * Race.rulesetId, matchesRuleset(), getMergedContentDB()'s ruleset filter).
+ * Given a DISTINCT id from the classic `human` race (rather than reusing
+ * 'human' with a rulesetId tag) so this doesn't have to solve "same-id
+ * content resolution" (which ruleset-tagged variant wins when both a
+ * ruleset-specific and an untagged entry share an id) — that's a real open
+ * question, deliberately deferred until full-volume 5.5e content authoring
+ * needs an answer, not invented speculatively for one proof race. See
+ * src/content/races/__tests__/rulesetTagging.test.ts for the actual proof.
+ *
+ * Mechanically: the defining 2024 change is that ability score increases
+ * moved from race to background, so this race grants no stat_modifier
+ * effects at all (unlike classic Human's flat +1 to all six). Two of its
+ * three traits reuse patterns already established elsewhere in this file —
+ * a skill-proficiency pendingChoice (same mechanism as Variant Human) and a
+ * disclosed "take a feat on the Feats screen" note (same mechanism Variant
+ * Human already uses for its own bonus feat, see `variant_human_feat_note`
+ * above). The Heroic Inspiration trait has no engine equivalent (no tracked
+ * resource for it exists) so it's disclosed-only, following this file's
+ * established pattern for mechanics the engine doesn't model (see e.g.
+ * Dwarven Toughness/Tough above).
+ */
+function versatileOption(feat: Feat): ChoiceOption {
+  const source = { kind: 'race' as const, refId: 'human_2024' };
+  const toRace = (c: ChoiceDefinition): ChoiceDefinition => ({
+    ...c, pool: Array.isArray(c.pool) ? c.pool.map(o => (o.value && typeof o.value === 'object' && !Array.isArray(o.value) && 'effects' in (o.value as object) ? { ...o, value: { ...(o.value as Feature), source } } : o)) : c.pool,
+  });
+  const id = `human_2024_versatile_${feat.id}`;
+  return {
+    id, label: feat.name,
+    value: {
+      ...feat.feature, id, name: `${feat.name} (Versatile)`, source, level: null,
+      ...(feat.resources?.length ? { resources: feat.resources } : {}),
+      ...(feat.pendingChoices?.length ? { grantsChoices: feat.pendingChoices.map(toRace) } : {}),
+    } as Feature,
+  };
+}
+
+export const raceHuman2024: Race = {
+  id: 'human_2024',
+  name: 'Human',
+  rulesetId: 'dnd5e-2024' as RulesetId,
+  srd: false,
+  features: [
+    {
+      id: 'human_2024_resourceful',
+      name: 'Resourceful',
+      description: 'You gain Heroic Inspiration whenever you finish a Long Rest. If you have Heroic Inspiration, you can expend it to reroll any die immediately after rolling it, and you must use the new roll. You can never have more than one.',
+      source: { kind: 'race', refId: 'human_2024' },
+      level: null, effects: [{ type: 'stat_modifier', target: 'heroic_inspiration_on_long_rest', operation: 'set', value: 1, condition: null }], actions: [], choices: [], passive: true,
+    },
+    {
+      id: 'human_2024_skillful',
+      name: 'Skillful',
+      description: 'You gain proficiency in one skill of your choice.',
+      source: { kind: 'race', refId: 'human_2024' },
+      level: null, effects: [], actions: [], choices: [], passive: true,
+    },
+    {
+      id: 'human_2024_versatile',
+      name: 'Versatile',
+      description: 'You gain an Origin feat of your choice (Skilled is recommended). You pick it when you choose the species, and the picks the feat asks for (skills, spells) follow.',
+      source: { kind: 'race', refId: 'human_2024' },
+      level: null, effects: [], actions: [], choices: [], passive: true,
+    },
+  ],
+  pendingChoices: [
+    {
+      id: `${RACE_CHOICE_PREFIX}human_2024_skill`,
+      prompt: 'Choose one skill to gain proficiency in.',
+      kind: 'skill', count: 1, pool: ALL_SKILL_OPTIONS,
+      grants: [], required: true, resolved: false,
+    },
+    {
+      id: `${RACE_CHOICE_PREFIX}human_2024_versatile`,
+      prompt: 'Versatile: choose an Origin feat (Skilled is recommended).',
+      kind: 'feature_pool', count: 1, pool: ORIGIN_FEATS_2024.map(versatileOption),
+      grants: [], required: true, resolved: false,
     },
   ],
 };
@@ -186,7 +272,7 @@ export const raceElf: Race = {
       ],
     },
     {
-      id: 'wood_elf', name: 'Wood Elf', parentId: 'elf', srd: true,
+      id: 'wood_elf', name: 'Wood Elf', parentId: 'elf', srd: false,
       features: [
         {
           id: 'wood_elf_asi',
@@ -215,7 +301,7 @@ export const raceElf: Race = {
       ],
     },
     {
-      id: 'drow', name: 'Dark Elf (Drow)', parentId: 'elf', srd: true,
+      id: 'drow', name: 'Dark Elf (Drow)', parentId: 'elf', srd: false,
       features: [
         {
           id: 'drow_asi',
@@ -379,7 +465,7 @@ export const raceDwarf: Race = {
       ],
     },
     {
-      id: 'mountain_dwarf', name: 'Mountain Dwarf', parentId: 'dwarf', srd: true,
+      id: 'mountain_dwarf', name: 'Mountain Dwarf', parentId: 'dwarf', srd: false,
       features: [
         {
           id: 'mountain_dwarf_asi',
@@ -474,7 +560,7 @@ export const raceHalfling: Race = {
       ],
     },
     {
-      id: 'stout_halfling', name: 'Stout Halfling', parentId: 'halfling', srd: true,
+      id: 'stout_halfling', name: 'Stout Halfling', parentId: 'halfling', srd: false,
       features: [
         {
           id: 'stout_asi',
@@ -615,7 +701,7 @@ export const raceGnome: Race = {
   ],
   subraces: [
     {
-      id: 'forest_gnome', name: 'Forest Gnome', parentId: 'gnome', srd: true,
+      id: 'forest_gnome', name: 'Forest Gnome', parentId: 'gnome', srd: false,
       features: [
         {
           id: 'forest_gnome_asi', name: 'Ability Score Increase',
@@ -888,6 +974,8 @@ export const raceTiefling: Race = {
  */
 export const FULL_RACE_LIBRARY: Race[] = [
   raceHuman,
+  raceHuman2024,
+  ...RACES_2024,
   raceElf,
   raceDwarf,
   raceHalfling,

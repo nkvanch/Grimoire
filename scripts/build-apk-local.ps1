@@ -6,7 +6,6 @@
     .\scripts\build-apk-local.ps1 -AllAbis        # arm64 + armv7 + x86 + x86_64 (big, slow)
     .\scripts\build-apk-local.ps1 -Clean          # gradle clean first
     .\scripts\build-apk-local.ps1 -Prebuild       # regenerate ./android from app.json first
-    .\scripts\build-apk-local.ps1 -FullContent    # don't set EXPO_PUBLIC_SRD_ONLY (default matches eas "preview")
     .\scripts\build-apk-local.ps1 -KeystorePath D:\Keys\grimoire-release.jks   # sign with YOUR release key, not the debug key
         # (password is read from $env:GRIMOIRE_KEYSTORE_PASSWORD - never a parameter or a file; see scripts\make-release-keystore.ps1)
 
@@ -16,7 +15,6 @@ param(
   [switch]$AllAbis,
   [switch]$Clean,
   [switch]$Prebuild,
-  [switch]$FullContent,
   [string]$KeystorePath,
   [string]$KeyAlias = 'grimoire',
   [string]$CacheRoot = 'D:\DevCache'
@@ -44,9 +42,13 @@ $env:GRADLE_USER_HOME = $gradleHome
 $env:TEMP = $tmp; $env:TMP = $tmp
 $env:GRADLE_OPTS = "-Djava.io.tmpdir=$tmp"
 
-# --- same env the EAS "preview" profile uses ---
-if (-not $FullContent) { $env:EXPO_PUBLIC_SRD_ONLY = 'true' }
+# --- the app ships no built-in catalog: content comes only from the signed packs it bundles (assets/packs), and metro.config.js swaps the
+# --- catalog modules for empty ones. There is no SRD-only / full-content split any more.
 $env:NODE_ENV = 'production'
+
+# The SRD packs the app bundles (assets/packs) are generated from the same content; regenerate them so the APK never ships a stale pack.
+npx tsx scripts/build-srd-packs.ts
+if ($LASTEXITCODE -ne 0) { throw "SRD pack generation failed ($LASTEXITCODE)" }
 
 if (-not (Test-Path 'node_modules')) { npm ci }
 if ($Prebuild -or -not (Test-Path 'android\gradlew.bat')) {
@@ -69,16 +71,22 @@ if ($KeystorePath) {
   )
 }
 
-Push-Location android
+$androidPushed = $false
 try {
+  Push-Location android
+  $androidPushed = $true
   if ($Clean) { .\gradlew.bat clean }
-  .\gradlew.bat assembleRelease "-PreactNativeArchitectures=$abis" @signArgs --no-daemon
+  $releaseArgs = @('assembleRelease', "-PreactNativeArchitectures=$abis") + $signArgs + @('--no-daemon')
+  $releaseArgs += '--rerun-tasks'   # never reuse a bundle built before the packs or the empty catalog changed
+  .\gradlew.bat @releaseArgs
   if ($LASTEXITCODE -ne 0) { throw "gradle failed ($LASTEXITCODE)" }
-} finally { Pop-Location }
+} finally {
+  if ($androidPushed) { Pop-Location }
+}
 
 $apk = Get-ChildItem 'android\app\build\outputs\apk\release\*.apk' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $apk) { throw 'Build finished but no APK was found.' }
-${outputRoot} = Join-Path (Split-Path -Parent $PSScriptRoot) 'builds'
+${outputRoot} = (Join-Path (Get-Location) 'builds')
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 $dest = Join-Path $outputRoot ("grimoire-local-{0}.apk" -f (Get-Date -Format 'yyyyMMdd-HHmm'))
 Copy-Item $apk.FullName $dest

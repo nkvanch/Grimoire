@@ -1,10 +1,15 @@
+import catalogItemIds5e from './catalogItemIds5e.json';
 // ============================================================================
 // FILE: src/content/items/index.ts
 // Standard weapons, armor, and adventuring gear.
 // ============================================================================
+import { GEAR_2024 } from './gear2024';
+import { EQUIPMENT_2024 } from './equipment2024';
 import { Item, Ability, Effect, Feature } from '../../engine/types';
 import { IMPORTED_ITEMS } from './importedItems';
 import importedSrdClassification from './srdClassification.json';
+import { hasVerifiedPublicItemProvenance } from './srdProvenance';
+import { GENERATED_SRD_ITEMS } from './generatedSrdItems';
 import { ContentRegistry } from '../ContentRegistry';
 
 // ── Simple Melee Weapons ──────────────────────────────────────────────────────
@@ -526,10 +531,12 @@ export const itemSplint: Item = {
 };
 
 export const itemPlateMail: Item = {
-  id: 'plate_mail', name: 'Plate Mail', weight: 65, cost: '1500 gp',
+  // Display name is the official SRD 5.1 armor-table name; the id stays
+  // `plate_mail` (saved characters, and the +N armor family's alias below).
+  id: 'plate_mail', name: 'Plate', weight: 65, cost: '1500 gp',
   properties: ['heavy armor', 'disadvantage on stealth', 'STR 15 required'],
   features: [{
-    id: 'plate_mail_ac', name: 'Plate Mail', description: 'Base AC 18.',
+    id: 'plate_mail_ac', name: 'Plate', description: 'Base AC 18.',
     source: { kind: 'item', refId: 'plate_mail' }, level: null, actions: [], choices: [], passive: true,
     effects: [{ type: 'base_ac_formula', target: 'ac', operation: 'set', value: 18, condition: null }],
   }],
@@ -671,7 +678,6 @@ export const itemBurglarsPack: Item = {
 // ── Magic items (SRD gap-fill — confirmed missing via the A-31 audit) ────────
 // All 20 pulled from the SRD 5.1 magic-items API (dnd5eapi.co) directly, not
 // authored from memory, matching this project's established discipline for
-// content-copyright cleanliness. Two (Glamoured Studded Leather Armor,
 // Brooch of Shielding) get a real modeled effect — the rest have no clean
 // AbilityEffect mapping (charge/spell-like abilities, crafting rituals,
 // one-shot consumable effects, a DM-controlled hazard object) and are
@@ -944,7 +950,6 @@ function allSavingThrowsBonus(amount: number): Effect[] {
 // activation to exist at all (a weapon with none generates no attack card
 // whatsoever), and reads the magic bonus via a regex that pulls "+N" out of
 // the feature's name/description text — already correct in the imported
-// data ("Longsword +1" etc.), no edit needed there. So each override here
 // borrows the matching mundane weapon's dice/activation/type-tag properties
 // (finesse/versatile/ammunition/etc., needed for the STR-vs-DEX
 // classification) rather than adding an Effect.
@@ -1133,14 +1138,33 @@ function applyItemOverride(item: Item): Item {
 // (only this tiny JSON updates), instead of rewriting the entire ~541KB
 // item file every time — same fix applied to spells, see
 // src/content/spells/index.ts.
-const CLASSIFIED_IMPORTED_ITEMS: Item[] = IMPORTED_ITEMS.map(i => applyItemOverride({
+// Official SRD 5.1 display names where the imported catalog uses another form.
+// Ids are untouched (saved characters). Verified against the SRD 5.1 poison table.
+const ITEM_DISPLAY_NAME_OVERRIDES: Record<string, string> = {
+  carrion_crawler_mucus: 'Crawler Mucus',
+};
+
+function applyDisplayName(item: Item): Item {
+  const name = ITEM_DISPLAY_NAME_OVERRIDES[item.id];
+  if (!name) return item;
+  return { ...item, name, features: item.features.map(f => (f.name === item.name ? { ...f, name } : f)) };
+}
+
+const CLASSIFIED_IMPORTED_ITEMS: Item[] = IMPORTED_ITEMS.map(i => applyItemOverride(applyDisplayName({
   ...i,
   srd: (importedSrdClassification as Record<string, boolean>)[i.id],
-}));
+})));
+
+// The public tree keeps only the 5e item ids that are also SRD 5.2.1 items (catalogItemIds5e.json): enough to decide which 5.5e items need the _2024 id.
+export const CATALOG_ITEM_IDS_5E = new Set<string>(catalogItemIds5e as string[]);
 
 export const FULL_ITEM_LIBRARY: Item[] = [
   ...CORE_ITEMS,
   ...CLASSIFIED_IMPORTED_ITEMS.filter(i => !CORE_IDS.has(i.id)),
+  // Gear the 2024 starting-equipment packages name (not in the catalog before).
+  ...GEAR_2024.filter(i => !CATALOG_ITEM_IDS_5E.has(i.id)),
+  // The rest of the SRD 5.2.1 Equipment chapter (tools, gear, variants, mounts, vehicles, firearms, padded and hide armor).
+  ...EQUIPMENT_2024.filter(i => !CATALOG_ITEM_IDS_5E.has(i.id)),
 ];
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
@@ -1155,7 +1179,7 @@ const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
  * further.
  */
 export const ALL_ITEMS: Item[] = SRD_ONLY
-  ? FULL_ITEM_LIBRARY.filter(i => i.srd === true)
+  ? GENERATED_SRD_ITEMS.filter(i => hasVerifiedPublicItemProvenance(i.id))
   : FULL_ITEM_LIBRARY;
 
 // ── Lazy id-lookup registry ─────────────────────────────────────────────────

@@ -134,7 +134,22 @@ export type ResistanceState  = 'none' | 'resistance' | 'immunity' | 'vulnerabili
 export type StrategyKind     = 'stat_modifier' | 'named_bonus' | 'advantage_track' | 'temp_hp' | 'base_ac_formula';
 
 export interface AttackBonus {
+  /** Historically the equipped item's `itemId` (definition id) for a weapon
+   *  attack, or a synthetic id ('unarmed_strike') otherwise — kept exactly
+   *  as-is for every existing consumer. When TWO equipped instances share
+   *  an `itemId`, computeWeaponAttackBonuses (pipeline.ts) still produces
+   *  one AttackBonus per instance (never deduplicated), but `id` alone can
+   *  no longer tell them apart — see `instanceId` below, the item-identity
+   *  closure's fix for that. */
   id:          string;
+  /** Item-identity closure: the equipped ItemInstance's own `id` (owned-
+   *  copy identity), when the instance has one — undefined for a synthetic
+   *  entry (Unarmed Strike) or a still-unmigrated instance. Lets a caller
+   *  that HAS a specific ItemInstance in hand (e.g. actionCards.ts's
+   *  equipped-item loop) find the EXACT matching AttackBonus instead of
+   *  `.find(a => a.id === itemId)`'s old first-match-only behavior, which
+   *  silently returned the same entry for every instance sharing itemId. */
+  instanceId?: string;
   name:        string;
   bonus:       number;
   type:        'melee' | 'ranged' | 'spell' | string;
@@ -179,7 +194,7 @@ export type CustomRuleProfile = {
   gameId: GameId;
   baseRulesetId: RulesetId;
   rules: Partial<CampaignRules> & { customRules?: Record<string, unknown> };
-  source: { kind: 'local' | 'imported'; label?: string };
+  source: { kind: 'local' | 'imported' | 'preset'; label?: string };
   createdAt: number;
   updatedAt: number;
 };
@@ -322,7 +337,9 @@ export type Race = {
        * Half-Elf's unrestricted any-ability picker). Undefined = any
        * ability, preserving every existing race's unrestricted behavior.
        */
-      | { kind: 'two_one_or_three_one'; restrictTo?: Ability[] };
+      | { kind: 'two_one_or_three_one'; restrictTo?: Ability[] }
+      /** Exactly "one ability +2 and a different ability +1" — no three-way alternative (Ballast). */
+      | { kind: 'two_and_one' };
   };
   /** Same as Subrace.pendingChoices — see that field's doc comment. */
   pendingChoices?: ChoiceDefinition[];
@@ -367,6 +384,48 @@ export type Race = {
   /** Which ruleset this race belongs to. Undefined = available under every ruleset (every race authored before this field existed, including all official 5e content). See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
 };
+/**
+ * One switchable set of options ("modes") for a class. The app never rolls for the player: a
+ * `selector.table` maps the result of the player's OWN physical die to an option, and there is no
+ * calendar, so a "period" (an in-game month) ends only when the player presses the change button.
+ */
+export type ModeGroup = {
+  id:          string;
+  /** Name of the feature that owns it, e.g. a mode-group feature. */
+  name:        string;
+  /** What one option is called to the player, e.g. 'Bound Spirit'. */
+  optionLabel: string;
+  /** What one period is called, e.g. 'month'. */
+  periodLabel: string;
+  classId:     string;
+  /** HomebrewSubclass ids of this class that are the options of the group. */
+  optionIds:   string[];
+  selector: {
+    die:   number;
+    table: { value: number; optionId: string }[];
+    /** Dice rolled per period by class level; the player picks which result answers. Default 1. */
+    diceAtLevel?: { level: number; dice: number }[];
+    /** Resource spent to throw a roll away and roll again (a mode-group reroll resource), usable from this class level. */
+    rerollResourceId?: string;
+    rerollFromLevel?: number;
+    /** From this class level the player simply chooses any option (a high-level mode-group feature). */
+    freeChoiceFromLevel?: number;
+  };
+  /** Resources made available again whenever a new period starts (a once-per-month reroll). */
+  restoreOnSwitch?: string[];
+};
+
+/**
+ * Per-character state for one Mode Group. `stash` holds the current value of the resources an
+ * option granted at the moment the character left it, keyed by option id, so returning to the
+ * option later finds them spent or unspent exactly as they were — "mode-owned persistent state".
+ */
+export type ModeState = {
+  stash:    Record<string, Record<string, number>>;
+  /** How many times the group has changed option since it was first set; informational. */
+  changes:  number;
+};
+
 export type CharClass  = {
   id:          string;
   name:        string;
@@ -400,6 +459,8 @@ export type CharClass  = {
    */
   spellcastingAbilityOptions?: Ability[];
   spellcastingStyle?:     'full' | 'half' | 'pact'; // slot table to use
+  spellPreparationPolicy?: SpellPreparationPolicy;
+  ritualCastingPolicy?: 'none' | 'known' | 'prepared' | 'spellbook';
   spellcastingStartLevel?: number;       // first level that gets spell slots (default 1)
   asiLevels?:             number[];      // defaults to [4,8,12,16,19]
   hpAbility?:             Ability;
@@ -430,6 +491,19 @@ export type CharClass  = {
    * the import pipeline — and editing such a class in the builder will drop it.
    */
   rawProgression?:        ClassProgression;
+  /**
+   * Mode Groups: sets of mutually exclusive, switchable options this class's character holds one
+   * of at a time (a monthly swapped option). Each option is a HomebrewSubclass of this
+   * class, so switching reuses the subclass apply/strip machinery and the option's level-gated
+   * progression (see engine/modes.ts). Built-in/imported content only; the builders do not author this.
+   */
+  modeGroups?:            ModeGroup[];
+  /**
+   * Where this class's spell choices come from by default: an existing homebrew Spell List, or the
+   * spell list of another (official or homebrew) class. Unset = spells tagged for this class's own
+   * id, as before. The picker's "Spell Source" filter can still switch to any other list.
+   */
+  spellListSource?:       { kind: 'class'; classId: string } | { kind: 'list'; listId: string };
   /**
    * PHB "Multiclassing Proficiencies" table entry for this class when taken
    * as a SECOND-OR-LATER class (not your starting class) — applied instead
@@ -482,6 +556,13 @@ export type Background = {
    * app/creation/background.tsx's flexAsi state and applyGrant call.
    */
   flexibleAsi?: Race['flexibleAsi'];
+  /**
+   * The Origin feat this background grants (2024: every background names one). Applied for real when the
+   * background is selected, by engine/originFeat.ts: the feat's feature, its limited-use pools and any
+   * picks it asks for (skills, spells) are granted with this background as their source, so changing the
+   * background takes them all back out.
+   */
+  originFeat?: string;
   /**
    * FILTER-METADATA-2: free-text tool/vehicle proficiency names (e.g.
    * "Thieves' tools", "Vehicles (land)"), sourced from the same PHB text
@@ -542,6 +623,16 @@ export type Item = {
   imageUri?:  string;
   /** Which ruleset this item belongs to. Undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
+  /**
+   * Limited-use pools this item carries (a wand's charges, a standard's "3 charges, regains 1d3
+   * at dawn"). Granted by inventory.ts's equipItem the first time the item is equipped, with
+   * recharge 'dawn:<dice>' supported for a partial dawn refill (see rest.ts's parseDawnRecharge).
+   * An activation on the item's feature spends the pool through its `resourceCost.resourceId`.
+   * The pool stays with the character when the item is unequipped (charges are not lost by
+   * putting the item away) and is dropped by removeFeature-style provenance cleanup only if the
+   * source is revoked.
+   */
+  resources?: ResourceGrant[];
 };
 
 /**
@@ -551,9 +642,14 @@ export type Item = {
  * benefits can't be fully automated yet still apply as a named, described Feature
  * the player tracks manually.
  */
+/** The four feat categories of the 2024 rules (the SRD lists them as Origin, General, Fighting Style and Epic Boon). */
+export type FeatCategory = 'origin' | 'general' | 'fighting_style' | 'epic_boon';
+
 export type Feat = {
   id:           string;
   name:         string;
+  /** Which category a 2024 feat is in. Absent for older feats (everything in the 5e catalog). */
+  category?:    FeatCategory;
   prerequisite: string | null;
   description:  string;
   source:       string;
@@ -569,6 +665,13 @@ export type Feat = {
    * entity.proficiencies.savingThrows on commit.
    */
   abilityChoice?: { options: Ability[]; amount: number; grantsSaveProficiency?: boolean };
+  /**
+   * Limited-use resource pools this feat grants (e.g. a once-per-long-rest resource). Applied by leveling.ts's applyFeatToEntity via the same `resource` grant races
+   * and classes use, tagged with sourceKind 'feature' + this feat's feature id so removeFeature's
+   * existing revokeResourceSource cleanup covers it with no extra wiring. A feature's activation
+   * references the pool by `resourceId`.
+   */
+  resources?: ResourceGrant[];
   skillChoice?: {
     picks: { id: string; label: string; mode: 'proficiency' | 'expertise'; from: 'any' | 'proficient' }[];
   };
@@ -766,13 +869,32 @@ export type DerivedStats = {
    * they cancel to straight and don't appear here at all). `target` is a
    * free-text description of what it applies to (e.g. "Wisdom saving
    * throws against being charmed"), matching the same free-text pattern
-   * already used for condition mechanical reminders (CONDITION_WARNINGS in
-   * TabCharacter.tsx) — 5e's variety here is too large to enumerate as a
+   * condition content itself now authors for its own self-side roll
+   * modifiers (see content/conditions/index.ts's rollModifierFeature, and
+   * CONDITION_MECHANICS in TabCharacter.tsx for the UI split) — 5e's
+   * variety here is too large to enumerate as a
    * fixed set of targets. Display/reminder only, same as everywhere else
    * in the app with no attack-roll automation: shown to the player so they
    * remember to roll 2d20, not auto-applied to any roll.
    */
   advantageStates:   { target: string; state: 'advantage' | 'disadvantage' }[];
+  /**
+   * Extra Attack / action-structure batch: how many individual attacks the
+   * character's Attack action contains — `1 + resolveExtraAttack(allEffects)`
+   * (resolver.ts). Extra Attack-granting features author a `stat_modifier`
+   * effect targeting `'extra_attack'` with `operation: 'set'` and a value
+   * one less than the total attack count (Fighter 5's value is `1` → 2
+   * total attacks); resolveExtraAttack takes the MAXIMUM across every such
+   * effect rather than summing them, so a Fighter 5/Paladin 5 multiclass
+   * correctly stays at 2, never 3 — see resolveExtraAttack's own doc
+   * comment for the full multiclassing rationale. This field describes ONLY
+   * how many attack opportunities the Attack action contains; it never
+   * implies multiple action-economy spends — a single Attack action with
+   * this many attacks still consumes exactly one Action (see
+   * applyActionCardUse's `attackSequence` parameter, actionUse.ts, and
+   * AttackSequenceState's own doc comment, section 6 below).
+   */
+  attackActionAttacks: number;
 };
 
 /**
@@ -808,6 +930,14 @@ export type HPBlock = {
   current: number;
   maximum: number;
   temp:    number;
+  /**
+   * How much of `maximum` currently comes from effects targeting 'max_hp' (a feature's
+   * "+5 maximum hit points"). recomputeDerived resolves the CURRENT bonus from active effects
+   * and applies only the DIFFERENCE to `maximum`/`current`, so a tiered reward that REPLACES
+   * +5 with +10 nets +5 (never +15) and removing the feature takes its bonus back out.
+   * Absent on characters saved before this field existed — read as 0, so nothing changes for them.
+   */
+  bonusApplied?: number;
 };
 
 /** One die-size's own total/remaining count within a mixed hit-dice pool. */
@@ -855,6 +985,12 @@ export type CustomResource = {
   /** Authoritative maximum before source-owned upgrades are applied. */
   baseMaximum?: number;
   recharge: 'short_rest' | 'long_rest' | 'dawn' | 'never' | string;
+  /** Maximum equals the character's proficiency bonus ("PB uses per Long Rest"); kept in step on every recompute. */
+  perProficiencyBonus?: boolean;
+  /** Maximum equals this ability's modifier, minimum 1 (Bardic Inspiration: Charisma); kept in step on every recompute. */
+  perAbilityModifier?: Ability;
+  /** Maximum equals the character's level times this (Sorcery Points and Focus Points: 1; Lay on Hands: 5). */
+  perLevel?: number;
   /** What granted this resource — lets clearClassData (app/creation/class-
    * detail.tsx) tell a class-owned resource pool apart from a racial one and
    * wipe only the former on class (re)selection. Optional so resources on
@@ -924,7 +1060,117 @@ export type EntitlementRecord = {
   choiceId?:  string;
   /** Additive maximum contribution for resource_upgrade records. */
   amount?:    number;
+  /** A spell/cantrip the source grants from a given CHARACTER level on (Circle of the Land's level 5/7/9 spells, a lineage spell at 3 and 5). Absent = from the start. */
+  minLevel?:  number;
+  /**
+   * Rules-engine blocker closure (1F — ambiguous legacy/migrated
+   * provenance): set ONLY on a sourceKind:'manual' spell_access/
+   * cantrip_access record produced by legacy migration
+   * (reclassifyManualSpellSources, entitlements.ts) when the spell/cantrip
+   * matches 2+ of the character's OWN classes' spell lists — genuine,
+   * unresolved ambiguity (e.g. a Wizard/Sorcerer character's legacy
+   * Fireball), not an ordinary "no plausible class" manual grant. A plain
+   * `manual` record with this field absent/empty means exactly what it
+   * always has — an unrestricted, non-gated grant. Runtime (actionCards.ts's
+   * resolveSpellCastingContexts) must NOT treat an ambiguous record as
+   * automatically legal-with-no-ability-opinion the way a true manual grant
+   * is — it instead builds one real casting context PER candidate class id
+   * here, each with that class's own actual preparation policy/ability, so
+   * the player is offered an explicit source choice rather than the spell
+   * silently behaving as globally unrestricted. Never silently collapsed
+   * back to a single resolved class — see 1G for the one case that DOES
+   * safely auto-resolve (exactly one candidate, handled directly by
+   * reclassifyManualSpellSources instead of via this field at all).
+   */
+  ambiguousClassIds?: string[];
 };
+
+/**
+ * Rules-engine blocker closure (re-audit, Closure 1 — explicit spell
+ * casting context): the ONE unit both preparation legality and casting
+ * ability resolve from (see actionCards.ts's resolveSpellCastingContexts/
+ * selectSpellCastingContext), and — new this closure — the unit an
+ * ActionCard PRESERVES so the exact same context that was shown to the
+ * player is the one validated and executed, never silently re-resolved to
+ * a different source. Pure runtime/derived data: never persisted as its
+ * own authoritative record (see EntitlementRecord for the real ownership
+ * data this is derived FROM), and never stores a calculated DC/attack
+ * number — those stay recomputed from `castingAbility` at display time
+ * (see resolveSpellSaveDC/resolveSpellAttackBonus).
+ */
+export type SpellCastingContext = {
+  /**
+   * Stable identity for this EXACT context — deterministic function of
+   * sourceKind/sourceId/classId, so the same real-world source always
+   * produces the same key across candidate generation, card display, and
+   * execution-time revalidation (resolveSpellCastingContexts is re-run
+   * fresh at execution; matching by this key, not object identity or array
+   * position, is what lets applyActionCardUse detect "this exact source
+   * still exists" vs "it disappeared since the card was generated").
+   */
+  contextKey:        string;
+  sourceKind:        EntitlementSourceKind;
+  sourceId?:         string;
+  /** The owning class, when resolvable — direct 'class' source, an
+   *  ambiguous-legacy candidate (see EntitlementRecord.ambiguousClassIds),
+   *  or a 'subclass' source resolved to its parent class via the
+   *  character's own ClassLevelEntry.subclassId. Undefined for race/feat/
+   *  item/genuine-manual/etc sources, which have no class to prepare from. */
+  classId?:          string;
+  preparationPolicy: SpellPreparationPolicy;
+  castingAbility:    Ability;
+  /** Preparation-only legality for THIS source. */
+  legal:             boolean;
+  /** True only for a context built from a grant_spell EFFECT's own
+   *  authored spellcastingAbility — the single most specific signal
+   *  content can author, so selectSpellCastingContext always prefers it. */
+  explicitAbility?:  boolean;
+  /** True for a candidate generated from an unresolved-ambiguous legacy
+   *  manual entitlement (EntitlementRecord.ambiguousClassIds) — signals
+   *  the UI that this context was never confirmed by the player and a
+   *  source choice should be offered rather than silently assumed. */
+  unresolvedLegacy?: boolean;
+  /**
+   * Rules-completeness batch (ritual casting): true only when THIS source
+   * is a class/subclass whose class has a `CharClass.ritualCastingPolicy`
+   * other than `'none'` (see that field's own doc comment) — independent of
+   * `legal`/prepared status. A spell is only actually ritual-castable
+   * through this context when it is ALSO ritual-tagged content
+   * (`Spell.ritual`); this field alone answers "may this SOURCE cast
+   * something as a ritual at all," never "is THIS attempt currently legal"
+   * (see `ritualLegal` below for that) or "is this specific spell a
+   * ritual." Undefined/false for every non-class-rooted source (race/feat/
+   * item/manual/etc.) — no ritual-casting policy is modeled for those, so
+   * they conservatively never offer ritual mode rather than guessing.
+   */
+  ritualEligible?: boolean;
+  /**
+   * Rules-completeness batch (ritual casting), HIGH-fix closure: whether a
+   * RITUAL attempt through THIS SPECIFIC context is legal RIGHT NOW —
+   * computed from the class's own `ritualCastingPolicy`, deliberately
+   * SEPARATE from `legal` (normal-cast preparation legality), because the
+   * two genuinely disagree for a `'spellbook'`-policy class: a Wizard's
+   * ritual is legal straight from the spellbook whether or not it's
+   * prepared (`ritualLegal` true even when `legal` is false), while a
+   * `'prepared'`-policy class's ritual (Cleric, Druid) requires the exact
+   * same preparation a normal cast does (`ritualLegal` always equals
+   * `isPrepared`, same value as `legal` computes to for that policy) — and
+   * a `'known'`-policy class (Bard) is unconditionally legal either way,
+   * same as `legal` already is for it. `applyActionCardUse` uses THIS field
+   * (not `legal`) to gate a `castMode: 'ritual'` attempt, so Cast Anyway
+   * (`bypassSpellPreparation`) is never needed for a legal Wizard-spellbook
+   * ritual, while it remains available (and required) for an unprepared
+   * Cleric/Druid ritual exactly as it already is for a normal cast.
+   * Undefined/false wherever `ritualEligible` is false — there is no
+   * "legal ritual" through a source that cannot ritual-cast at all.
+   */
+  ritualLegal?: boolean;
+};
+
+/** See CharClass.spellPreparationPolicy's own doc comment for the full
+ *  meaning of each value — this is the shared type, referenced both there
+ *  and by SpellCastingContext.preparationPolicy (actionCards.ts). */
+export type SpellPreparationPolicy = 'known' | 'spellbook_prepared' | 'full_list_prepared' | 'always_available';
 
 /**
  * Death save tracking. Only meaningful while hp.current === 0 and the
@@ -965,6 +1211,31 @@ export type ItemFilterConstraint = {
   armorWeight?: 'heavy' | 'medium' | 'light';
 };
 
+/**
+ * A requirement for taking an option, checked by engine/prerequisites.ts (not Warlock-only: any ChoiceOption can carry
+ * them, and so can anything else that wants to ask "does this character qualify").
+ *   level      the character's level, or `classId`'s level, is at least `min`
+ *   has_option the character already holds this pool option (Eldritch Smite needs Pact of the Blade)
+ *   has_feature the character has this feature id
+ *   cantrip    the character knows a cantrip with these traits (Agonizing Blast: one that deals damage)
+ *   spell      the character knows this spell
+ *   excludes   mutually exclusive: not allowed while the character holds any of these options
+ */
+export type Prerequisite =
+  | { kind: 'level';       min: number; classId?: string }
+  | { kind: 'has_option';  optionId: string; label: string }
+  | { kind: 'has_feature'; featureId: string; label: string }
+  | { kind: 'cantrip';     traits: ('damage' | 'attack_roll' | 'range_10_plus')[]; label: string }
+  | { kind: 'spell';       spellId: string; label: string }
+  | { kind: 'excludes';    optionIds: string[]; label: string };
+
+/** When a held option of a `feature_pool` choice may be swapped for another one (Fighting Style on level-up, Hunter's Prey on a rest). */
+export type ChoiceReplacePolicy = {
+  timing: 'level_up' | 'rest' | 'long_rest';
+  /** The rule's own words for the confirm step, e.g. "Whenever you gain a Fighter level". */
+  rule: string;
+};
+
 export type ChoiceOption = {
   id:    string;
   label: string;
@@ -982,6 +1253,36 @@ export type ChoiceOption = {
    * legal choice).
    */
   itemFilter?: { constraint: ItemFilterConstraint; quantity: number };
+  gold?: number;
+  /** Requirements for taking this option (level, another option, a cantrip, ...). See Prerequisite. */
+  requires?: Prerequisite[];
+  /**
+   * The option can be taken more than once, each time with its own target (Agonizing Blast on a different cantrip,
+   * Lessons of the First Ones with a different Origin feat). A targeted take is selected as `optionId::targetId`; the
+   * target is validated by the engine and written on the granted feature (see engine/prerequisites.ts, splitSelection).
+   */
+  repeatable?: { target: 'cantrip' | 'origin_feat' };
+};
+
+/**
+ * Narrows (and widens) what a `kind: 'spell'` choice offers, so a feature can let the player pick spells from
+ * lists other than their own class's: Bard Magical Secrets (Bard/Cleric/Druid/Wizard), Paladin Blessed Warrior
+ * (Cleric cantrips), Pact of the Tome (any list, cantrips plus Ritual spells), Mystic Arcanum (Warlock level 6-9).
+ * Absent = the choice's own class list, capped by the character's castable spell level (the original behavior).
+ */
+export type SpellPickFilter = {
+  /** Class ids whose spell lists the spell may come from (a union), or 'any' for every spell. Absent = the character's own class list. */
+  lists?: string[] | 'any';
+  /** Exact spell levels allowed (0 is a cantrip). Absent = cantrips for a cantrip choice, otherwise level 1 up to the castable level. */
+  levels?: number[];
+  schools?: string[];
+  ritualOnly?: boolean;
+  /** A leveled-spell choice that may also take cantrips ("a cantrip or a spell for which you have slots"). */
+  includeCantrips?: boolean;
+  /** Offer levels above what the character can currently cast (Mystic Arcanum picks level 6-9 spells). */
+  ignoreSlotCap?: boolean;
+  /** Short label for the picker heading, e.g. "Cleric cantrips". */
+  label?: string;
 };
 
 export type ChoiceDefinition = {
@@ -1003,6 +1304,16 @@ export type ChoiceDefinition = {
    * stays valid without edits.
    */
   forClassId?: string;
+  /** For `kind: 'feature_pool'`: the held options of this choice can be swapped later. See ChoiceReplacePolicy. */
+  replace?: ChoiceReplacePolicy;
+  /** For `kind: 'spell'`: where the spells may come from and which levels are offered. See SpellPickFilter. */
+  spellFilter?: SpellPickFilter;
+  /**
+   * Player-facing noun for a `kind: 'subclass'` choice that is not conventionally a subclass
+   * (a monthly swapped option). The picker heading, the Features tab button and the
+   * creation hub all use it instead of "Subclass". Undefined = "Subclass".
+   */
+  subclassLabel?: string;
   /**
    * STARTING-EQUIPMENT-1: only meaningful for kind:'equipment'. Undefined
    * (every existing equipment choice literal across src/content) means
@@ -1048,6 +1359,23 @@ export type ChoiceState = {
    */
   sourceKind?: EntitlementSourceKind;
   sourceId?:   string;
+  /**
+   * Item-identity closure (pass 3, finding F): for a RESOLVED `kind:
+   * 'equipment'` choice, the exact ItemInstance ids it granted into
+   * inventory.carried — lets reopenEquipmentChoice (equipmentDisplay.ts)
+   * remove precisely what THIS choice added, never the first same-itemId
+   * row it happens to find (which, now that duplicate stateful
+   * ItemDefinitions are legitimately allowed, could belong to a DIFFERENT
+   * choice, Additional Equipment, or another grant entirely). Optional/
+   * undefined for a non-equipment choice, an unresolved choice, or one
+   * resolved before this field existed — reopenEquipmentChoice falls back
+   * to its original itemId-based removal in that case (a documented,
+   * least-destructive legacy compromise, not a claim that old data secretly
+   * tracked per-instance provenance it never recorded).
+   */
+  grantedItemInstanceIds?: string[];
+  /** Gold this choice added (a starting-equipment package or the gold alternative), taken back out when the choice is reopened. */
+  grantedGold?: number;
 };
 
 export type SlotEntry   = { total: number; used: number };
@@ -1111,6 +1439,31 @@ export type Spell = {
   srd?:                     boolean;
   /** Which ruleset this spell belongs to. Undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
   rulesetId?:               RulesetId;
+  /** The material component's description ("a bell and silver wire"), where the source text states it. */
+  material?:                string;
+};
+
+/**
+ * A named, author-curated collection of spell ids — homebrew content in its
+ * own right (create/export/import like any other builder type), distinct
+ * from `Spell.classes` (which just tags which official classes a single
+ * spell belongs to). A SpellList exists to give a class an ALTERNATE pool to
+ * draw from — most commonly a homebrew class with no official spell list of
+ * its own, or an optional/variant list for an existing class — without
+ * having to retag every individual spell's `classes` field. `classId` is the
+ * suggested/default class this list is for; it does not restrict who can
+ * pick the list (see filterSpellsForClass in content/spellLists.ts), since
+ * nothing stops a DM from offering the same curated list to more than one
+ * class at their table.
+ */
+export type SpellList = {
+  id:          string;
+  name:        string;
+  description?: string;
+  classId?:    string;
+  spellIds:    string[];
+  srd?:        boolean;
+  rulesetId?:  RulesetId;
 };
 
 export type Currency     = { pp: number; gp: number; ep: number; sp: number; cp: number };
@@ -1139,9 +1492,73 @@ export type BeastForm = {
   attacks:         { name: string; effect: AbilityEffect }[];
   /** Free-text trait summaries (e.g. "Keen Smell", "Pack Tactics") — display-only in v1, not mechanically enforced. */
   traits?:         string[];
+  /**
+   * Rules-engine blocker RE-AUDIT closure (Closure 3 — native BeastForm
+   * defenses): plain damage-type strings (the SAME taxonomy
+   * grant_resistance's own `target` field already uses everywhere else in
+   * the app — 'fire', 'lightning', 'acid', ... — no second damage-type
+   * taxonomy). Only unconditional, always-on resistances/immunities/
+   * vulnerabilities belong here — a qualified one (e.g. 5e's "bludgeoning/
+   * piercing/slashing from NONMAGICAL attacks") has no representation in
+   * this engine (resolveResistance has no "was this attack magical" input)
+   * and is deliberately left undeclared rather than represented incorrectly
+   * as an unconditional resistance; see beastforms/index.ts's own per-form
+   * comment for exactly what's included/excluded for each shipped form.
+   * Read by pipeline.ts's collectAllEffects while `wildShapeState.active`
+   * is true — never copied onto the base entity, so a plain revert
+   * (wildShapeState -> null) makes these vanish with zero cleanup.
+   */
+  damageResistances?:    string[];
+  damageImmunities?:     string[];
+  damageVulnerabilities?: string[];
+  /**
+   * Rules-engine blocker RE-AUDIT closure (3B): the standard 5e elemental
+   * innate resistance to bludgeoning/piercing/slashing damage from
+   * NONMAGICAL attacks/weapons — a real, RAW-significant defense every
+   * shipped elemental form has, but one this engine cannot infer on its
+   * own (it has no concept of an attack being magical/nonmagical).
+   * Deliberately NOT folded into `damageResistances` above: that list
+   * means "always resisted, unconditionally," which this qualified
+   * resistance is not. Investigated reusing Effect.situational/
+   * Entity.situationalAnswers (the app's existing manual yes/no mechanism)
+   * first, per this closure's own instruction — rejected because that
+   * mechanism is PERSISTENT entity state meant for slow-changing facts
+   * ("an ally within 5 feet"), and this fact can change every single hit;
+   * forcing the DM to toggle persistent state before/after every attack
+   * would be poor table-first UX. Instead consulted via a small, explicit,
+   * PER-HIT parameter at the point damage is entered — see
+   * applyWildShapeDamage's own `isNonmagicalAttack` parameter (combat.ts)
+   * and the DM/player damage-entry UI's "Nonmagical attack" checkbox.
+   * Bounded to exactly this one 5e distinction — not a general magical/
+   * nonmagical attack-qualifier system.
+   */
+  nonmagicalPhysicalResistance?: boolean;
 };
 
 export type ItemInstance = {
+  /**
+   * Item-identity closure: stable identity for THIS OWNED COPY, distinct
+   * from `itemId` (the shared ItemDefinition/content id two independently-
+   * owned copies of the same magic item both point at). Two ItemInstances
+   * may legally share `itemId` while having different `id` — that's exactly
+   * what makes "two identical swords, one equipped+attuned, one not" a
+   * legal, stable state instead of one shared mutable row. Generated once
+   * at a mutation boundary (add/duplicate/import) — see
+   * generateItemInstanceId (inventory.ts) — never inside recomputeDerived
+   * or another pure derivation function.
+   *
+   * Optional so every pre-existing ItemInstance literal across the app
+   * (test fixtures, and any character saved before this field existed)
+   * stays valid — the SAME disclosed-migration-gap convention this type's
+   * own requiresAttunement/wearsArmorOrShield fields already use.
+   * characterStore.ts's load hydration backfills a stable id for any
+   * instance missing one, exactly once, so nothing regenerates it on
+   * every recompute. Code that needs to target ONE SPECIFIC owned
+   * instance (equip/unequip/attune/remove/resource lookups) should match
+   * on `id`, not `itemId` — matching on `itemId` can silently pick
+   * whichever same-definition copy happens to be first in the array.
+   */
+  id?:      string;
   itemId:   string;
   quantity: number;
   /** Stable owner for creation-time additional items. */
@@ -1183,6 +1600,9 @@ export type ItemInstance = {
    * requiresAttunement's own — re-equip refreshes it).
    */
   wearsArmorOrShield?: boolean;
+  /** Armor weight and shield-ness, hydrated with the other definition facts, so worn-gear conditions need no catalog lookup. */
+  armorWeight?: 'light' | 'medium' | 'heavy';
+  isShield?: boolean;
 };
 
 export type InventoryBlock = {
@@ -1265,7 +1685,17 @@ export type Effect = {
            | 'grant_movement';
   target:    string;
   operation: 'add' | 'multiply' | 'set' | 'advantage' | 'disadvantage'
-           | 'resistance' | 'immunity' | 'vulnerability' | 'suppress';
+           | 'resistance' | 'immunity' | 'vulnerability' | 'suppress'
+           /**
+            * 'scale' — multiply the FULLY RESOLVED stat ("double your speed", "halve your
+            * initiative"). Deliberately separate from 'multiply', which the resolver has always
+            * applied to the accumulated bonus pool of that target (and which a locked-in audit
+            * test documents, and which expertise markers reuse). Applied last, after every
+            * set/add, floored to a whole number; several scales multiply together in any order.
+            * Supported on ability scores, speed, initiative and AC. See resolver.ts's
+            * resolveScaleFactor.
+            */
+           | 'scale';
   value:     number | string | string[] | null;
   condition: string | null;
   /**
@@ -1302,6 +1732,22 @@ export type Effect = {
   requiresNoArmorOrShield?: boolean;
   formulaAbilities?: Ability[];
   /**
+   * "Add your Charisma modifier to X": on a numeric `add` stat_modifier, this ability's final
+   * modifier is added to `value` (which may be 0/omitted) when derived stats are computed.
+   */
+  addAbilityModifier?: Ability;
+  /** "Add your proficiency bonus": PB is added to this effect's numeric `value` (Alert's initiative). */
+  addProficiencyBonus?: boolean;
+  /** The effect does nothing until the character reaches this level (Nature's Ward's resistance at 10). Works on any feature's effect. */
+  minLevel?: number;
+  /** "...and again whenever you gain a level": this many points per CHARACTER level are added to `value` (Dwarven Toughness: 1). */
+  addPerLevel?: number;
+  /**
+   * On a `set` of an ability score: a floor ("becomes 24 if lower", "rise to at least 22") applied
+   * after every other effect, so it can raise the score but never lower a higher one.
+   */
+  atLeast?: boolean;
+  /**
    * Per-ability cap applied AFTER the modifier is computed, for medium armor.
    * e.g. { dex: 2 } means "add DEX modifier but cap it at +2".
    * Only meaningful when the ability appears in formulaAbilities.
@@ -1311,13 +1757,18 @@ export type Effect = {
   cantripIds?:         string[];
   spellIds?:           string[];
   spellcastingAbility?: Ability;
+  /** The choice that picks the ability instead (see grantedSpellAbility.ts); `spellcastingAbility` is the default until it is made. */
+  spellcastingAbilityFrom?: string;
   // ── grant_sense-specific fields ───────────────────────────────────
   senseType?:  SenseType;
   senseRange?: number;
   senseNote?:  string;
   // ── grant_movement-specific fields ───────────────────────────────────────────
   movementType?:  'fly' | 'swim' | 'climb' | 'burrow';
+  /** Feet. With `movementEqualsSpeed` it is an addition to the Speed (0/absent = exactly the Speed). */
   movementRange?: number;
+  /** "A Climb/Swim/Fly Speed equal to your Speed": the range is the character's final walking Speed. */
+  movementEqualsSpeed?: boolean;
 };
 
 /**
@@ -1339,6 +1790,12 @@ export type Feature = {
   effects:     Effect[];
   actions:     Action[];
   choices:     ChoiceDefinition[];
+  /**
+   * Choices opened when this feature is granted (a Fighting Style option that lets you learn two Cleric cantrips,
+   * Pact of the Tome's cantrips and rituals). Queued once, namespaced to this feature id, and taken back out with it
+   * (removeFeature already strips unresolved choices and revokes resolved ones namespaced `${featureId}:`).
+   */
+  grantsChoices?: ChoiceDefinition[];
   passive:     boolean;
 
   // ── Active ability fields (optional — undefined = passive feature, no card generated) ──
@@ -1367,6 +1824,25 @@ export type Feature = {
    * alongside the existing UniversalActionsSection.
    */
   trigger?: string;
+  /**
+   * Limited-use pools this feature brings with it (Weight of Authority's reroll uses). Granted by
+   * leveling.ts's applyGrant 'feature' case, tagged sourceKind 'feature' + this feature's id, so
+   * removeFeature's existing resource cleanup removes them with the feature. Features that pair a
+   * separate `resource` grant (every class-progression feature) simply leave this unset.
+   */
+  resources?: ResourceGrant[];
+  /**
+   * Marks this feature as one tier of an upgradeable reward (a DM-granted mid-campaign feature):
+   * granting a higher tier of the same `trackId` REPLACES every lower-tier feature of that track
+   * instead of stacking with it. See engine/rewardTracks.ts.
+   */
+  rewardTrack?: { trackId: string; tier: number; trackName: string };
+  /**
+   * Id of an earlier feature this one REPLACES when granted: the old feature object is removed first
+   * so no stale duplicate lingers ("a weapon die becomes 6d6", "a class die becomes a d8").
+   * Resource pools are not touched — they are granted separately and keep their spent state.
+   */
+  upgradeOf?: string;
   /** Player-set: marks this feature as exploration-relevant for the Exploration view filter. */
   explorationTag?: boolean;
   /**
@@ -1397,7 +1873,14 @@ export type TraitEffectKind =
   | 'none' | 'ability_score' | 'unarmored_defense' | 'ac_bonus' | 'skill_proficiency' | 'tool_proficiency'
   | 'advantage_disadvantage' | 'sense' | 'movement' | 'movement_condition'
   | 'damage_resistance' | 'damage_immunity' | 'damage_vulnerability'
-  | 'spell_grant' | 'resource_ability';
+  | 'spell_grant' | 'resource_ability'
+  // Added for engine/editor parity (see docs/EFFECT_AUTHORING_PARITY.md):
+  | 'stat_bonus' | 'gear_proficiency' | 'condition_immunity';
+
+/** Stats the 'stat_bonus' kind can modify. Every one is honored by the pipeline (see traitCompiler's STAT_BONUS_TARGETS). */
+export type StatBonusTarget =
+  | 'speed' | 'initiative' | 'extra_attack' | 'spell_save_dc' | 'spell_attack_bonus'
+  | 'passive_perception' | 'passive_investigation' | 'passive_insight' | 'saving_throw';
 
 export type DraftTrait = {
   localId:     string;
@@ -1457,7 +1940,7 @@ export type DraftTrait = {
     actionType:   'action' | 'bonus_action' | 'reaction';
     unlockLevel:  string;
     mode:         'resource' | 'slot';
-    recharge:     'short_rest' | 'long_rest' | 'other';
+    recharge:     'short_rest' | 'long_rest' | 'dawn' | 'other';
     rechargeOther: string;
     uses:         string;
     minSlotLevel: string;
@@ -1465,7 +1948,7 @@ export type DraftTrait = {
   // resource_ability (e.g. Chi Pulse: bonus action, 1/rest, heal)
   actionType:      'action' | 'bonus_action' | 'reaction' | 'other';
   actionTypeOther: string;
-  recharge:        'short_rest' | 'long_rest' | 'other';
+  recharge:        'short_rest' | 'long_rest' | 'dawn' | 'other';
   rechargeOther:   string;
   uses:            string;
   healDice:        string;
@@ -1480,6 +1963,31 @@ export type DraftTrait = {
    * this flag (see buildTraitFeature in traitCompiler.ts).
    */
   limitedUse: boolean;
+  // stat_bonus: a modifier to speed / initiative / extra attacks / spell DC / spell attack / passive senses / saves.
+  statTarget?:      StatBonusTarget;
+  /** For statTarget 'saving_throw': which save (or all six). */
+  statSaveAbility?: Ability | 'all';
+  statOperation?:   'add' | 'set' | 'scale';
+  statAmount?:      string;
+  // gear_proficiency: a weapon or armor proficiency.
+  gearKind?:        'weapon' | 'armor';
+  gearName?:        string;
+  // condition_immunity: cannot be affected by this condition.
+  conditionImmunityTarget?: string;
+  // Saving-throw DC for an ability that forces a save (limited-use abilities). See traitCompiler's buildRequiresSave.
+  saveEnabled?:     boolean;
+  saveAbility?:     Ability;
+  /** 'ability' scales with the character (8 + proficiency + that ability's modifier); 'spell' = their spell save DC; 'fixed' = a set number. */
+  saveDcMode?:      'ability' | 'spell' | 'fixed';
+  saveDcAbility?:   Ability;
+  saveDcFixed?:     string;
+  /**
+   * Set ONLY when a builder hydrates a saved/imported (already-compiled) feature it cannot turn back into an
+   * editable effect kind: a one-line summary of the mechanics the compiled feature really carries (see
+   * content/featureMechanics.ts). Display-only — it lets the trait row say what the trait does instead of
+   * "Flavor only", and tells the save path the mechanics must be kept. Never persisted by the compiler.
+   */
+  mechanicsSummary?: string;
 };
 
 // ── 6. Entity master type ────────────────────────────────────────────────────
@@ -1517,6 +2025,54 @@ export type TurnState = {
   actionUsed:      boolean;
   bonusActionUsed: boolean;
   reactionUsed:    boolean;
+};
+
+/**
+ * Extra Attack sequence closure (single-HIGH final closure): the engine-
+ * owned, per-entity record of an IN-PROGRESS Attack action containing
+ * multiple attacks (Extra Attack / Multiattack) — replaces the removed
+ * `isChainedAttack?: boolean` escape hatch, which let any caller claim "this
+ * is a chained attack" and bypass action economy with zero verification
+ * (CALLER BOOLEAN ≠ AUTHORITY). This is the single source of truth
+ * applyActionCardUse (actionUse.ts) consults to decide whether a given
+ * attack is a legitimate continuation of an already-paid-for Attack action.
+ *
+ * Deliberately NOT a durable/persisted character fact — it exists only for
+ * the duration of one Attack action and is cleared (`null`) the moment the
+ * sequence closes (exhausted, or the player presses Done/Cancel) or a fresh
+ * turn starts (startTurn, combat.ts, resets it alongside turnState). A
+ * saved/reloaded character with a leftover non-null value here (e.g. the app
+ * closed mid-sequence) is harmless: the next attempt to CONTINUE it either
+ * matches (and simply resumes, still bounded by maxAttacks/usedAttacks) or
+ * fails the actorId/sequenceId match and is treated as a fresh lead attack.
+ *
+ * `sequenceId` is an opaque, caller-supplied correlation token (see
+ * AttackSequenceUse below) — it is NEVER trusted as authority on its own.
+ * The only thing that grants a call "chained" status is an EXACT match
+ * against THIS entity's OWN currently-stored AttackSequenceState, which the
+ * caller cannot fabricate: a token that doesn't match `entity.attackSequence`
+ * (because none exists yet, or it belongs to a different/closed sequence) is
+ * always treated as an attempt to start a brand-new, independent lead attack
+ * instead — which then pays its own Action normally, and is therefore
+ * blocked by ordinary action economy if the Action was already spent this
+ * turn. See applyActionCardUse's own doc comment for the full validation.
+ */
+export type AttackSequenceState = {
+  sequenceId:  string;
+  /** The Entity.id this sequence belongs to — re-checked on every
+   *  continuation attempt so one entity's in-progress sequence can never be
+   *  advanced by a call operating on a DIFFERENT entity, even one that
+   *  somehow carries a matching sequenceId (Part F — sequence ownership). */
+  actorId:     string;
+  /** Snapshot of DerivedStats.attackActionAttacks at the moment the LEAD
+   *  attack succeeded — the hard ceiling on how many attacks this sequence
+   *  may ever execute, regardless of what a later call claims. */
+  maxAttacks:  number;
+  /** How many attacks (lead + chained) have successfully executed so far.
+   *  Only incremented on a SUCCESSFUL attack — a rejected child (stale item,
+   *  resource unavailable, incapacitated, wrong card kind, exhausted, etc.)
+   *  never advances this (Part J — failure must not advance the count). */
+  usedAttacks: number;
 };
 
 /**
@@ -1619,6 +2175,14 @@ export type Entity = {
    */
   turnState?: TurnState | null;
   /**
+   * Extra Attack sequence closure: the currently in-progress Attack-action
+   * sequence (Extra Attack/Multiattack), if any — see AttackSequenceState's
+   * own doc comment for the full model. Null/undefined means "no sequence in
+   * progress," true for every entity outside an active multi-attack Attack
+   * action, including every character without Extra Attack at all.
+   */
+  attackSequence?: AttackSequenceState | null;
+  /**
    * Item 9 (context-dependent/three-state mechanics) — the player/DM's
    * current answer to each situational fact a currently-held Effect asks
    * about (keyed by Effect.situational.id). Absent key = unanswered
@@ -1627,6 +2191,17 @@ export type Entity = {
    * existing saved entities parse unchanged.
    */
   situationalAnswers?: Record<string, boolean>;
+  /** Mode Group state by group id (engine/modes.ts). Absent for every character with no mode group. */
+  modeState?: Record<string, ModeState>;
+  weaponMastery?: { picks: string[] };
+  /** Heroic Inspiration (2024): whether the character holds it. Never more than one; see engine/heroicInspiration.ts. */
+  heroicInspiration?: boolean;
+  /**
+   * The content packs (ids and minimum versions) this character's class, species, background, feats, spells and items come from,
+   * recorded when it is saved. Only ever added to, so removing a pack does not forget what the character was built from.
+   * See content/requiredPacks.ts.
+   */
+  requiredPacks?: { id: string; minVersion?: string }[];
   /**
    * Item 13 (build comparison/checkpoints/loadouts) — named, saved
    * equipment + prepared-spell configurations a player can swap between
@@ -1678,6 +2253,55 @@ export type Entity = {
   entitlementInputsVersion?: 1;
 };
 
+/**
+ * Extra Attack sequence closure (two-issue final closure, Part B): the ONE
+ * shared normalizer that strips runtime-only state which must NEVER survive
+ * a durable boundary — today, just `attackSequence`. AttackSequenceState's
+ * own doc comment (above) already documents it as transient/never-
+ * persisted, but a plain Entity is serialized/deserialized generically
+ * (SQLite row, portable export/import, sync entity/patch), so without this
+ * an in-progress sequence recorded at save time would come back unchanged
+ * on load — a stale, already-paid-for Action-economy bypass a caller could
+ * then "continue" with the old sequenceId after a reload.
+ *
+ * Defined here (types.ts), not combat.ts, specifically so db/entityRepo.ts's
+ * own per-row read path (parseEntityRow — the single choke point behind
+ * BOTH loadEntity and loadAllEntities/loadEntitiesByKind) can call it
+ * without a circular import: combat.ts transitively imports DEFAULT_RULES
+ * from store/characterStore.ts, which itself imports entityRepo.ts.
+ * types.ts has no such dependency. combat.ts re-exports this for callers
+ * that already import turn-economy helpers from there.
+ *
+ * Called at every durable ingress point a raw/deserialized Entity can enter
+ * normal runtime through — entityRepo.ts's parseEntityRow (covers
+ * characterStore.ts's boot-time loadCharacters AND any direct loadEntity/
+ * loadAllEntities/loadEntitiesByKind caller), applyIncomingEntity (sync full
+ * snapshot AND backup restore, which reuses it — see app/backup.tsx),
+ * applyIncomingPatch (on the merged result, so an incoming patch can never
+ * SET attackSequence either), importCharacter, and portable character
+ * import (characterPortable.ts) — mirroring the same set of call sites
+ * hydrateLegacyItemInstanceIds (itemMechanics.ts) already uses for the
+ * equivalent item-identity concern, rather than duplicating ad hoc
+ * `{ attackSequence: null }` patches at each one individually.
+ *
+ * Deliberately narrower than startTurn's own reset (combat.ts): this must
+ * run regardless of whether a turn is currently active (a save mid-turn,
+ * mid-sequence, then reloaded), whereas startTurn only fires when a NEW turn
+ * begins. `turnState` is intentionally left untouched — it has its own,
+ * already-correct persistence semantics (a save mid-turn should still show
+ * the same action-economy state on reload), and this closure is scoped to
+ * `attackSequence` only.
+ *
+ * A no-op (returns the same reference) when there's nothing to strip,
+ * matching this codebase's existing "avoid unnecessary object creation"
+ * convention for hydration helpers (see hydrateItemFeatures,
+ * characterStore.ts).
+ */
+export function stripTransientRuntimeState(entity: Entity): Entity {
+  if (!entity.attackSequence) return entity;
+  return { ...entity, attackSequence: null };
+}
+
 /** See Entity.loadouts' doc comment. `equippedItemIds`/`preparedSpellIds`
  *  are itemId/spellId lists, not full instance snapshots — applying a
  *  loadout moves matching items between carried/equipped and re-derives
@@ -1686,7 +2310,26 @@ export type Entity = {
 export type Loadout = {
   id:                string;
   name:              string;
+  /** Definition ids of the items this loadout equips — kept for
+   *  itemRepo.ensureLoaded()/display-name lookups and as the LEGACY
+   *  targeting field for a loadout saved before `equippedItemInstanceIds`
+   *  existed. Never the sole targeting key for a NEWLY captured loadout —
+   *  see `equippedItemInstanceIds`'s own doc comment (item-identity
+   *  closure, pass 2 finding E). */
   equippedItemIds:   string[];
+  /**
+   * Item-identity closure (pass 2, finding E): the OWNED ItemInstance ids
+   * this loadout equips — captured alongside `equippedItemIds` above so a
+   * loadout can distinguish which SPECIFIC copy of a duplicated stateful
+   * item it wants equipped (two identical swords: Loadout 1 equips A,
+   * Loadout 2 equips B). Optional so a loadout saved before this field
+   * existed still parses; applyLoadout (loadout.ts) falls back to
+   * itemId-only matching (first eligible instance — a loadout literally
+   * cannot know which historical duplicate it meant) only when this is
+   * absent. A loadout captured or re-saved under the current app always
+   * populates it.
+   */
+  equippedItemInstanceIds?: string[];
   preparedSpellIds:  string[];
   createdAt:         number;
 };
@@ -1782,11 +2425,19 @@ export type ResourceGrant = {
    * DraftTrait's 'other' recharge option) — displayed as-is by CustomResource,
    * which already allows the same free-text escape hatch. */
   recharge:   'short_rest' | 'long_rest' | 'dawn' | 'never' | string;
+  /** When true `maximum` is only the starting value: the pool's maximum tracks the proficiency bonus ("PB uses per Long Rest"). */
+  perProficiencyBonus?: boolean;
+  /** `maximum` is only the starting value: the maximum tracks this ability's modifier (minimum 1). */
+  perAbilityModifier?: Ability;
+  /** `maximum` is only the starting value: the maximum tracks character level times this. */
+  perLevel?: number;
 };
 
 export type ResourceUpgrade = {
   resourceId: string;
   newMaximum: number;
+  /** Also changes how the pool recharges (Bardic Inspiration returns on a Short Rest from level 5). */
+  recharge?: string;
 };
 
 export type SpellSlotRow = {
@@ -1921,6 +2572,28 @@ export type FeatureActivation = {
   options?: ActivationOption[];
 };
 
+/**
+ * Extra Attack sequence closure: the caller's request to treat one weapon-
+ * attack use as part of an Attack-action sequence (Extra Attack/Multiattack)
+ * — see AttackSequenceState's own doc comment (section 3, above) for the
+ * full authority model this replaces the old, unconstrained
+ * `isChainedAttack: true` boolean with. `sequenceId` is generated ONCE by
+ * the application/UI layer when it opens the FIRST attack chooser (any
+ * opaque unique string — e.g. a uuid, or `${Date.now()}-${Math.random()}`)
+ * and passed unchanged on every subsequent attack of that same sequence.
+ * Passing this on the first attack of a fresh sequence (entity.attackSequence
+ * is null, or doesn't match) is always safe — it behaves EXACTLY like an
+ * ordinary single attack (same cost, same action-economy spend) and only
+ * additionally marks entity.attackSequence for potential continuation on
+ * success. Only a call whose sequenceId matches an entity's OWN currently-
+ * active AttackSequenceState is ever treated as a bypass-eligible
+ * continuation — see applyActionCardUse (actionUse.ts). Omitted entirely
+ * (undefined) for every ordinary, non-Attack-action card use.
+ */
+export type AttackSequenceUse = {
+  sequenceId: string;
+};
+
 export type ActivationOption = {
   id:            string;
   label:         string;         // e.g. "2nd-level slot"
@@ -1949,7 +2622,10 @@ export type ResourceCost = {
  * content-registry id, so it doesn't map cleanly onto one branded type.
  */
 export type AbilityEffect =
-  | { type: 'damage';           dice: string; damageType: string; saveOnSuccess?: 'half' | 'none' }
+  | { type: 'damage';           dice: string; damageType: string; saveOnSuccess?: 'half' | 'none';
+      /** Scaling dice by character level (Dragonborn's Breath Weapon: 1d10, 2d10 at 5, 3d10 at 11, 4d10 at 17): the
+       *  highest tier at or below the character's level replaces `dice` when the card is shown. */
+      diceByLevel?: { level: number; dice: string }[] }
   | { type: 'heal';             dice: string; bonusMod?: Ability }
   | { type: 'apply_condition';  conditionId: string; duration: DurationTracker }
   | { type: 'remove_condition'; conditionId: string }
@@ -2027,6 +2703,117 @@ export type ActionCard = {
   available:         boolean;
   /** e.g. "No 3rd-level spell slots remaining", "Already concentrating" */
   unavailableReason: string | null;
+  /**
+   * Rules-engine blocker fix (prepared-spell eligibility): true ONLY for a
+   * leveled spell card whose entire unavailability is that it isn't
+   * prepared — every other legality/cost check (slot availability, action
+   * economy, resource cost) already passed. The UI uses this to offer a
+   * table-first "Cast Anyway" Quick Override on top of the normal disabled
+   * state, instead of requiring Free Edit to force a one-off exception.
+   * false/undefined for every non-spell card, every cantrip, and a spell
+   * blocked by anything else (or nothing) — see isSpellPreparationLegal's
+   * own doc comment (actionCards.ts) for the exact source-aware policy.
+   * Optional so the many non-spell ActionCard literals throughout this file
+   * don't all need to set it explicitly.
+   */
+  preparationOverridable?: boolean;
+  /**
+   * Rules-engine HIGH-batch closure (C): true ONLY when the entity is
+   * incapacitated (0 HP or the explicit Unconscious condition — see
+   * isIncapacitated, combat.ts) AND that status is the card's ENTIRE
+   * remaining unavailability — every other legality check (resource cost,
+   * action economy, and for a spell card, preparation) already passed. The
+   * UI offers a table-first "Use Anyway" Quick Override on top of the
+   * normal disabled state when this is true, mirroring
+   * preparationOverridable's own pattern exactly. false/undefined for a
+   * healthy entity, a Dead entity (hard blocker, never overridable — see
+   * isDead's own doc comment), or a card blocked by anything else.
+   */
+  incapacitatedOverridable?: boolean;
+  /**
+   * Rules-engine blocker closure (1B — ActionCard must preserve context):
+   * the SpellCastingContext this card was generated to represent — the
+   * default/primary one when several exist (see spellCastingContexts
+   * below). Undefined for every non-spell card. applyActionCardUse
+   * revalidates THIS EXACT context (by contextKey) fresh at execution time
+   * rather than silently re-resolving a possibly-different source — if the
+   * selected context no longer exists among the entity's current sources,
+   * execution fails safely rather than switching source.
+   */
+  spellCastingContext?: SpellCastingContext;
+  /**
+   * Every MECHANICALLY DISTINCT candidate context for this spell (collapsed
+   * — two contexts with the same ability/policy/legality count as one),
+   * only populated (length > 1) when the player actually has a real choice
+   * to make (e.g. a Wizard/Sorcerer character's shared spell). The UI shows
+   * a "Cast as..." chooser when this has more than one entry; a single-
+   * entry or absent array means there's nothing to choose between, so the
+   * normal single-tap Cast/Cast-Anyway flow applies unchanged.
+   */
+  spellCastingContexts?: SpellCastingContext[];
+  /**
+   * Item-identity closure (pass 2, finding D): when this card was generated
+   * from an authored Feature living on a SPECIFIC equipped ItemInstance
+   * (not a class/race/feat Feature on entity.features), `sourceKind:'item'`
+   * + `sourceId: <that ItemInstance.id>` records exactly which owned copy
+   * it came from — `featureId` above stays the plain Feature.id (shared by
+   * every instance of the same ItemDefinition, since two identical items
+   * carry the identical authored feature), so content/definition lookups by
+   * featureId are unaffected. applyActionCardUse (actionUse.ts) revalidates
+   * `sourceId` is STILL an equipped instance before executing, and resolves
+   * the feature from THAT instance alone — never a flat search across every
+   * equipped item's features, which would silently execute a stale card
+   * (its instance already removed/unequipped) against an identical
+   * remaining copy instead of rejecting it. undefined for every non-item
+   * card, and for a card generated before this fix existed (legacy
+   * fallback: the old flat-search behavior, unchanged).
+   */
+  sourceKind?: 'item';
+  sourceId?:   string;
+  /**
+   * Rules-completeness batch (ritual casting): true when this is a spell
+   * card AND the spell is ritual-tagged (Spell.ritual) AND at least one of
+   * this card's candidate SpellCastingContexts has ritualEligible === true
+   * (see that field's own doc comment). Undefined for every non-spell card
+   * and every spell that isn't ritual-capable through any source the
+   * character currently has. Purely a "should the UI offer a Cast-Normally-
+   * vs-Cast-as-Ritual choice at all" signal generated against the BEST-
+   * EFFORT/default context; applyActionCardUse revalidates the SPECIFIC
+   * selected context's own ritualEligible flag fresh at execution time
+   * (never trusts this precomputed card-level flag alone), so a card that
+   * over-offers ritual mode for a context that turns out not to support it
+   * fails safely at execution rather than casting for free.
+   */
+  ritualEligible?: boolean;
+  /**
+   * Extra Attack / action-structure batch: true only for a card that
+   * represents an actual weapon-or-unarmed ATTACK usable with the Attack
+   * action — the synthetic basic-weapon-attack card, the synthetic Unarmed
+   * Strike card, and an equipped item's own authored attack feature (a
+   * `damage`-type abilityEffect) WHEN that item is itself a weapon, per the
+   * SAME isWeapon() classifier every other weapon check in this codebase
+   * already uses (see generateAllActionCards, actionCards.ts, for exactly
+   * where each is set). Undefined for every spell card and every non-attack
+   * class/race/item feature — those are never eligible for Extra Attack's
+   * extra attack opportunities even when they also happen to be
+   * `cardType: 'damage'`. This is the ONE signal the player-facing Attack
+   * Action sequence (TabActions.tsx) uses to decide which cards to offer as
+   * attack choices; it never infers attack-eligibility from `cardType`
+   * alone, which also covers non-weapon damage sources like a spell.
+   *
+   * Extra Attack sequence closure (two-issue final closure, Part A): ALSO
+   * requires `activation.actionType === 'action'` — a weapon's own authored
+   * attack feature that activates as a Bonus Action or Reaction (deals
+   * damage, belongs to a weapon, but isn't a genuine Attack-action attack)
+   * must never be true, since that would let it be used as a free Extra
+   * Attack continuation. The two hardcoded synthetic cards (basic weapon
+   * attack, Unarmed Strike) are unconditionally `actionType: 'action'` by
+   * construction, so this never excludes them. `applyActionCardUse`
+   * (actionUse.ts) independently re-checks `activation.actionType ===
+   * 'action'` at execution time — never trusts this flag alone — so a
+   * misclassified or forged `true` here still can't bypass action economy.
+   */
+  isWeaponAttack?: boolean;
 };
 
 // ── 11. Sync & campaign system ───────────────────────────────────────────────
@@ -2134,6 +2921,16 @@ export type Campaign = {
    * every existing campaign parses unchanged and is fully unrestricted.
    */
   bannedPackIds?: string[];
+  /**
+   * The content packs (ids and minimum versions) this campaign's ruleset needs, recorded when the campaign is made or its
+   * ruleset changes, so a player who joins can be told what they have not installed. See content/requiredPacks.ts.
+   */
+  requiredPacks?: { id: string; minVersion?: string }[];
+  /** Optional free-text blurb set at creation (CREATE_CAMPAIGN_FLOW_SPEC.md's Basics step). */
+  description?:   string;
+  /** The ruleset this campaign is built for. Optional — undefined means no restriction, same
+   *  "unset = unrestricted" convention as everywhere else a RulesetId is optional in this file. */
+  rulesetId?:     RulesetId;
 };
 
 // ── Prepared Encounters ──────────────────────────────────────────────────────
@@ -2166,6 +2963,8 @@ export type PreparedCombatant = {
   groupId?:    string;              // EncounterGroup.id — DM-UI organization only
   waveId?:     string;              // EncounterWave.id — undefined means "present from the start"
   startingConditionIds?: string[];  // Condition ids applied at instantiation
+  /** Resource pool id -> current value to start at (e.g. a meter that starts at 2 rather than its maximum of 3). Clamped to 0..maximum. */
+  startingResources?: Record<string, number>;
   notes?:      string;
   hidden?:     boolean;             // DM-only — not yet revealed to players
   initiativePreference?: number;    // fixed initiative instead of rolling, if set
@@ -2197,6 +2996,8 @@ export type EncounterEnvironmentEntry = {
   id:          string;
   label:       string;        // "Difficult terrain", "Darkness", "Poison gas", or custom text
   description?: string;
+  /** 'secret' = DM-only (never shown to players, e.g. a hidden Collapse Counter hazard); undefined/'public' = visible to all. */
+  visibility?: 'public' | 'secret';
   /** Optional link to a real Condition for an actual mechanical effect
    *  (e.g. an environmental hazard that behaves like a Condition already
    *  in the compendium). Left unset, this stays purely descriptive — never

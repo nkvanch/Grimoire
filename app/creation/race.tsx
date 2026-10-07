@@ -1,5 +1,8 @@
 // app/creation/race.tsx
 // Race list — tap row to navigate to detail, long-press chevron to expand description.
+import { rulesetLabel } from '../../src/content/rulesets';
+import { suggestFirst } from '../../src/content/rulesetSuggestion';
+import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
 import { View, Text, FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -7,6 +10,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { globalContentDB } from '../../src/content/classes/library';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
+import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
+import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import {
   RACE_SIZE_ORDER, RACE_MOVEMENT_TYPES, hasDarkvision, raceMovementTypes, hasSubraces, raceSortOptions,
@@ -15,7 +21,7 @@ import { sortByOption } from '../../src/content/contentQuery';
 import { SortControl } from '../../src/components/SortControl';
 import { useBrowseStateStore } from '../../src/store/browseStateStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 
 const SCREEN_KEY = 'race_picker';
 
@@ -97,14 +103,16 @@ export default function RaceScreen() {
   const availableRulesets = Array.from(new Set(globalContentDB.races.map(r => r.rulesetId).filter((r): r is NonNullable<typeof r> => !!r)))
     .map(String).sort().map(r => ({ id: r, label: r }));
 
-  const races = officialFilter === 'homebrew' ? [] : sortByOption(globalContentDB.races.filter(r =>
+  useOfficialContentVersion();   // follow pack installs and removals while this list is open
+  const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
+  const races = officialFilter === 'homebrew' ? [] : suggestFirst(sortByOption(globalContentDB.races.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase()) &&
     (!sizeFilter || r.size === sizeFilter) &&
     (!darkvisionOnly || hasDarkvision(r)) &&
     (movementFilter.size === 0 || Array.from(movementFilter).some(m => raceMovementTypes(r).includes(m))) &&
     (!rulesetFilter || r.rulesetId === rulesetFilter) &&
     (!hasSubracesOnly || hasSubraces(r))
-  ), sortOptions, sort);
+  ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewRaces = officialFilter === 'official' ? [] : homebrewRaces.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -121,10 +129,15 @@ export default function RaceScreen() {
     setRulesetFilter(null); setOfficialFilter('all'); setHasSubracesOnly(false);
   }
 
-  return (
-    <View style={styles.container}>
-
+  // SCROLL-HEADER-1: heading/search/filters used to sit in a plain View
+  // above the FlatList — a fixed header that never scrolled away, wasting
+  // screen space once the player opens Filters. Moved into
+  // ListHeaderComponent so it scrolls with the list like everything else.
+  const listHeader = (
+    <>
       <Text style={styles.heading}>Select Race</Text>
+      <MissingRulesetContentBanner ruleset={suggestedRuleset} />
+      {suggestedRuleset ? <Text style={{ textAlign: 'center', color: Colors.textDim, fontSize: FontSize.xs, marginTop: -Spacing.sm, marginBottom: Spacing.sm }}>{rulesetLabel(suggestedRuleset)} content is listed first.</Text> : null}
       <View style={styles.divider} />
 
       <View style={styles.searchRow}>
@@ -182,11 +195,16 @@ export default function RaceScreen() {
         </View>
       )}
       <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
+    </>
+  );
 
+  return (
+    <View style={styles.container}>
       <FlatList
         data={races}
         keyExtractor={r => r.id}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing.xxl }]}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={[styles.list, { paddingBottom: scrollBottomPadding(insets.bottom) }]}
         renderItem={({ item }) => {
           const isOpen = expanded === item.id;
           const desc   = RACE_DESCRIPTIONS[item.id];
@@ -204,12 +222,8 @@ export default function RaceScreen() {
                     regardless of ruleset, so without this they were
                     genuinely indistinguishable (audit finding
                     RULESET-DUP-1). */}
-                {item.rulesetId && (
-                  <View style={styles.rulesetTag}>
-                    <Text style={styles.rulesetTagTxt}>{item.rulesetId}</Text>
-                  </View>
-                )}
-                {isNonSrd(item.srd) && <NonSrdBadge />}
+                <EditionBadge item={item} official />
+                {isNonSrd(item.srd, item.rulesetId) && <NonSrdBadge />}
                 <Pressable
                   hitSlop={12}
                   onPress={e => { e.stopPropagation(); setExpanded(isOpen ? null : item.id); }}

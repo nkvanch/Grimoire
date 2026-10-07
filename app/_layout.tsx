@@ -1,6 +1,10 @@
 // app/_layout.tsx
 // Root layout — initializes SQLite DB + loads characters + hydrates session
 // on startup, then renders the navigation stack.
+import { ensureBundledPacks } from '../src/content/firstRunPacks';
+import { bootOfficialPacks, installedOfficialPacks } from '../src/content/officialPackService';
+import { ContentPacksPrompt } from '../src/components/ContentPacksPrompt';
+import { sqlitePackStore } from '../src/content/officialPackStore';
 import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +17,8 @@ import { initDb } from '../src/db/db';
 import { initContentDb } from '../src/db/contentDb';
 import { spellRepo } from '../src/content/spellRepo';
 import { itemRepo } from '../src/content/itemRepo';
-import { getMeta } from '../src/db/appMetaRepo';
+import { getMeta, setMeta } from '../src/db/appMetaRepo';
+import { clearStaleSessionEffects } from '../src/session/effectBridge';
 import { useCharacterStore } from '../src/store/characterStore';
 import { useSessionStore }   from '../src/store/sessionStore';
 import { useCampaignStore }  from '../src/store/campaignStore';
@@ -22,9 +27,8 @@ import { useHomebrewStore }  from '../src/store/homebrewStore';
 import { syncManager }       from '../src/sync/syncManager';
 import { useSyncStore }      from '../src/store/syncStore';
 import { useCombatTurnStore } from '../src/store/combatTurnStore';
-import { useCombatStore }    from '../src/store/combatStore';
+import { hydrateCombatStateOnBoot } from '../src/store/combatStore';
 import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
-import { loadCombatState, clearCombatState } from '../src/db/combatRepo';
 import { loadDraftState } from '../src/db/draftRepo';
 
 function BootScreen() {
@@ -96,6 +100,12 @@ export default function RootLayout() {
         //    itemRepo (official-only) doesn't have.
         await loadHomebrew();
 
+        // 3b. Restore installed official content packs (the SRD packs): they become the official catalog before
+        //     characters load. Never blocks boot; with none installed (or any problem) the built-in catalog stays.
+        await bootOfficialPacks(sqlitePackStore);
+        // With no built-in catalog the app needs packs: the first run with none installed installs the ones that ship with it.
+        await ensureBundledPacks(sqlitePackStore, { get: getMeta, set: setMeta });
+
         // 4. Load characters + session. Runs regardless of whether steps
         //    1-3 fully succeeded — a character can still open in a
         //    degraded state (missing spell/item data) per the app's own
@@ -110,21 +120,25 @@ export default function RootLayout() {
           console.error('[_layout] loadCharacters/initSession failed:', e);
         }
 
-        // 5. Restore combat state if a combat was active before the app was killed.
-        // An active combat restored with no entities (either an old,
-        // pre-migration save that never persisted entities at all, or a
-        // genuinely interrupted encounter — see combatRepo.ts's migration
-        // note) can't be resumed: the DM's screen would show ghost
-        // initiative rows with no HP/condition data and no way to act on
-        // them. Clear it instead of restoring a broken-looking "active"
-        // screen (audit finding PERSIST-2).
-        loadCombatState().then(state => {
-          if (state?.combat.active && state.entities.length > 0) {
-            useCombatStore.setState({ combat: state.combat, entities: state.entities });
-          } else if (state?.combat.active) {
-            clearCombatState().catch(() => { /* non-critical */ });
-          }
-        }).catch(() => { /* non-critical */ });
+        // 5. Restore combat state (an active encounter, or a pre-combat
+        // setup roster — Closure 2E) if one existed before the app was
+        // killed. See hydrateCombatStateOnBoot's own doc comment
+        // (combatStore.ts) for the full restore rules.
+        //
+        // Closure fix (active-combat hydration race): this used to be a
+        // fire-and-forget `.then(...)` — `setDbReady(true)` (in `finally`,
+        // below) could run BEFORE it resolved, releasing the boot screen
+        // and letting app/dm/encounter.tsx mount and read useCombatStore's
+        // still-default (inactive, empty) state. Its own `setupMode` local
+        // state is captured ONCE from `combat.active` at mount (see its own
+        // doc comment) — a late-arriving hydration after that point left
+        // the screen stuck showing Setup even though a real active
+        // encounter had just been restored underneath it. Awaiting here
+        // guarantees useCombatStore already reflects the persisted combat
+        // state before the boot screen ever releases, so every screen —
+        // not just encounter.tsx — mounts with the real state already in
+        // place.
+        await hydrateCombatStateOnBoot();
 
         // 5b. Restore an in-progress character creation draft, if one was
         // left mid-flow when the app was last killed (re-audit A09, item
@@ -140,6 +154,18 @@ export default function RootLayout() {
         // 5b. Named custom rule profiles are independent local configuration.
         try { await useCustomRuleProfileStore.getState().load(); }
         catch (e) { console.error('[_layout] Custom rule profiles failed to load:', e); }
+
+        // 5c. Live-session effects only exist while a session is running. If the app was killed mid-session
+        // (or the Host vanished), nothing has told the sheet the effects ended: clear any leftover session
+        // overrides so a stale AC penalty can never outlive the session it came from.
+        try {
+          const cs = useCharacterStore.getState();
+          for (const c of cs.characters) {
+            if (c.dmOverrides.some(o => o.id.startsWith('session:'))) {
+              cs.updateCharacter(c.id, e => clearStaleSessionEffects(e, cs.rules), 'Session effects cleared', 'other');
+            }
+          }
+        } catch (e) { console.error('[_layout] clearing stale session effects failed:', e); }
 
         // 6. Wire up the sync manager — must run after stores are hydrated
         try {
@@ -261,6 +287,21 @@ export default function RootLayout() {
     return () => sub.remove();
   }, [dbReady]);
 
+  // First launch with no content packs installed: offer the SRD packs once (the choice is remembered, and skipping is fine).
+  const [packsPromptOpen, setPacksPromptOpen] = useState(false);
+  useEffect(() => {
+    if (!dbReady) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (installedOfficialPacks().length > 0) return;
+        if ((await getMeta('content_packs_prompt_seen')) === '1') return;
+        if (!cancelled) setPacksPromptOpen(true);
+      } catch (e) { console.error('[_layout] content packs prompt check failed:', e); }
+    })();
+    return () => { cancelled = true; };
+  }, [dbReady]);
+
   if (!dbReady) return <BootScreen />;
 
   return (
@@ -280,6 +321,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)"              options={{ headerShown: false }} />
         <Stack.Screen name="creation"            options={{ headerShown: false }} />
         <Stack.Screen name="sheet/[id]"          options={{ headerShown: false }} />
+        <Stack.Screen name="rules-reference"     options={{ headerShown: false }} />
         {/* Every app/dm/* screen (including ones with no explicit entry
             here before, like encounter-builder/encounters — expo-router
             auto-discovers them regardless) is now gated by
@@ -287,6 +329,7 @@ export default function RootLayout() {
             headerShown:false for the whole group — see its own header
             comment (audit finding ROUTE-GUARD-1). */}
         <Stack.Screen name="dm"                  options={{ headerShown: false }} />
+        <Stack.Screen name="live"                options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/import-review"      options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/package-builder"    options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/spell-builder"      options={{ headerShown: false }} />
@@ -306,11 +349,17 @@ export default function RootLayout() {
         <Stack.Screen name="homebrew/monster-builder"    options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/condition-builder"  options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/import-package"     options={{ headerShown: false }} />
+        {/* Same DUPLICATE-HEADER-1 fix: this screen draws its own header, so the native one must be off. */}
+        <Stack.Screen name="homebrew/spell-list-builder" options={{ headerShown: false }} />
         <Stack.Screen name="settings"                      options={{ headerShown: false }} />
         <Stack.Screen name="about"                         options={{ headerShown: false }} />
         <Stack.Screen name="backup"                        options={{ headerShown: false }} />
         <Stack.Screen name="onboarding"                    options={{ headerShown: false }} />
       </Stack>
+      <ContentPacksPrompt
+        visible={packsPromptOpen}
+        onClose={() => { setPacksPromptOpen(false); void setMeta('content_packs_prompt_seen', '1').catch(() => undefined); }}
+      />
     </View>
     </ErrorBoundary>
     </SafeAreaProvider>

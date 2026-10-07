@@ -8,6 +8,7 @@
 // updated entity back via onResolved. Shared by creation and in-play sheet.
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { applySubclassToEntity } from '../engine/leveling';
 import {
   subclassEntriesForClassMerged, subclassFeaturesByLevel,
@@ -21,7 +22,7 @@ import {
 } from './FilterChipRow';
 import { SortControl } from './SortControl';
 import { Entity, ChoiceState, CampaignRules } from '../engine/types';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../theme';
 
 export function SubclassPicker({
   entity,
@@ -47,6 +48,7 @@ export function SubclassPicker({
   onCreateNewSubclass?: () => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const homebrewSubclasses = useHomebrewStore(s => s.subclasses);
 
   // Multiclass-aware: a choice queued by levelUpClass() tags which class it
@@ -54,6 +56,8 @@ export function SubclassPicker({
   // classId for single-class characters and pre-existing choices without
   // the tag, so nothing changes for the common case.
   const forClassId = choice.definition.forClassId ?? entity.identity.classId;
+  // "Bound Spirit" etc. — a class whose subclass-style choice is not conventionally a subclass names it itself.
+  const noun = choice.definition.subclassLabel ?? 'Subclass';
 
   // LIVE-RULESET-2/3 (items 4, 7): subclassEntriesForClassMerged now carries
   // real ruleset filtering for BOTH official and homebrew subclasses (see
@@ -115,9 +119,13 @@ export function SubclassPicker({
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPadding(insets.bottom) }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Choose Your Subclass</Text>
+        <Text style={styles.heading}>Choose Your {noun}</Text>
         {onClose && (
           <Pressable onPress={onClose} hitSlop={8}>
             <Text style={styles.close}>✕</Text>
@@ -126,13 +134,13 @@ export function SubclassPicker({
       </View>
       <Text style={styles.sub}>
         {choice.resolved
-          ? 'Pick a different subclass to change your selection.'
+          ? `Pick a different ${noun.toLowerCase()} to change your selection.`
           : choice.definition.prompt}
       </Text>
 
       {onCreateNewSubclass && (
         <Pressable style={styles.createNewBtn} onPress={onCreateNewSubclass}>
-          <Text style={styles.createNewTxt}>+ Create New Homebrew Subclass</Text>
+          <Text style={styles.createNewTxt}>+ Create New Homebrew {noun}</Text>
         </Pressable>
       )}
 
@@ -141,7 +149,7 @@ export function SubclassPicker({
           <View style={styles.searchRow}>
             <TextInput
               style={[styles.search, styles.searchFlex]}
-              placeholder={`Search ${options.length} subclasses…`}
+              placeholder={`Search ${options.length} ${noun.toLowerCase()}s…`}
               placeholderTextColor={Colors.textDim}
               value={search}
               onChangeText={setSearch}
@@ -235,7 +243,7 @@ export function SubclassPicker({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heading:   { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.gold, marginBottom: Spacing.xs },
   close:     { fontSize: FontSize.xl, color: Colors.textSecondary, paddingLeft: Spacing.md },

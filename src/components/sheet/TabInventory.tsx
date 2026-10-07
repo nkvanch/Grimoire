@@ -3,6 +3,7 @@
 // Supports adding items from the content DB (or homebrew),
 // removing items, and adjusting money per denomination.
 // Large creature rules are surfaced when the character is Large-sized.
+import { itemsForRuleset } from '../../content/itemEditions';
 import { useState, useMemo, useEffect, memo } from 'react';
 import {
   ScrollView, View, Text, Pressable, StyleSheet,
@@ -15,7 +16,8 @@ import type { ItemIndexEntry } from '../../content/itemRepo.types';
 import { mergeItemIndex, resolveItemById } from '../../content/contentResolution';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { usesLargeCreatureWeaponDice } from '../../engine/houseRules';
-import { ALL_INFUSIONS, maxInfusedItems } from '../../content/infusions';
+import { infusions } from '../../content/runtimeRules';
+import { maxInfusedItems } from '../../engine/infusionRules';
 import { itemRequiresAttunement, attunementCap, countAttuned } from '../../engine/inventory';
 import { NonSrdBadge, isNonSrd } from '../NonSrdBadge';
 import {
@@ -250,7 +252,8 @@ function AddItemModal({
 
   // Deduped by id, homebrew wins on collision — see contentResolution.ts.
   // official id would show up as two separate rows.)
-  const allItems: ItemIndexEntry[] = mergeItemIndex(homebrewItems);
+  // A 5.5e character is offered the 5.5e record where the edition has one, and a 5e character never sees the 5.5e records.
+  const allItems: ItemIndexEntry[] = itemsForRuleset(mergeItemIndex(homebrewItems), entityRulesetId);
   const q = search.trim().toLowerCase();
   // LIVE-RULESET-2 (item 7/8): the manual Ruleset chip OVERRIDES the
   // character's own ruleset when set (an explicit "show me ONLY this
@@ -292,8 +295,15 @@ function AddItemModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={addStyles.backdrop} onPress={onClose}>
-        <Pressable style={addStyles.sheet} onPress={e => e.stopPropagation()}>
+      {/* SCROLL-TOUCH-1: the sheet used to BE a Pressable (to swallow backdrop
+          taps). A Pressable ancestor claims every touch that starts on a
+          non-touchable child, so once a category was picked (rows are plain
+          Views, only "+ Add" is a button) the list only scrolled when the
+          drag began on "+ Add". The backdrop is now a separate sibling, and
+          the sheet a plain View that never takes part in touch negotiation. */}
+      <View style={addStyles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} />
+        <View style={addStyles.sheet}>
           <View style={addStyles.titleRow}>
             <Text style={addStyles.title}>Add Item</Text>
             <Pressable
@@ -495,7 +505,7 @@ function AddItemModal({
                         <Text style={[addStyles.itemName, owned && addStyles.itemNameOwned]}>
                           {item.name}
                         </Text>
-                        {!homebrewItemIds.has(item.id) && isNonSrd(item.srd) && <NonSrdBadge />}
+                        {!homebrewItemIds.has(item.id) && isNonSrd(item.srd, item.rulesetId) && <NonSrdBadge />}
                       </View>
                       {item.properties.length > 0 && (
                         <Text style={addStyles.itemProps} numberOfLines={1}>
@@ -527,8 +537,8 @@ function AddItemModal({
           <Pressable style={addStyles.cancelBtn} onPress={onClose}>
             <Text style={addStyles.cancelTxt}>Close</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -731,23 +741,40 @@ function InfuseItemModal({
   visible:  boolean;
   entity:   Entity;
   allItems: Item[];
-  onApply:  (itemId: string, infusionId: string, damageType?: string) => void;
+  /** `instanceId` (item-identity closure, pass 2 finding B) — the EXACT
+   *  owned copy selected below, since two eligible rows can share `itemId`.
+   *  `itemId` is still passed alongside for display/definition-lookup
+   *  convenience at the handler (unchanged contract there). */
+  onApply:  (itemId: string, infusionId: string, damageType: string | undefined, instanceId: string) => void;
   onClose:  () => void;
 }) {
   const known = entity.knownInfusionIds ?? [];
-  const knownInfusions = ALL_INFUSIONS.filter(i => known.includes(i.id));
+  const knownInfusions = infusions().filter(i => known.includes(i.id));
   const [selectedInfusion, setSelectedInfusion] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  // Item-identity closure: selects the OWNED INSTANCE, not the definition —
+  // storing `inst.itemId` here made two eligible same-definition rows
+  // impossible to tell apart (both highlighted together, and Infuse always
+  // targeted whichever instance a plain `.find(itemId)` happened to hit
+  // first at the handler).
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [damageType, setDamageType] = useState<string>('fire');
 
   const cap = maxInfusedItems(entity.identity.level);
   const infusedInstances = [...entity.inventory.equipped, ...entity.inventory.carried].filter(i => i.infusedWith);
   const atCap = infusedInstances.length >= cap;
-  const ownedInstances = [...entity.inventory.equipped, ...entity.inventory.carried].filter(i => !i.infusedWith);
+  // Item-identity closure: tag each candidate with WHICH side it's on so
+  // two identical-definition rows (one equipped, one carried) at least
+  // show a small disambiguator, per this app's "tiny label is enough,
+  // independent row selection is the real requirement" UI convention.
+  const ownedInstances = [
+    ...entity.inventory.equipped.map(i => ({ inst: i, equippedLabel: true })),
+    ...entity.inventory.carried.map(i => ({ inst: i, equippedLabel: false })),
+  ].filter(({ inst }) => !inst.infusedWith);
+  const selectedInstance = ownedInstances.find(({ inst }) => (inst.id ?? inst.itemId) === selectedInstanceId)?.inst;
 
   function reset() {
     setSelectedInfusion(null);
-    setSelectedItem(null);
+    setSelectedInstanceId(null);
     setDamageType('fire');
   }
 
@@ -757,16 +784,19 @@ function InfuseItemModal({
   }
 
   function handleApply() {
-    if (!selectedInfusion || !selectedItem || atCap) return;
-    onApply(selectedItem, selectedInfusion, selectedInfusion === 'resistant_armor' ? damageType : undefined);
+    if (!selectedInfusion || !selectedInstance || atCap) return;
+    const instanceId = selectedInstance.id ?? selectedInstance.itemId;
+    onApply(selectedInstance.itemId, selectedInfusion, selectedInfusion === 'resistant_armor' ? damageType : undefined, instanceId);
     reset();
     onClose();
   }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={addStyles.backdrop} onPress={handleClose}>
-        <Pressable style={addStyles.sheet} onPress={e => e.stopPropagation()}>
+      <View style={addStyles.backdrop}>
+        {/* SCROLL-TOUCH-1: backdrop is a sibling, not an ancestor, of the sheet (see TabInventory AddItemModal) */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} accessible={false} />
+        <View style={addStyles.sheet}>
           <Text style={addStyles.title}>Infuse an Item</Text>
           <Text style={infuseStyles.capNote}>{infusedInstances.length}/{cap} items currently infused</Text>
           {atCap && <Text style={infuseStyles.warn}>At capacity — remove an infusion before adding another.</Text>}
@@ -804,15 +834,16 @@ function InfuseItemModal({
 
           <Text style={infuseStyles.stepLabel}>2. Choose item</Text>
           <ScrollView style={infuseStyles.pickList}>
-            {ownedInstances.map((inst, idx) => {
+            {ownedInstances.map(({ inst, equippedLabel }, idx) => {
               const def = allItems.find(i => i.id === inst.itemId);
+              const instanceKey = inst.id ?? inst.itemId;
               return (
                 <Pressable
-                  key={`${inst.itemId}_${idx}`}
-                  style={[infuseStyles.row, selectedItem === inst.itemId && infuseStyles.rowSelected]}
-                  onPress={() => setSelectedItem(inst.itemId)}
+                  key={inst.id ?? `${inst.itemId}_${idx}`}
+                  style={[infuseStyles.row, selectedInstanceId === instanceKey && infuseStyles.rowSelected]}
+                  onPress={() => setSelectedInstanceId(instanceKey)}
                 >
-                  <Text style={infuseStyles.rowTxt}>{def?.name ?? inst.itemId}</Text>
+                  <Text style={infuseStyles.rowTxt}>{def?.name ?? inst.itemId} {equippedLabel ? '(equipped)' : '(carried)'}</Text>
                 </Pressable>
               );
             })}
@@ -820,8 +851,8 @@ function InfuseItemModal({
           </ScrollView>
 
           <Pressable
-            style={[addStyles.quickAddBtn, (!selectedInfusion || !selectedItem || atCap) && addStyles.quickAddBtnDisabled]}
-            disabled={!selectedInfusion || !selectedItem || atCap}
+            style={[addStyles.quickAddBtn, (!selectedInfusion || !selectedInstance || atCap) && addStyles.quickAddBtnDisabled]}
+            disabled={!selectedInfusion || !selectedInstance || atCap}
             onPress={handleApply}
           >
             <Text style={addStyles.quickAddBtnTxt}>Infuse Item</Text>
@@ -829,8 +860,8 @@ function InfuseItemModal({
           <Pressable style={addStyles.cancelBtn} onPress={handleClose}>
             <Text style={addStyles.cancelTxt}>Close</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -877,7 +908,7 @@ function ItemRow({
   const name  = item?.name ?? instance.itemId;
   const props = item?.properties ?? [];
   const desc  = item?.features?.[0]?.description;
-  const infusion = instance.infusedWith ? ALL_INFUSIONS.find(i => i.id === instance.infusedWith) : null;
+  const infusion = instance.infusedWith ? infusions().find(i => i.id === instance.infusedWith) : null;
   const needsAttunement = itemRequiresAttunement(item);
 
   return (
@@ -979,22 +1010,25 @@ function ItemRow({
 
 interface Props {
   entity:            Entity;
-  onEquip:           (itemId: string) => void;
-  onUnequip:         (itemId: string) => void;
+  /** `instanceId` (item-identity closure) — the EXACT owned copy this row
+   *  represents (ItemInstance.id), since two rows can share `itemId`.
+   *  Always passed from this file's own row callbacks below. */
+  onEquip:           (itemId: string, instanceId?: string) => void;
+  onUnequip:         (itemId: string, instanceId?: string) => void;
   onAddItem:         (itemId: string) => void;
-  onRemoveItem:      (itemId: string) => void;
+  onRemoveItem:      (itemId: string, instanceId?: string) => void;
   /** +/- stepper on a carried stack — delta is +1 or -1. Not offered for
    * equipped items (stacking multiple of a worn/wielded item doesn't mean
    * anything the sheet tracks). */
-  onUpdateQuantity:  (itemId: string, delta: number) => void;
+  onUpdateQuantity:  (itemId: string, delta: number, instanceId?: string) => void;
   /** Jump straight to an exact carried-stack count (typed, not tapped). */
-  onSetQuantity:     (itemId: string, quantity: number) => void;
+  onSetQuantity:     (itemId: string, quantity: number, instanceId?: string) => void;
   onUpdateCurrency:  (currency: Currency) => void;
   /** Active campaign rules — used to honour homebrew toggles (e.g. large-creature dice). */
   rules?:            CampaignRules;
-  onApplyInfusion?:  (itemId: string, infusionId: string, damageType?: string) => void;
-  onRemoveInfusion?: (itemId: string) => void;
-  onToggleAttune?:   (itemId: string) => void;
+  onApplyInfusion?:  (itemId: string, infusionId: string, damageType: string | undefined, instanceId: string) => void;
+  onRemoveInfusion?: (itemId: string, instanceId?: string) => void;
+  onToggleAttune?:   (itemId: string, instanceId?: string) => void;
   /** Item 13 (loadouts) — save/apply/delete a named (equipped items,
    *  prepared spells) snapshot. Omitted entirely hides the section (same
    *  optional-prop pattern as onApplyInfusion). */
@@ -1056,14 +1090,14 @@ function TabInventoryInner({
       Alert.alert('Attunement Full', `You're already attuned to ${attuneCap} item${attuneCap === 1 ? '' : 's'} — un-attune from one first.`);
       return;
     }
-    onToggleAttune(inst.itemId);
+    onToggleAttune(inst.itemId, inst.id);
   }
 
-  function confirmRemove(itemId: string) {
-    const item = allItems.find(i => i.id === itemId);
-    Alert.alert('Remove Item', `Remove ${item?.name ?? itemId} from your inventory?`, [
+  function confirmRemove(inst: ItemInstance) {
+    const item = allItems.find(i => i.id === inst.itemId);
+    Alert.alert('Remove Item', `Remove ${item?.name ?? inst.itemId} from your inventory?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => onRemoveItem(itemId) },
+      { text: 'Remove', style: 'destructive', onPress: () => onRemoveItem(inst.itemId, inst.id) },
     ]);
   }
 
@@ -1120,7 +1154,7 @@ function TabInventoryInner({
         </View>
       )}
 
-      {/* Infusions: only shown for classes that know at least one */}
+      {/* Infusions — only shown for classes that know at least one (Artificer) */}
       {onApplyInfusion && knownInfusionIds.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
@@ -1132,7 +1166,7 @@ function TabInventoryInner({
             </Pressable>
           </View>
           <Text style={styles.emptyNote}>
-            Known: {knownInfusionIds.map(id => ALL_INFUSIONS.find(i => i.id === id)?.name ?? id).join(', ')}
+            Known: {knownInfusionIds.map(id => infusions().find(i => i.id === id)?.name ?? id).join(', ')}
           </Text>
         </View>
       )}
@@ -1198,13 +1232,13 @@ function TabInventoryInner({
         ) : (
           inventory.equipped.map((inst, idx) => (
             <ItemRow
-              key={`eq_${inst.itemId}_${idx}`}
+              key={inst.id ?? `eq_${inst.itemId}_${idx}`}
               instance={inst}
               equipped
               allItems={allItems}
-              onToggle={() => onUnequip(inst.itemId)}
-              onRemove={() => confirmRemove(inst.itemId)}
-              onRemoveInfusion={onRemoveInfusion ? () => onRemoveInfusion(inst.itemId) : undefined}
+              onToggle={() => onUnequip(inst.itemId, inst.id)}
+              onRemove={() => confirmRemove(inst)}
+              onRemoveInfusion={onRemoveInfusion ? () => onRemoveInfusion(inst.itemId, inst.id) : undefined}
               onToggleAttune={onToggleAttune ? () => handleAttuneToggle(inst) : undefined}
             />
           ))
@@ -1226,15 +1260,15 @@ function TabInventoryInner({
         ) : (
           inventory.carried.map((inst, idx) => (
             <ItemRow
-              key={`ca_${inst.itemId}_${idx}`}
+              key={inst.id ?? `ca_${inst.itemId}_${idx}`}
               instance={inst}
               equipped={false}
               allItems={allItems}
-              onToggle={() => onEquip(inst.itemId)}
-              onRemove={() => confirmRemove(inst.itemId)}
-              onRemoveInfusion={onRemoveInfusion ? () => onRemoveInfusion(inst.itemId) : undefined}
-              onQuantityChange={delta => onUpdateQuantity(inst.itemId, delta)}
-              onSetQuantity={qty => onSetQuantity(inst.itemId, qty)}
+              onToggle={() => onEquip(inst.itemId, inst.id)}
+              onRemove={() => confirmRemove(inst)}
+              onRemoveInfusion={onRemoveInfusion ? () => onRemoveInfusion(inst.itemId, inst.id) : undefined}
+              onQuantityChange={delta => onUpdateQuantity(inst.itemId, delta, inst.id)}
+              onSetQuantity={qty => onSetQuantity(inst.itemId, qty, inst.id)}
               onToggleAttune={onToggleAttune ? () => handleAttuneToggle(inst) : undefined}
             />
           ))

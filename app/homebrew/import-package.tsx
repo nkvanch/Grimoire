@@ -6,12 +6,17 @@
 // commit. Never mutates the library before the user explicitly confirms —
 // same rule app/backup.tsx's own pickAndValidateBackup()/preview flow
 // already established for personal backups.
+import { PackDownloadPanel } from '../../src/components/PackDownloadPanel';
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { makeHomebrewLookup } from '../../src/store/homebrewLookup';
-import { pickAndValidatePackage, PackageImportPreview } from '../../src/io/packageIO';
+import { pickAndValidatePackage, validatePackageText, PackageImportPreview } from '../../src/io/packageIO';
+import { OfficialPackImportCard } from '../../src/components/OfficialPackImportCard';
+import { installOfficialPack, OfficialPackPreview } from '../../src/content/officialPackService';
+import { sqlitePackStore } from '../../src/content/officialPackStore';
+import { isOfficialRef } from '../../src/content/officialRefs';
 import { planPackageImport, ConflictResolution, PackageConflict, flattenPackageContents } from '../../src/engine/packageConflicts';
 import { removedPackItemRefs, stillReferencedRefs } from '../../src/engine/packDiagnostics';
 import { groupPackContents, PACKAGE_TYPE_LABELS } from '../../src/engine/packageBuilder';
@@ -21,6 +26,7 @@ import { PreparedEncounter } from '../../src/engine/types';
 import { RULESETS } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { ImportMode, initialImportMode, isUpdatingInstalledPack, updatingBannerText, importConfirmLabel } from '../../src/engine/packageImportFlow';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 
 const KNOWN_RULESET_IDS = new Set(Object.keys(RULESETS));
@@ -34,6 +40,8 @@ export default function ImportPackageScreen() {
 
   const [picking, setPicking] = useState(false);
   const [preview, setPreview] = useState<PackageImportPreview | null>(null);
+  // A first-party content pack (the SRD packs) has its own confirm step instead of the homebrew conflict flow.
+  const [officialPreview, setOfficialPreview] = useState<OfficialPackPreview | null>(null);
   const [resolutions, setResolutions] = useState<Map<string, ConflictResolution>>(new Map());
   const [committing, setCommitting] = useState(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
@@ -55,7 +63,7 @@ export default function ImportPackageScreen() {
   // together with it. `updateChoice` gates which UI step is shown —
   // null means "ask the user" (only reachable when updateTarget is set).
   const [updateTarget, setUpdateTarget] = useState<InstalledPack | null>(null);
-  const [updateChoice, setUpdateChoice] = useState<'update' | 'copy' | null>(null);
+  const [updateChoice, setUpdateChoice] = useState<ImportMode>(null);
 
   async function handlePick() {
     setPicking(true);
@@ -64,8 +72,31 @@ export default function ImportPackageScreen() {
       const result = await pickAndValidatePackage(
         KNOWN_RULESET_IDS,
         makeHomebrewLookup(homebrew),
+        isOfficialRef,
       );
-      if (result) {
+      applyResult(result);
+    } catch (e: any) {
+      Alert.alert('That file couldn’t be imported', e?.message ?? 'Unknown error.');
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  /** A pack downloaded from a link goes through the same validation and confirmation as one picked from the device. */
+  async function handleDownloaded(text: string, name: string | null) {
+    setResultMsg(null);
+    try {
+      applyResult(await validatePackageText(text, name, KNOWN_RULESET_IDS, makeHomebrewLookup(homebrew), isOfficialRef));
+    } catch (e: any) {
+      Alert.alert('That download couldn’t be imported', e?.message ?? 'Unknown error.');
+    }
+  }
+
+  function applyResult(result: Awaited<ReturnType<typeof pickAndValidatePackage>>) {
+    {
+      if (result && 'kind' in result) {
+        setOfficialPreview(result.preview);
+      } else if (result) {
         setPreview(result);
         // Default every conflict to 'keep_local' — the safest default
         // (never silently overwrites existing content) until the player
@@ -76,12 +107,8 @@ export default function ImportPackageScreen() {
         setResolutions(initial);
         const match = result.pack.packageId ? installedPacks.find(p => p.id === result.pack.packageId) ?? null : null;
         setUpdateTarget(match);
-        setUpdateChoice(match ? null : 'update'); // no real choice to make when there's nothing installed to update
+        setUpdateChoice(initialImportMode(match)); // 'new' when nothing installed matches: an ordinary import, NOT an update
       }
-    } catch (e: any) {
-      Alert.alert('That file couldn’t be imported', e?.message ?? 'Unknown error.');
-    } finally {
-      setPicking(false);
     }
   }
 
@@ -150,7 +177,7 @@ export default function ImportPackageScreen() {
       // against `toSave` — a Keep-Local resolution means the local edit
       // wins, not that the author removed the content from their package.
       let removalNote = '';
-      if (updateChoice === 'update' && updateTarget) {
+      if (isUpdatingInstalledPack(updateChoice, updateTarget) && updateTarget) {
         const newRefs = (preview.pack.contents ?? flattenPackageContents(preview.pack.homebrew).map(c => ({ type: c.type, id: c.item.id })));
         const removed = removedPackItemRefs(updateTarget.itemRefs, newRefs);
         const kept = stillReferencedRefs(removed, installedPacks, homebrew, characters, encounters);
@@ -197,7 +224,26 @@ export default function ImportPackageScreen() {
     }
   }
 
+  async function handleInstallOfficial() {
+    if (!officialPreview || !officialPreview.ok) return;
+    setCommitting(true);
+    try {
+      const result = await installOfficialPack(officialPreview.pack, sqlitePackStore);
+      if (result.ok) {
+        setResultMsg(`${officialPreview.manifest.name} ${officialPreview.manifest.version} is installed. The official content now comes from installed packs.`);
+        setOfficialPreview(null);
+      } else {
+        setOfficialPreview({ ok: false, problems: result.problems });
+      }
+    } catch (e: any) {
+      setOfficialPreview({ ok: false, problems: [e?.message ?? 'The pack could not be installed.'] });
+    } finally {
+      setCommitting(false);
+    }
+  }
+
   function cancelImport() {
+    setOfficialPreview(null);
     setPreview(null);
     setResolutions(new Map());
     setUpdateTarget(null);
@@ -217,7 +263,11 @@ export default function ImportPackageScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      {!preview && (
+      {officialPreview && (
+        <OfficialPackImportCard preview={officialPreview} busy={committing} onInstall={() => { void handleInstallOfficial(); }} onCancel={() => setOfficialPreview(null)} />
+      )}
+
+      {!preview && !officialPreview && (
         <View style={styles.section}>
           <Text style={styles.body}>
             Pick a .grimoire-pack file exported from another device (or another
@@ -227,6 +277,7 @@ export default function ImportPackageScreen() {
           <Pressable style={[styles.actionBtn, picking && styles.btnDisabled]} onPress={() => { void handlePick(); }} disabled={picking}>
             {picking ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.actionBtnTxt}>Choose Package File…</Text>}
           </Pressable>
+          <PackDownloadPanel onDownloaded={handleDownloaded} disabled={picking} />
           {resultMsg && (
             <View style={styles.resultBox}><Text style={styles.resultTxt}>✓ {resultMsg}</Text></View>
           )}
@@ -258,8 +309,8 @@ export default function ImportPackageScreen() {
       {preview && updateChoice !== null && (
         <>
           <View style={styles.section}>
-            {updateChoice === 'update' && (
-              <Text style={styles.pkgMeta}>Updating installed pack "{updateTarget?.name}"</Text>
+            {updatingBannerText(updateChoice, updateTarget) && (
+              <Text style={styles.pkgMeta}>{updatingBannerText(updateChoice, updateTarget)}</Text>
             )}
             <Text style={styles.pkgName}>{preview.pack.name ?? preview.suggestedName}</Text>
             {preview.pack.packageVersion && <Text style={styles.pkgMeta}>Version {preview.pack.packageVersion}</Text>}
@@ -367,7 +418,7 @@ export default function ImportPackageScreen() {
               disabled={!allResolved || committing}
               onPress={() => { void handleConfirmImport(); }}
             >
-              {committing ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.confirmTxt} testID="import-confirm">{updateChoice === 'update' ? 'Update' : previewGroups.counts.total > 1 ? 'Import All' : 'Import'}</Text>}
+              {committing ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.confirmTxt} testID="import-confirm">{importConfirmLabel(updateChoice, updateTarget, previewGroups.counts.total)}</Text>}
             </Pressable>
           </View>
         </>

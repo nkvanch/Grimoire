@@ -10,7 +10,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Entity, CampaignRules } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
 import { createCompanion, syncCompanionFromOwner } from '../../engine/companion';
-import { COMPANION_TEMPLATES_BY_GRANT_FEATURE } from '../../content/companions';
+import { companionTemplates } from '../../content/runtimeRules';
 import { applyDamage, applyHealing } from '../../engine/combat';
 import { syncManager } from '../../sync/syncManager';
 import { HpModal } from './HpModal';
@@ -27,8 +27,8 @@ export function CompanionSection({ owner, rules }: { owner: Entity; rules: Campa
   // comment) — an owner could in principle have more than one grant active
   const availableGrants = useMemo(
     () => owner.features
-      .filter(f => f.isActive && COMPANION_TEMPLATES_BY_GRANT_FEATURE[f.id])
-      .map(f => COMPANION_TEMPLATES_BY_GRANT_FEATURE[f.id]),
+      .filter(f => f.isActive && companionTemplates()[f.id])
+      .map(f => companionTemplates()[f.id]),
     [owner.features],
   );
 

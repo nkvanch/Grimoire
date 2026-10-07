@@ -1,5 +1,8 @@
 // app/creation/class.tsx
 // Class list — tap row to navigate to detail, chevron to expand description.
+import { rulesetLabel } from '../../src/content/rulesets';
+import { suggestFirst } from '../../src/content/rulesetSuggestion';
+import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
 import { View, Text, FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -8,6 +11,9 @@ import { globalContentDB } from '../../src/content/classes/library';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
+import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
+import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import { SortControl } from '../../src/components/SortControl';
 import { CASTER_TYPE, CASTER_TYPES, classSortOptions } from '../../src/content/classes/classBrowse';
@@ -20,7 +26,7 @@ const SCREEN_KEY = 'class_picker';
 const ABILITY_LABELS: Record<Ability, string> = { str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA' };
 const ARMOR_LABELS: Record<string, string> = { light: 'Light', medium: 'Medium', heavy: 'Heavy', shield: 'Shield' };
 const WEAPON_LABELS: Record<string, string> = { simple: 'Simple', martial: 'Martial' };
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 
 const CLASS_DESCRIPTIONS: Record<string, string> = {
   barbarian: 'A fierce warrior who can enter a battle rage to deal devastating damage and shrug off attacks. STR-based martial combatant. Hit Die: d12.',
@@ -111,7 +117,9 @@ export default function ClassScreen() {
   const availableWeapons = Array.from(new Set(globalContentDB.classes.flatMap(c => c.weaponProfs ?? [])))
     .map(w => ({ id: w, label: WEAPON_LABELS[w] ?? w }));
 
-  const classes = officialFilter === 'homebrew' ? [] : sortByOption(globalContentDB.classes.filter(c =>
+  useOfficialContentVersion();   // follow pack installs and removals while this list is open
+  const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
+  const classes = officialFilter === 'homebrew' ? [] : suggestFirst(sortByOption(globalContentDB.classes.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) &&
     (!casterFilter || (CASTER_TYPE[c.id] ?? 'Martial') === casterFilter) &&
     (!hitDieFilter || c.hitDie === hitDieFilter) &&
@@ -119,7 +127,7 @@ export default function ClassScreen() {
     (saveFilter.size === 0 || Array.from(saveFilter).some(a => c.savingThrows?.includes(a))) &&
     (armorFilter.size === 0 || Array.from(armorFilter).some(a => c.armorProfs?.includes(a))) &&
     (weaponFilter.size === 0 || Array.from(weaponFilter).some(w => c.weaponProfs?.includes(w)))
-  ), sortOptions, sort);
+  ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewClasses = officialFilter === 'official' ? [] : homebrewClasses.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -137,10 +145,13 @@ export default function ClassScreen() {
     setSaveFilter(new Set()); setArmorFilter(new Set()); setWeaponFilter(new Set());
   }
 
-  return (
-    <View style={styles.container}>
-
+  // SCROLL-HEADER-1: see race.tsx's identical comment — heading/search/
+  // filters now scroll away with the list instead of staying pinned above it.
+  const listHeader = (
+    <>
       <Text style={styles.heading}>Select Class</Text>
+      <MissingRulesetContentBanner ruleset={suggestedRuleset} />
+      {suggestedRuleset ? <Text style={{ textAlign: 'center', color: Colors.textDim, fontSize: FontSize.xs, marginTop: -Spacing.sm, marginBottom: Spacing.sm }}>{rulesetLabel(suggestedRuleset)} content is listed first.</Text> : null}
       <View style={styles.divider} />
 
       <View style={styles.searchRow}>
@@ -193,11 +204,16 @@ export default function ClassScreen() {
         </View>
       )}
       <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
+    </>
+  );
 
+  return (
+    <View style={styles.container}>
       <FlatList
         data={classes}
         keyExtractor={c => c.id}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing.xxl }]}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={[styles.list, { paddingBottom: scrollBottomPadding(insets.bottom) }]}
         renderItem={({ item }) => {
           const isOpen    = expanded === item.id;
           const desc      = CLASS_DESCRIPTIONS[item.id];
@@ -212,7 +228,8 @@ export default function ClassScreen() {
                 <View style={styles.rowInfo}>
                   <View style={styles.rowNameLine}>
                     <Text style={styles.rowName}>{item.name}</Text>
-                    {isNonSrd(item.srd) && <NonSrdBadge />}
+                    <EditionBadge item={item} official />
+                    {isNonSrd(item.srd, item.rulesetId) && <NonSrdBadge />}
                   </View>
                   <Text style={styles.rowSub}>{casterType} · d{item.hitDie}</Text>
                 </View>

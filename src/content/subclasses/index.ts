@@ -21,6 +21,8 @@ import { MONK_SUBCLASSES }      from './monk';
 import { SORCERER_SUBCLASSES }  from './sorcerer';
 import { WARLOCK_SUBCLASSES }   from './warlock';
 import { ClassProgression }     from '../../engine/types';
+import { getOfficialContentProvider } from '../officialSource';
+import { SUBCLASSES_2024 }      from '../classes2024';
 
 export type SubclassProgression = ClassProgression & { name: string };
 
@@ -38,6 +40,7 @@ export const FULL_SUBCLASS_LIBRARY: SubclassProgression[] = [
   ...MONK_SUBCLASSES,
   ...SORCERER_SUBCLASSES,
   ...WARLOCK_SUBCLASSES,
+  ...SUBCLASSES_2024,
 ];
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
@@ -49,5 +52,8 @@ export const ALL_SUBCLASSES: SubclassProgression[] = SRD_ONLY
 
 /** Returns all subclasses for a given classId. */
 export function getSubclassesForClass(classId: string): SubclassProgression[] {
+  // Installed content packs, when they are the official source, replace the hardcoded catalog.
+  const provider = getOfficialContentProvider();
+  if (provider) return provider.subclassesOf(classId) as unknown as SubclassProgression[];
   return ALL_SUBCLASSES.filter(s => s.classId === classId);
 }

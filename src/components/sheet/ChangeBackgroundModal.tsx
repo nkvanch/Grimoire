@@ -97,7 +97,7 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
   // exactly what WOULD happen, editable from there.
   useEffect(() => {
     if (!selectedBg) return;
-    const defaultResult = swapBackground(entity, selectedBg, rules);
+    const defaultResult = swapBackground(entity, selectedBg, rules, undefined, undefined, selectedBg.originFeat ? (getMergedContentDB(entity.rulesetId).feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined);
     const initial: Partial<Record<SkillName, boolean>> = {};
     for (const skill of oldBgSkills) {
       initial[skill] = defaultResult.skills.skills[skill]?.trained ?? false;
@@ -142,8 +142,10 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
 
     return (
       <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
-        <Pressable style={styles.backdrop} onPress={onCancel}>
-          <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
+        <View style={styles.backdrop}>
+          {/* SCROLL-TOUCH-1: backdrop is a sibling, not an ancestor, of the sheet (see TabInventory AddItemModal) */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessible={false} />
+          <View style={styles.sheet}>
             <Text style={styles.title}>Change Background</Text>
             <TextInput
               style={styles.searchInput}
@@ -194,8 +196,8 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
             <Pressable style={styles.discardBtn} onPress={onCancel}>
               <Text style={styles.discardTxt}>Cancel</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     );
   }
@@ -218,7 +220,8 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
 
   const { before, after } = simulate(
     entity,
-    e => swapBackground(e, selectedBg, rules, flexAsi ? flexPicks : undefined, skillChecklist),
+    e => swapBackground(e, selectedBg, rules, flexAsi ? flexPicks : undefined, skillChecklist,
+      selectedBg.originFeat ? (getMergedContentDB(entity.rulesetId).feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined),
     rules,
   );
   const rows = buildFeatureGrantRows(before, after);

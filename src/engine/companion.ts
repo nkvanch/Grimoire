@@ -33,7 +33,7 @@ export type CompanionTemplate = {
    * otherwise has its own fixed abilities; only the listed ones sync).
    */
   syncAbilitiesFromOwner?: Ability[];
-  hpForOwnerLevel: (ownerLevel: number) => number;
+  hp: { base: number; perOwnerLevel: number };
   features: Feature[];
 };
 
@@ -56,7 +56,7 @@ export function syncCompanionFromOwner(
   for (const ab of template.syncAbilitiesFromOwner ?? []) {
     stats[ab] = owner.stats[ab];
   }
-  const hpMax = Math.max(1, template.hpForOwnerLevel(owner.identity.level));
+  const hpMax = Math.max(1, template.hp.base + template.hp.perOwnerLevel * owner.identity.level);
   const prevMax = companion.resources.hp.maximum;
   // Preserve current damage taken, but rescale if max just grew (e.g. owner
   // leveled up) — never let current exceed the new max, never heal for free.

@@ -16,6 +16,7 @@ import {
 import { sortByOption } from '../content/contentQuery';
 import { asiMode as getAsiMode } from '../engine/houseRules';
 import { ALL_FEATS } from '../content/feats/index';
+import { globalContentDB } from '../content/classes/library';
 import { useHomebrewStore, homebrewWinsById } from '../store/homebrewStore';
 import { Entity, ChoiceState, CampaignRules, Ability, SkillName, Feat, matchesRuleset } from '../engine/types';
 import { FeatPreviewModal } from './FeatPreviewModal';
@@ -227,7 +228,7 @@ export function AsiFeatPicker({
   // one that's never been switched) applies no filter at all, matching
   // today's unfiltered behavior exactly.
   const allFeats = useMemo(
-    () => filterFeatsByRuleset(homebrewWinsById(ALL_FEATS, homebrewWinsById(homebrewFeats, homebrewRealFeats)), entity.rulesetId),
+    () => filterFeatsByRuleset(homebrewWinsById(globalContentDB.feats ?? ALL_FEATS, homebrewWinsById(homebrewFeats, homebrewRealFeats)), entity.rulesetId),
     [homebrewFeats, homebrewRealFeats, entity.rulesetId],
   );
   // For NonSrdBadge gating — a feat whose winning entry came from either
@@ -281,6 +282,7 @@ export function AsiFeatPicker({
     const q = search.trim().toLowerCase();
     const filtered = allFeats
       .filter(f => !takenFeatIds.has(f.id))
+      .filter(f => f.id !== 'ability_score_improvement_2024')   // the Ability Improvements path above is this feat
       .filter(f => q === '' || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q))
       .filter(f => prereqFilter === 'all' || (prereqFilter === 'none' ? !f.prerequisite : !!f.prerequisite))
       .filter(f => officialFilter === 'all' || (officialFilter === 'homebrew') === homebrewFeatIds.has(f.id))
@@ -391,7 +393,7 @@ export function AsiFeatPicker({
         },
       };
     }
-    const updated = applyFeatToEntity(baseEntity, choice.id, choice.grantedAt, featureToApply(feat), feat.id, rules, feat.pendingChoices);
+    const updated = applyFeatToEntity(baseEntity, choice.id, choice.grantedAt, featureToApply(feat), feat.id, rules, feat.pendingChoices, feat.resources);
     setOverridePrompt(null);
     setPendingFeat({ before: originalEntity, after: updated, feat });
   }
@@ -597,7 +599,7 @@ export function AsiFeatPicker({
                 >
                   <View style={styles.featHeader}>
                     <Text style={styles.featName}>{f.name}</Text>
-                    {!homebrewFeatIds.has(f.id) && isNonSrd(f.srd) && <NonSrdBadge />}
+                    {!homebrewFeatIds.has(f.id) && isNonSrd(f.srd, f.rulesetId) && <NonSrdBadge />}
                     {selected && <Text style={styles.featCheck}>✓</Text>}
                     {unmet && !selected && <Text style={styles.featLock}>⚠</Text>}
                   </View>

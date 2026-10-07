@@ -1,5 +1,6 @@
 // app/creation/class-detail.tsx
 // Class detail with back button, collapsible sections, and safe re-selection.
+import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -18,11 +19,13 @@ import {
 import { sortByOption } from '../../src/content/contentQuery';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import {
   FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips,
 } from '../../src/components/FilterChipRow';
 import { SortControl } from '../../src/components/SortControl';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
 
 type ClassDetail = {
   description: string;
@@ -34,6 +37,8 @@ type ClassDetail = {
   toolProf: string;
   spellcasting: boolean;
 };
+
+const ABILITY_NAMES: Record<string, string> = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
 
 const CLASS_DETAIL: Record<string, ClassDetail> = {
   fighter: {
@@ -156,6 +161,8 @@ const CLASS_DETAIL: Record<string, ClassDetail> = {
     toolProf: 'None',
     spellcasting: true,
   },
+  // No entries for non-SRD classes (Artificer and the private ones): the public app carries no description of them. A class from an installed
+  // private pack reads its facts from the class record itself, like the 2024 classes.
 };
 
 /**
@@ -213,6 +220,9 @@ export default function ClassDetailScreen() {
   // spread official first, so .find() always returned the official entry).
   const cls    = getMergedContentDB().classes.find(c => c.id === id);
   const detail = id ? CLASS_DETAIL[id] : null;
+  // The 2024 (5.5e) classes are official content with no CLASS_DETAIL entry: they read their facts from the class itself.
+  const isHomebrewClass = !!cls && useHomebrewStore.getState().classes.some(c => c.id === cls.id);
+  const isOfficial2024 = !!cls && !isHomebrewClass && (cls.rulesetId === 'dnd5e-2024' || !detail);
 
   useEffect(() => {
     if (!cls || !draft) safeGoBack();
@@ -247,7 +257,10 @@ export default function ClassDetailScreen() {
         updated = levelUpClass(updated, cls!.id, progression, rules, cls!, definitions);
       }
 
-      updated = recomputeDerived(updated, rules);
+      const contentDB = getMergedContentDB(updated.rulesetId);
+      updated = recomputeDerived(updated, rules, {
+        classDefs: contentDB.classes, homebrewSpells: contentDB.spells, races: contentDB.races, items: contentDB.items,
+      });
       setDraft(updated);
       router.push('/creation/hub');
     }
@@ -265,10 +278,10 @@ export default function ClassDetailScreen() {
         .filter(c => c.resolved && c.definition.kind === 'asi')
         .length;
       const hadSpells = !!draft!.spellcasting;
-      const newHadSpells = detail?.spellcasting ?? false;
+      const newHadSpells = detail?.spellcasting ?? !!cls!.spellcastingAbility;
 
       const lines: string[] = [
-        `Switching from ${draft!.identity.classId} to ${cls!.id}.`,
+        `Switching from ${identityLabelsFor(draft!).class || draft!.identity.classId} to ${cls!.name}.`,
         '',
         'This will remove:',
         `• ${classFeatures.length} class feature${classFeatures.length !== 1 ? 's' : ''} (${classFeatures.slice(0, 3).join(', ')}${classFeatures.length > 3 ? '…' : ''})`,
@@ -295,16 +308,20 @@ export default function ClassDetailScreen() {
 
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
 
       <View style={styles.headingRow}>
         <Text style={styles.heading}>{cls.name}</Text>
-        {!detail && (
+        {!detail && !isOfficial2024 && (
           <View style={styles.homebrewTag}>
             <Text style={styles.homebrewTagTxt}>Homebrew</Text>
           </View>
         )}
-        {!!detail && isNonSrd(cls.srd) && <NonSrdBadge />}
+        {!isHomebrewClass && <EditionBadge item={cls} official />}
+        {(!!detail || isOfficial2024) && isNonSrd(cls.srd, cls.rulesetId) && <NonSrdBadge />}
       </View>
       <View style={styles.divider} />
 
@@ -473,7 +490,7 @@ export default function ClassDetailScreen() {
         // Saving throws: official from CLASS_DETAIL, homebrew from cls.savingThrows.
         const saves = detail
           ? detail.savingThrows
-          : (cls.savingThrows ?? []).map(a => a.charAt(0).toUpperCase() + a.slice(1));
+          : (cls.savingThrows ?? []).map(a => isOfficial2024 ? ABILITY_NAMES[a] ?? a : a.charAt(0).toUpperCase() + a.slice(1));
         // Proficiencies: official has prose strings; homebrew has profs arrays.
         const armor   = detail ? detail.armorProf  : (cls.armorProfs ?? []).join(', ');
         const weapons = detail ? detail.weaponProf : (cls.weaponProfs ?? []).join(', ');
@@ -503,7 +520,7 @@ export default function ClassDetailScreen() {
             </CollapsibleSection>
 
             {/* Homebrew with incomplete spellcasting config gets a gentle hint */}
-            {!detail && cls.spellcastingAbility === undefined && !cls.spellcastingAbilityOptions?.length && (
+            {!detail && !isOfficial2024 && cls.spellcastingAbility === undefined && !cls.spellcastingAbilityOptions?.length && (
               <View style={styles.infoCard}>
                 <Text style={styles.infoCardTxt}>
                   If this is a spellcasting class, configure spellcasting in the
@@ -587,7 +604,8 @@ export default function ClassDetailScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={styles.subclassNameRow}>
                         <Text style={styles.subclassName}>{sub.name}</Text>
-                        {!homebrewSubclasses.some(hs => hs.id === sub.id) && isNonSrd(sub.progression.srd) && <NonSrdBadge />}
+                        {!homebrewSubclasses.some(hs => hs.id === sub.id) && <EditionBadge item={sub.progression} official />}
+                        {!homebrewSubclasses.some(hs => hs.id === sub.id) && isNonSrd(sub.progression.srd, sub.progression.rulesetId) && <NonSrdBadge />}
                         <View style={styles.subclassLvlBadge}>
                           <Text style={styles.subclassLvlTxt}>Lv {sub.unlockLevel}+</Text>
                         </View>
@@ -603,11 +621,14 @@ export default function ClassDetailScreen() {
         );
       })()}
 
-      <View style={styles.divider} />
-      <Pressable style={styles.selectBtn} onPress={selectClass}>
-        <Text style={styles.selectBtnText}>Select Class</Text>
-      </Pressable>
     </ScrollView>
+    <SafeBottomView>
+      <View style={styles.footer}>
+        <Pressable style={styles.selectBtn} onPress={selectClass}>
+          <Text style={styles.selectBtnText}>Select Class</Text>
+        </Pressable>
+      </View>
+    </SafeBottomView>
 
     {/* Class-change confirmation — custom dark/gold modal (replaces native Alert) */}
     <Modal visible={!!changePrompt} transparent animationType="fade" onRequestClose={() => setChangePrompt(null)}>
@@ -717,7 +738,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   heading: { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.md },
   headingRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
   homebrewTag: {

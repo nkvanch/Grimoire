@@ -76,6 +76,11 @@ export const HALF_CASTER_SLOTS: SpellSlotRow[] = [
   { level: 20, slots: [4,3,3,3,2,0,0,0,0] },
 ];
 
+/** Half casters that cast from level 1 (the 2024 Paladin and Ranger): the half-caster table with its level 1 row filled in. */
+export const HALF_CASTER_FROM_1ST_SLOTS: SpellSlotRow[] = HALF_CASTER_SLOTS.map(row =>
+  row.level === 1 ? { level: 1, slots: HALF_CASTER_SLOTS[1].slots } : row
+);
+
 export const THIRD_CASTER_SLOTS: SpellSlotRow[] = [
   { level:  1, slots: [0,0,0,0,0,0,0,0,0] },
   { level:  2, slots: [0,0,0,0,0,0,0,0,0] },
@@ -199,6 +204,7 @@ export const CASTER_TYPE: Record<string, CasterType> = {
 /** classIds whose pact-magic table lives outside WARLOCK_SLOTS (order/patron-gated). */
 const PACT_SLOT_TABLES: Record<string, SpellSlotRow[]> = {
   warlock:      WARLOCK_SLOTS,
+  warlock_2024: WARLOCK_SLOTS,
 };
 
 export function pactSlotTableFor(classId: string, subclassId: string | null): SpellSlotRow[] | null {

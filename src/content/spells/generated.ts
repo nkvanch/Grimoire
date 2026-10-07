@@ -30,30 +30,8 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "sorcerer",
-      "wizard"
-    ]
-  },
-  {
-    "id": "blade_ward",
-    "name": "Blade Ward",
-    "level": 0,
-    "school": "Abjuration",
-    "castingTime": "1 action",
-    "range": "Self",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "1 round",
-    "description": "You extend your hand and trace a sigil of warding in the air. Until the end of your next turn, you have resistance against bludgeoning, piercing, and slashing damage dealt by weapon attacks.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "bard",
-      "sorcerer",
-      "warlock",
       "wizard"
     ]
   },
@@ -164,29 +142,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "friends",
-    "name": "Friends",
-    "level": 0,
-    "school": "Enchantment",
-    "castingTime": "1 action",
-    "range": "Self",
-    "components": [
-      "S",
-      "M"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "For the duration, you have advantage on all Charisma checks directed at one creature of your choice that isn't hostile toward you. When the spell ends, the creature realizes that you used magic to influence its mood and becomes hostile toward you. A creature prone to violence might attack you. Another creature might seek retribution in other ways (at the DM's discretion), depending on the nature of your interaction with it.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "bard",
-      "sorcerer",
-      "warlock",
-      "wizard"
-    ]
-  },
-  {
     "id": "guidance",
     "name": "Guidance",
     "level": 0,
@@ -271,6 +226,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
       "cleric",
       "druid",
@@ -621,27 +577,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "armor_of_agathys",
-    "name": "Armor of Agathys",
-    "level": 1,
-    "school": "Abjuration",
-    "castingTime": "1 action",
-    "range": "Self",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "1 hour",
-    "description": "A protective magical force surrounds you, manifesting as a spectral frost that covers you and your gear. You gain 5 temporary hit points for the duration. If a creature hits you with a melee attack while you have these hit points, the creature takes 5 cold damage.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, both the temporary hit points and the cold damage increase by 5 for each slot level above 1st.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "warlock"
-    ]
-  },
-  {
     "id": "bane",
     "name": "Bane",
     "level": 1,
@@ -698,26 +633,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ],
     "duration": "Instantaneous",
     "description": "As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips. Each creature in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire damage on a failed save, or half as much damage on a successful one.\n\nThe fire ignites any flammable objects in the area that aren't being worn or carried.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "sorcerer",
-      "wizard"
-    ]
-  },
-  {
-    "id": "catapult",
-    "name": "Catapult",
-    "level": 1,
-    "school": "Transmutation",
-    "castingTime": "1 action",
-    "range": "60 feet",
-    "components": [
-      "S"
-    ],
-    "duration": "Instantaneous",
-    "description": "Choose one object weighing 1 to 5 pounds within range that isn't being worn or carried. The object flies in a straight line up to 90 feet in a direction you choose before falling to the ground, stopping early if it impacts against a solid surface. If the object would strike a creature, that creature must make a Dexterity saving throw. On a failed save, the object strikes the target and stops moving. When the object strikes something, the object and what it strikes each take 3d8 bludgeoning damage.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the maximum weight of objects that you can target with this spell increases by 5 pounds, and the damage increases by 1d8, for each slot level above 1st.",
     "upcast": null,
     "ritual": false,
     "concentration": false,
@@ -877,6 +792,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
       "cleric",
       "druid",
@@ -922,6 +838,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": true,
     "concentration": true,
     "classes": [
+      "artificer",
       "bard",
       "cleric",
       "druid",
@@ -1074,6 +991,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "sorcerer",
       "warlock",
       "wizard"
@@ -1117,6 +1035,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "sorcerer",
       "wizard"
     ]
@@ -1227,6 +1146,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "wizard"
     ]
   },
@@ -1375,6 +1295,28 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "ice_knife",
+    "name": "Ice Knife",
+    "level": 1,
+    "school": "Conjuration",
+    "castingTime": "1 action",
+    "range": "60 feet",
+    "components": [
+      "S",
+      "M"
+    ],
+    "duration": "Instantaneous",
+    "description": "You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "druid",
+      "sorcerer",
+      "wizard"
+    ]
+  },
+  {
     "id": "identify",
     "name": "Identify",
     "level": 1,
@@ -1392,7 +1334,30 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": true,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
+      "wizard"
+    ]
+  },
+  {
+    "id": "illusory_script",
+    "name": "Illusory Script",
+    "level": 1,
+    "school": "Illusion",
+    "castingTime": "1 minute",
+    "range": "Touch",
+    "components": [
+      "S",
+      "M"
+    ],
+    "duration": "10 days",
+    "description": "You write on parchment, paper, or some other suitable writing material and imbue it with a potent illusion that lasts for the duration.\n\nTo you and any creatures you designate when you cast the spell, the writing appears normal, written in your hand, and conveys whatever meaning you intended when you wrote the text. To all others, the writing appears as if it were written in an unknown or magical script that is unintelligible. Alternatively, you can cause the writing to appear to be an entirely different message, written in a different hand and language, though the language must be one you know.\n\nShould the spell be dispelled, the original script and the illusion both disappear.\n\nA creature with truesight can read the hidden message.",
+    "upcast": null,
+    "ritual": true,
+    "concentration": false,
+    "classes": [
+      "bard",
+      "warlock",
       "wizard"
     ]
   },
@@ -1434,6 +1399,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "druid",
       "ranger",
       "sorcerer",
@@ -1458,6 +1424,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
       "druid",
       "ranger",
@@ -1592,7 +1559,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "cleric",
+      "paladin"
+    ]
+  },
+  {
+    "id": "searing_smite",
+    "name": "Searing Smite",
+    "level": 1,
+    "school": "Evocation",
+    "castingTime": "1 bonus action",
+    "range": "Self",
+    "components": [
+      "V"
+    ],
+    "duration": "Concentration, up to 1 minute",
+    "description": "The next time you hit a creature with a melee weapon attack during the spell's duration, your weapon flares with white-hot intensity, and the attack deals an extra 1d6 fire damage to the target and causes the target to ignite in flames. At the start of each of its turns until the spell ends, the target must make a Constitution saving throw. On a failed save, it takes 1d6 fire damage. On a successful save, the spell ends. If the target or a creature within 5 feet of it uses an action to put out the flames, or if some other effect douses the flames (such as the target being submerged in water), the spell ends.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the initial extra damage dealt by the attack increases by 1d6 for each slot level above 1st.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": true,
+    "classes": [
       "paladin"
     ]
   },
@@ -1708,6 +1695,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "tensers_floating_disk",
+    "name": "Floating Disk",
+    "level": 1,
+    "school": "Conjuration",
+    "castingTime": "1 action",
+    "range": "30 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "1 hour",
+    "description": "This spell creates a circular, horizontal plane of force, 3 feet in diameter and 1 inch thick, that floats 3 feet above the ground in an unoccupied space of your choice that you can see within range. The disk remains for the duration, and can hold up to 500 pounds. If more weight is placed on it, the spell ends, and everything on the disk falls to the ground.\n\nThe disk is immobile while you are within 20 feet of it. If you move more than 20 feet away from it, the disk follows you so that it remains within 20 feet of you. It can move across uneven terrain, up or down stairs, slopes and the like, but it can't cross an elevation change of 10 feet or more. For example, the disk can't move across a 10-foot-deep pit, nor could it leave such a pit if it was created at the bottom.\n\nIf you move more than 100 feet from the disk (typically because it can't move around an obstacle to follow you), the spell ends.",
+    "upcast": null,
+    "ritual": true,
+    "concentration": false,
+    "classes": [
+      "wizard"
+    ]
+  },
+  {
     "id": "thunderwave",
     "name": "Thunderwave",
     "level": 1,
@@ -1749,29 +1757,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "concentration": false,
     "classes": [
       "bard",
-      "warlock",
-      "wizard"
-    ]
-  },
-  {
-    "id": "witch_bolt",
-    "name": "Witch Bolt",
-    "level": 1,
-    "school": "Evocation",
-    "castingTime": "1 action",
-    "range": "30 feet",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "A beam of crackling, blue energy lances out toward a creature within range, forming a sustained arc of lightning between you and the target. Make a ranged spell attack against that creature. On a hit, the target takes 1d12 lightning damage, and on each of your turns for the duration, you can use your action to deal 1d12 lightning damage to the target automatically. The spell ends if you use your action to do anything else. The spell also ends if the target is ever outside the spell's range or if it has total cover from you.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the initial damage increases by 1d12 for each slot level above 1st.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "sorcerer",
       "warlock",
       "wizard"
     ]
@@ -1949,26 +1934,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "beast_sense",
-    "name": "Beast Sense",
-    "level": 2,
-    "school": "Divination",
-    "castingTime": "1 action",
-    "range": "Touch",
-    "components": [
-      "S"
-    ],
-    "duration": "Concentration, up to 1 hour",
-    "description": "You touch a willing beast. For the duration of the spell, you can use your action to see through the beast's eyes and hear what it hears, and continue to do so until you use your action to return to your normal senses. While perceiving through the beast's senses, you gain the benefits of any special senses possessed by that creature, though you are blinded and deafened to your own surroundings.",
-    "upcast": null,
-    "ritual": true,
-    "concentration": true,
-    "classes": [
-      "druid",
-      "ranger"
-    ]
-  },
-  {
     "id": "blindness_deafness",
     "name": "Blindness/Deafness",
     "level": 2,
@@ -2051,30 +2016,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "cloud_of_daggers",
-    "name": "Cloud of Daggers",
-    "level": 2,
-    "school": "Conjuration",
-    "castingTime": "1 action",
-    "range": "60 feet",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "You fill the air with spinning daggers in a cube 5 feet on each side, centered on a point you choose within range. A creature takes 4d4 slashing damage when it enters the spell's area for the first time on a turn or starts its turn there.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 2d4 for each slot level above 2nd.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "bard",
-      "sorcerer",
-      "warlock",
-      "wizard"
-    ]
-  },
-  {
     "id": "continual_flame",
     "name": "Continual Flame",
     "level": 2,
@@ -2093,29 +2034,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "concentration": false,
     "classes": [
       "cleric",
-      "wizard"
-    ]
-  },
-  {
-    "id": "crown_of_madness",
-    "name": "Crown of Madness",
-    "level": 2,
-    "school": "Enchantment",
-    "castingTime": "1 action",
-    "range": "120 feet",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "One humanoid of your choice that you can see within range must succeed on a Wisdom saving throw or become charmed by you for the duration. While the target is charmed in this way, a twisted crown of jagged iron appears on its head, and a madness glows in its eyes.\n\nThe charmed target must use its action before moving on each of its turns to make a melee attack against a creature other than itself that you mentally choose. The target can act normally on its turn if you choose no creature or if none are within its reach.\n\nOn your subsequent turns, you must use your action to maintain control over the target, or the spell ends. Also, the target can make a Wisdom saving throw at the end of each of its turns. On a success, the spell ends.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "bard",
-      "sorcerer",
-      "warlock",
       "wizard"
     ]
   },
@@ -2184,6 +2102,28 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "concentration": true,
     "classes": [
       "bard",
+      "sorcerer",
+      "wizard"
+    ]
+  },
+  {
+    "id": "dragons_breath",
+    "name": "Dragon's Breath",
+    "level": 2,
+    "school": "Transmutation",
+    "castingTime": "1 bonus action",
+    "range": "Touch",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "Concentration, up to 1 minute",
+    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nSpew a 15-ft cone that deals 3d6 acid, cold, fire, lightning, or poison damage in case of failed Dex. save (damage/lvl).",
+    "upcast": null,
+    "ritual": false,
+    "concentration": true,
+    "classes": [
       "sorcerer",
       "wizard"
     ]
@@ -2615,6 +2555,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "mind_spike",
+    "name": "Mind Spike",
+    "level": 2,
+    "school": "Divination",
+    "castingTime": "1 action",
+    "range": "60 feet",
+    "components": [
+      "S"
+    ],
+    "duration": "Concentration, up to 1 hour",
+    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nThe target must succeed on a Wis. save or take 3d8 psychic damage (damage/lvl).",
+    "upcast": null,
+    "ritual": false,
+    "concentration": true,
+    "classes": [
+      "sorcerer",
+      "warlock",
+      "wizard"
+    ]
+  },
+  {
     "id": "mirror_image",
     "name": "Mirror Image",
     "level": 2,
@@ -2763,28 +2724,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "druid",
       "paladin",
       "ranger"
-    ]
-  },
-  {
-    "id": "pyrotechnics",
-    "name": "Pyrotechnics",
-    "level": 2,
-    "school": "Transmutation",
-    "castingTime": "1 action",
-    "range": "60 feet",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "Instantaneous",
-    "description": "Choose an area of nonmagical flame that you can see and that fits within a 5-foot cube within range. You can extinguish the fire in that area, and you create either fireworks or smoke when you do so.\n\n**Fireworks**. The target explodes with a dazzling display of colors. Each creature within 10 feet of the target must succeed on a Constitution saving throw or become blinded until the end of your next turn.\n\n**Smoke**. Thick black smoke spreads out from the target in a 20-foot radius, moving around corners. The area of the smoke is heavily obscured. The smoke persists for 1 minute or until a strong wind disperses it.\n\n![[Plant Spirit.jpeg]]",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "bard",
-      "sorcerer",
-      "wizard"
     ]
   },
   {
@@ -3261,6 +3200,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "cleric",
       "paladin"
     ]
@@ -3305,32 +3245,13 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
       "cleric",
       "druid",
       "sorcerer",
       "warlock",
       "wizard"
-    ]
-  },
-  {
-    "id": "elemental_weapon",
-    "name": "Elemental Weapon",
-    "level": 3,
-    "school": "Transmutation",
-    "castingTime": "1 action",
-    "range": "Touch",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "Concentration, up to 1 hour",
-    "description": "A nonmagical weapon you touch becomes a magic weapon. Choose one of the following damage types: acid, cold, fire, lightning, or thunder. For the duration, the weapon has a +1 bonus to attack rolls and deals an extra 1d4 damage of the chosen type when it hits.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 5th or 6th level, the bonus to attack rolls increases to +2 and the extra damage increases to 2d4. When you use a spell slot of 7th level or higher, the bonus increases to +3 and the extra damage increases to 3d4.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "paladin"
     ]
   },
   {
@@ -3358,30 +3279,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "feign_death",
-    "name": "Feign Death",
-    "level": 3,
-    "school": "Necromancy",
-    "castingTime": "1 action",
-    "range": "Touch",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "1 hour",
-    "description": "You touch a willing creature and put it into a cataleptic state that is indistinguishable from death.\n\nFor the spell's duration, or until you use an action to touch the target and dismiss the spell, the target appears dead to all outward inspection and to spells used to determine the target's status. The target is blinded and incapacitated, and its speed drops to 0. The target has resistance to all damage except psychic damage. If the target is diseased or poisoned when you cast the spell, or becomes diseased or poisoned while under the spell's effect, the disease and poison have no effect until the spell ends.",
-    "upcast": null,
-    "ritual": true,
-    "concentration": false,
-    "classes": [
-      "bard",
-      "cleric",
-      "druid",
-      "wizard"
-    ]
-  },
-  {
     "id": "fireball",
     "name": "Fireball",
     "level": 3,
@@ -3404,29 +3301,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "flame_arrows",
-    "name": "Flame Arrows",
-    "level": 3,
-    "school": "Transmutation",
-    "castingTime": "1 action",
-    "range": "Touch",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "Concentration, up to 1 hour",
-    "description": "You touch a quiver containing arrows or bolts. When a target is hit by a ranged weapon attack using a piece of ammunition drawn from the quiver, the target takes an extra 1d6 fire damage. The spell's magic ends on the piece of ammunition when it hits or misses, and the spell ends when twelve pieces of ammunition have been drawn from the quiver.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 4th level or higher, the number of pieces of ammunition you can affect with this spell increases by two for each slot level above 3rd.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "druid",
-      "ranger",
-      "sorcerer",
-      "wizard"
-    ]
-  },
-  {
     "id": "fly",
     "name": "Fly",
     "level": 3,
@@ -3444,6 +3318,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "sorcerer",
       "warlock",
       "wizard"
@@ -3513,6 +3388,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "sorcerer",
       "wizard"
     ]
@@ -3732,6 +3608,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "cleric",
       "druid",
       "ranger",
@@ -3780,6 +3657,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "cleric",
       "paladin"
     ]
@@ -4026,6 +3904,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": true,
     "concentration": false,
     "classes": [
+      "artificer",
       "druid",
       "ranger",
       "sorcerer",
@@ -4050,6 +3929,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": true,
     "concentration": false,
     "classes": [
+      "artificer",
       "cleric",
       "druid",
       "ranger"
@@ -4099,6 +3979,25 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "aura_of_life",
+    "name": "Aura of Life",
+    "level": 4,
+    "school": "Abjuration",
+    "castingTime": "1 action",
+    "range": "Self (30-foot radius)",
+    "components": [
+      "V"
+    ],
+    "duration": "Concentration, up to 10 minutes",
+    "description": "Life-preserving energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you, centered on you. Each non-hostile creature in the aura (including you) has resistance to necrotic damage, and its hit point maximum can't be reduced. In addition, a non-hostile, living creature regains 1 hit point when it starts its turn in the aura with 0 hit points.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": true,
+    "classes": [
+      "paladin"
+    ]
+  },
+  {
     "id": "banishment",
     "name": "Banishment",
     "level": 4,
@@ -4124,27 +4023,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "evards_black_tentacles",
-    "name": "Black Tentacles",
-    "level": 4,
-    "school": "Conjuration",
-    "castingTime": "1 action",
-    "range": "90 feet",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "Squirming, ebony tentacles fill a 20-foot square on ground that you can see within range. For the duration, these tentacles turn the ground in the area into difficult terrain.\n\nWHEN a creature enters the affected area for the first time on a turn or starts its turn there, the creature must succeed on a Dexterity saving throw or take 3d6 bludgeoning damage and be restrained by the tentacles until the spell ends. A creature that starts its turn in the area and is already restrained by the tentacles takes 3d6 bludgeoning damage.\n\nA creature restrained by the tentacles can use its action to make a Strength or Dexterity check (its choice) against your spell save DC. On a success, it frees itself.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "wizard"
-    ]
-  },
-  {
     "id": "blight",
     "name": "Blight",
     "level": 4,
@@ -4161,6 +4039,30 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "druid",
+      "sorcerer",
+      "warlock",
+      "wizard"
+    ]
+  },
+  {
+    "id": "charm_monster",
+    "name": "Charm Monster",
+    "level": 4,
+    "school": "Enchantment",
+    "castingTime": "1 action",
+    "range": "30 feet",
+    "components": [
+      "V",
+      "S"
+    ],
+    "duration": "1 hour",
+    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nThe target must succeed on a Wis. save or be charmed by the caster (duration/lvl).",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "bard",
       "druid",
       "sorcerer",
       "warlock",
@@ -4542,6 +4444,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "leomunds_secret_chest",
+    "name": "Secret Chest",
+    "level": 4,
+    "school": "Conjuration",
+    "castingTime": "1 action",
+    "range": "Touch",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "Instantaneous",
+    "description": "You hide a chest, and all its contents, on the Ethereal Plane. You must touch the chest and the miniature replica that serves as a material component for the spell. The chest can contain up to 12 cubic feet of nonliving material (3 feet by 2 feet by 2 feet).\n\nWhile the chest remains on the Ethereal Plane, you can use an action and touch the replica to recall the chest. It appears in an unoccupied space on the ground within 5 feet of you. You can send the chest back to the Ethereal Plane by using an action and touching both the chest and the replica.\n\nAfter 60 days, there is a cumulative 5 percent chance per day that the spell's effect ends. This effect ends if you cast this spell again, if the smaller replica chest is destroyed, or if you choose to end the spell as an action. If the spell ends and the larger chest is on the Ethereal Plane, it is irretrievably lost.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "wizard"
+    ]
+  },
+  {
     "id": "locate_creature",
     "name": "Locate Creature",
     "level": 4,
@@ -4564,6 +4487,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "druid",
       "paladin",
       "ranger",
+      "wizard"
+    ]
+  },
+  {
+    "id": "mordenkainens_faithful_hound",
+    "name": "Faithful Hound",
+    "level": 4,
+    "school": "Conjuration",
+    "castingTime": "1 action",
+    "range": "30 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "8 hours",
+    "description": "You conjure a phantom watchdog in an unoccupied space that you can see within range, where it remains for the duration, until you dismiss it as an action, or until you move more than 100 feet away from it.\n\nThe hound is invisible to all creatures except you and can't be harmed. When a Small or larger creature comes within 30 feet of it without first speaking the password that you specify when you cast this spell, the hound starts barking loudly. The hound sees invisible creatures and can see into the Ethereal Plane. It ignores illusions.\n\nAt the start of each of your turns, the hound attempts to bite one creature within 5 feet of it that is hostile to you. The hound's attack bonus is equal to your spellcasting ability modifier + your proficiency bonus. On a hit, it deals 4d8 piercing damage.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
       "wizard"
     ]
   },
@@ -4704,6 +4648,28 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "vitriolic_sphere",
+    "name": "Vitriolic Sphere",
+    "level": 4,
+    "school": "Evocation",
+    "castingTime": "1 action",
+    "range": "150 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "Instantaneous",
+    "description": "You point at a location within range, and a glowing 1-foot-diameter ball of emerald acid streaks there and explodes in a 20-foot-radius sphere. Each creature in that area must make a Dexterity saving throw. On a failed save, a creature takes 10d4 acid damage and another 5d4 acid damage at the end of its next turn. On a successful save, a creature takes half the initial damage and no damage at the end of its next turn.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 5th level or higher, the initial damage increases by 2d4 for each slot level above 4th.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "sorcerer",
+      "wizard"
+    ]
+  },
+  {
     "id": "wall_of_fire",
     "name": "Wall of Fire",
     "level": 4,
@@ -4743,6 +4709,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "bard",
       "sorcerer",
       "wizard"
@@ -4791,22 +4758,25 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "circle_of_power",
-    "name": "Circle of Power",
+    "id": "bigbys_hand",
+    "name": "Arcane Hand",
     "level": 5,
-    "school": "Abjuration",
+    "school": "Evocation",
     "castingTime": "1 action",
-    "range": "Self (30-foot radius)",
+    "range": "120 feet",
     "components": [
-      "V"
+      "V",
+      "S",
+      "M"
     ],
-    "duration": "Concentration, up to 10 minutes",
-    "description": "Divine energy radiates from you, distorting and diffusing magical energy within 30 feet of you. Until the spell ends, the sphere moves with you, centered on you. For the duration, each friendly creature in the area (including you) has advantage on saving throws against spells and other magical effects.\n\nAdditionally, when an affected creature succeeds on a saving throw made against a spell or magical effect that allows it to make a saving throw to take only half damage, it instead takes no damage if it succeeds on the saving throws.",
+    "duration": "Concentration, up to 1 minute",
+    "description": "You create a Large hand of shimmering, translucent force in an unoccupied space that you can see within range. The hand lasts for the spell's duration, and it moves at your command, mimicking the movements of your own hand.\n\nThe hand is an object that has AC 20 and hit points equal to your hit point maximum. If it drops to 0 hit points, the spell ends. It has a Strength of 26 (+8) and a Dexterity of 10 (+0). The hand doesn't fill its space.\n\nWhen you cast the spell and as a bonus action on your subsequent turns, you can move the hand up to 60 feet and then cause one of the following effects with it.\n\n**Clenched Fist**. The hand strikes one creature or object within 5 feet of it. Make a melee spell attack for the hand using your game statistics. On a hit, the target takes 4d8 force damage.\n\n**Forceful Hand**. The hand attempts to push a creature within 5 feet of it in a direction you choose. Make a check with the hand's Strength contested by the Strength (Athletics) check of the target. If the target is Medium or smaller, you have advantage on the check. If you succeed, the hand pushes the target up to 5 feet plus a number of feet equal to five times your spellcasting ability modifier. The hand moves with the target to remain within 5 feet of it.\n\n**Grasping Hand**. The hand attempts to grapple a Huge or smaller creature within 5 feet of it. You use the hand's Strength score to resolve the grapple. If the target is Medium or smaller, you have advantage on the check. While the hand is grappling the target, you can use a bonus action to have the hand crush it. When you do so, the target takes bludgeoning damage equal to 2d6 + your spellcasting ability modifier.\n\n**Interposing Hand**. The hand interposes itself between you and a creature you choose until you give the hand a different command. The hand moves to stay between you and the target, providing you with half cover against the target. The target can't move through the hand's space if its Strength score is less than or equal to the hand's Strength score. If its Strength score is higher than the hand's Strength score, the target can move toward you through the hand's space, but that space is difficult terrain for the target.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 6th level or higher, the damage from the clenched fist option increases by 2d8 and the damage from the grasping hand increases by 2d6 for each slot level above 5th.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
     "classes": [
-      "paladin"
+      "artificer",
+      "wizard"
     ]
   },
   {
@@ -4982,25 +4952,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "destructive_wave",
-    "name": "Destructive Wave",
-    "level": 5,
-    "school": "Evocation",
-    "castingTime": "1 action",
-    "range": "Self (30-foot radius)",
-    "components": [
-      "V"
-    ],
-    "duration": "Instantaneous",
-    "description": "You strike the ground, creating a burst of divine energy that ripples outward from you. Each creature you choose within 30 feet of you must succeed on a Constitution saving throw or take 5d6 thunder damage, as well as 5d6 radiant or necrotic damage (your choice), and be knocked prone. A creature that succeeds on its saving throw takes half as much damage and isn't knocked prone.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "paladin"
-    ]
-  },
-  {
     "id": "dispel_evil_and_good",
     "name": "Dispel Evil and Good",
     "level": 5,
@@ -5130,6 +5081,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": false,
     "classes": [
+      "artificer",
       "bard",
       "cleric",
       "druid",
@@ -5359,6 +5311,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "rarys_telepathic_bond",
+    "name": "Telepathic Bond",
+    "level": 5,
+    "school": "Divination",
+    "castingTime": "1 action",
+    "range": "30 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "1 hour",
+    "description": "You forge a telepathic link among up to eight willing creatures of your choice within range, psychically linking each creature to all the others for the duration. Creatures with Intelligence scores of 2 or less aren't affected by this spell.\n\nUntil the spell ends, the targets can communicate telepathically through the bond whether or not they have a common language. The communication is possible over any distance, though it can't extend to other planes of existence.",
+    "upcast": null,
+    "ritual": true,
+    "concentration": false,
+    "classes": [
+      "wizard"
+    ]
+  },
+  {
     "id": "reincarnate",
     "name": "Reincarnate",
     "level": 5,
@@ -5427,27 +5400,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "swift_quiver",
-    "name": "Swift Quiver",
-    "level": 5,
-    "school": "Transmutation",
-    "castingTime": "1 bonus action",
-    "range": "Touch",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "You transmute your quiver so it produces an endless supply of nonmagical ammunition, which seems to leap into your hand when you reach for it.\n\nOn each of your turns until the spell ends, you can use a bonus action to make two attacks with a weapon that uses ammunition from the quiver. Each time you make such a ranged attack, your quiver magically replaces the piece of ammunition you used with a similar piece of nonmagical ammunition. Any pieces of ammunition created by this spell disintegrate when the spell ends. If the quiver leaves your possession, the spell ends.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "ranger"
-    ]
-  },
-  {
     "id": "telekinesis",
     "name": "Telekinesis",
     "level": 5,
@@ -5487,28 +5439,6 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "classes": [
       "bard",
       "sorcerer",
-      "wizard"
-    ]
-  },
-  {
-    "id": "transmute_rock",
-    "name": "Transmute Rock",
-    "level": 5,
-    "school": "Transmutation",
-    "castingTime": "1 action",
-    "range": "120 feet",
-    "components": [
-      "V",
-      "S",
-      "M"
-    ],
-    "duration": "Until dispelled",
-    "description": "You choose an area of stone or mud that you can see that fits within a 40-foot cube and is within range, and choose one of the following effects.\n\n**Transmute Rock to Mud**. Nonmagical rock of any sort in the area becomes an equal volume of thick, flowing mud that remains for the spell's duration.\n\nThe ground in the spell's area becomes muddy enough that creatures can sink into it. Each foot that a creature moves through the mud costs 4 feet of movement, and any creature on the ground when you cast the spell must make a Strength saving throw. A creature must also make the saving throw when it moves into the area for the first time on a turn or ends its turn there. On a failed save, a creature sinks into the mud and is restrained, though it can use an action to end the restrained condition on itself by pulling itself free of the mud.\n\nIf you cast the spell on a ceiling, the mud falls. Any creature under the mud when it falls must make a Dexterity saving throw. A creature takes 4d8 bludgeoning damage on a failed save, or half as much damage on a successful one.\n\n**Transmute Mud to Rock**. Nonmagical mud or quicksand in the area no more than 10 feet deep transforms into soft stone for the spell's duration. Any creature in the mud when it transforms must make a Dexterity saving throw. On a successful save, a creature is shunted safely to the surface to an unoccupied space. On a failed save, a creature becomes restrained by the rock. A restrained creature, or another creature within reach, can use an action to try to break the rock by succeeding on a DC 20 Strength check or by dealing damage to it. The rock has AC 15 and 25 hit points, and it is immune to poison and psychic damage.",
-    "upcast": null,
-    "ritual": false,
-    "concentration": false,
-    "classes": [
-      "druid",
       "wizard"
     ]
   },
@@ -5572,30 +5502,9 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "ritual": false,
     "concentration": true,
     "classes": [
+      "artificer",
       "druid",
       "sorcerer",
-      "wizard"
-    ]
-  },
-  {
-    "id": "arcane_gate",
-    "name": "Arcane Gate",
-    "level": 6,
-    "school": "Conjuration",
-    "castingTime": "1 action",
-    "range": "500 feet",
-    "components": [
-      "V",
-      "S"
-    ],
-    "duration": "Concentration, up to 10 minutes",
-    "description": "You create linked teleportation portals that remain open for the duration. Choose two points on the ground that you can see, one point within 10 feet of you and one point within 500 feet of you. A circular portal, 10 feet in diameter, opens over each point. If the portal would open in the space occupied by a creature, the spell fails, and the casting is lost.\n\nThe portals are two-dimensional glowing rings filled with mist, hovering inches from the ground and perpendicular to it at the points you choose. A ring is visible only from one side (your choice), which is the side that functions as a portal.\n\nAny creature or object entering the portal exits from the other portal as if the two were adjacent to each other; passing through a portal from the nonportal side has no effect. The mist that fills each portal is opaque and blocks vision through it. On your turn, you can rotate the rings as a bonus action so that the active side faces in a different direction.\n\n![[Annihilator Disk.jpg]]",
-    "upcast": null,
-    "ritual": false,
-    "concentration": true,
-    "classes": [
-      "sorcerer",
-      "warlock",
       "wizard"
     ]
   },
@@ -5748,6 +5657,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "concentration": false,
     "classes": [
       "sorcerer",
+      "wizard"
+    ]
+  },
+  {
+    "id": "drawmijs_instant_summons",
+    "name": "Instant Summons",
+    "level": 6,
+    "school": "Conjuration",
+    "castingTime": "1 minute",
+    "range": "Touch",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "Until dispelled",
+    "description": "You touch an object weighing 10 pounds or less whose longest dimension is 6 feet or less. The spell leaves an invisible mark on its surface and invisibly inscribes the name of the item on the sapphire you use as the material component. Each time you cast this spell, you must use a different sapphire.\n\nAt any time thereafter, you can use your action to speak the item's name and crush the sapphire. The item instantly appears in your hand regardless of physical or planar distances, and the spell ends.\n\nIf another creature is holding or carrying the item, crushing the sapphire doesn't transport the item to you, but instead you learn who the creature possessing the object is and roughly where that creature is located at that moment.\n\n_Dispel magic_ or a similar effect successfully applied to the sapphire ends this spell's effect.",
+    "upcast": null,
+    "ritual": true,
+    "concentration": false,
+    "classes": [
       "wizard"
     ]
   },
@@ -6416,6 +6346,50 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
+    "id": "mordenkainens_magnificent_mansion",
+    "name": "Magnificent Mansion",
+    "level": 7,
+    "school": "Conjuration",
+    "castingTime": "1 minute",
+    "range": "300 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "24 hours",
+    "description": "You conjure an extradimensional dwelling in range that lasts for the duration. You choose where its one entrance is located. The entrance shimmers faintly and is 5 feet wide and 10 feet tall. You and any creature you designate when you cast the spell can enter the extradimensional dwelling as long as the portal remains open. You can open or close the portal if you are within 30 feet of it. While closed, the portal is invisible.\n\nBeyond the portal is a magnificent foyer with numerous chambers beyond. The atmosphere is clean, fresh, and warm.\n\nYou can create any floor plan you like, but the space can't exceed 50 cubes, each cube being 10 feet on each side. The place is furnished and decorated as you choose. It contains sufficient food to serve a nine-course banquet for up to 100 people. A staff of 100 near-transparent servants attends all who enter. You decide the visual appearance of these servants and their attire. They are completely obedient to your orders. Each servant can perform any task a normal human servant could perform, but they can't attack or take any action that would directly harm another creature. Thus the servants can fetch things, clean, mend, fold clothes, light fires, serve food, pour wine, and so on. The servants can go anywhere in the mansion but can't leave it. Furnishings and other objects created by this spell dissipate into smoke if removed from the mansion. When the spell ends, any creatures or objects left inside the extradimensional space are expelled into the open spaces nearest to the entrance.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "bard",
+      "wizard"
+    ]
+  },
+  {
+    "id": "mordenkainens_sword",
+    "name": "Arcane Sword",
+    "level": 7,
+    "school": "Evocation",
+    "castingTime": "1 action",
+    "range": "60 feet",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "duration": "Concentration, up to 1 minute",
+    "description": "You create a sword-shaped plane of force that hovers within range. It lasts for the duration.\n\nWhen the sword appears, you make a melee spell attack against a target of your choice within 5 feet of the sword. On a hit, the target takes 3d10 force damage. Until the spell ends, you can use a bonus action on each of your turns to move the sword up to 20 feet to a spot you can see and repeat this attack against the same target or a different one.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": true,
+    "classes": [
+      "bard",
+      "wizard"
+    ]
+  },
+  {
     "id": "plane_shift",
     "name": "Plane Shift",
     "level": 7,
@@ -6951,24 +6925,23 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     ]
   },
   {
-    "id": "telepathy",
-    "name": "Telepathy",
+    "id": "tsunami",
+    "name": "Tsunami",
     "level": 8,
-    "school": "Evocation",
-    "castingTime": "1 action",
-    "range": "Unlimited",
+    "school": "Conjuration",
+    "castingTime": "1 minute",
+    "range": "Sight",
     "components": [
       "V",
-      "S",
-      "M"
+      "S"
     ],
-    "duration": "24 hours",
-    "description": "You create a telepathic link between yourself and a willing creature with which you are familiar. The creature can be anywhere on the same plane of existence as you. The spell ends if you or the target are no longer on the same plane.\n\nUntil the spell ends, you and the target can instantaneously share words, images, sounds, and other sensory messages with one another through the link, and the target recognizes you as the creature it is communicating with. The spell enables a creature with an Intelligence score of at least 1 to understand the meaning of your words and take in the scope of any sensory messages you send to it.",
+    "duration": "Concentration, up to 6 rounds",
+    "description": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration.\n\nWhen the wall appears, each creature within its area must make a Strength saving throw. On a failed save, a creature takes 6d10 bludgeoning damage, or half as much damage on a successful save.\n\nAt the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 bludgeoning damage. A creature can take this damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage creatures take from the spell on subsequent rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends.\n\nA creature caught in the wall can move by swimming. Because of the force of the wave, though, the creature must make a successful Strength (Athletics) check against your spell save DC in order to move at all. If it fails the check, it can't move. A creature that moves out of the area falls to the ground.",
     "upcast": null,
     "ritual": false,
-    "concentration": false,
+    "concentration": true,
     "classes": [
-      "wizard"
+      "druid"
     ]
   },
   {
@@ -7103,6 +7076,27 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "classes": [
       "sorcerer",
       "wizard"
+    ]
+  },
+  {
+    "id": "power_word_heal",
+    "name": "Power Word Heal",
+    "level": 9,
+    "school": "Evocation",
+    "castingTime": "1 action",
+    "range": "Touch",
+    "components": [
+      "V",
+      "S"
+    ],
+    "duration": "Instantaneous",
+    "description": "A wave of healing energy washes over a creature you touch. The target regains all its hit points. If the creature is charmed, frightened, paralyzed, or stunned, the condition ends. If the creature is prone, it can use its reaction to stand up. This spell has no effect on undead or constructs.",
+    "upcast": null,
+    "ritual": false,
+    "concentration": false,
+    "classes": [
+      "bard",
+      "cleric"
     ]
   },
   {

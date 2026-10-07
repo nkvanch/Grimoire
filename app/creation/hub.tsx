@@ -7,9 +7,11 @@ import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { getHouseRule } from '../../src/engine/houseRules';
 import { Entity } from '../../src/engine/types';
+import { weaponMasteryCapacity, masteredWeaponIds, eligibleMasteryWeapons } from '../../src/engine/weaponMastery';
 import { subclassEntriesForClassMerged } from '../../src/content/subclasses/subclassBrowse';
 import { skillProgressFor, spellProgressFor } from '../../src/content/creationProgress';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { SafeBottomView } from '../../src/components/SafeBottomView';
 
 type Section = {
   key:   string;
@@ -75,6 +77,13 @@ const SUBCLASS_SECTION: Section = {
   done:  d => d.choices.filter(c => c.definition.kind === 'subclass' && !c.resolved).length === 0,
 };
 
+const MASTERY_SECTION: Section = {
+  key:   'weapon_mastery',
+  label: 'Weapon Mastery',
+  route: '/creation/weapon-mastery',
+  done:  d => masteredWeaponIds(d).length >= Math.min(weaponMasteryCapacity(d), eligibleMasteryWeapons(d).length),
+};
+
 const ASI_SECTION: Section = {
   key:   'asi',
   label: 'Ability Improvements',
@@ -134,8 +143,16 @@ export default function HubScreen() {
   let sections = baseSections;
   if (subclassChoices.length > 0) {
     const classIdx = sections.findIndex(s => s.key === 'class');
-    sections = [...sections.slice(0, classIdx + 1), SUBCLASS_SECTION, ...sections.slice(classIdx + 1)];
+    sections = [...sections.slice(0, classIdx + 1), { ...SUBCLASS_SECTION, label: subclassChoices[0].definition.subclassLabel ?? SUBCLASS_SECTION.label }, ...sections.slice(classIdx + 1)];
   }
+
+  if (weaponMasteryCapacity(draft) > 0) {
+    const anchor = sections.findIndex(s => s.key === 'subclass') >= 0 ? sections.findIndex(s => s.key === 'subclass') : sections.findIndex(s => s.key === 'class');
+    sections = [...sections.slice(0, anchor + 1), MASTERY_SECTION, ...sections.slice(anchor + 1)];
+  }
+
+  // 5.5e calls races species.
+  const labelOf = (sec: Section): string => (sec.key === 'race' && draft.rulesetId === ('dnd5e-2024' as never)) ? 'Species' : sec.label;
 
   // Conditionally include ASI section only when there are pending ASI choices
   const asiChoices = draft.choices.filter(c => c.definition.kind === 'asi');
@@ -265,7 +282,11 @@ export default function HubScreen() {
   const nextSection = sections.find(s => !s.done(draft));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
 
       <Text style={styles.heading}>Character Creation</Text>
       <View style={styles.divider} />
@@ -283,7 +304,7 @@ export default function HubScreen() {
               onPress={() => router.push(sec.route as any)}
             >
               <Text style={[styles.primaryBtnText, done && styles.primaryBtnTextDone]}>
-                {sec.label}
+                {labelOf(sec)}
               </Text>
               {done && <Text style={styles.doneCheck}>✓</Text>}
             </Pressable>
@@ -299,6 +320,7 @@ export default function HubScreen() {
         {sections.map(sec => {
           const done = sec.done(draft);
           const subtitle =
+            sec.key === 'weapon_mastery' ? `${masteredWeaponIds(draft).length}/${weaponMasteryCapacity(draft)} weapons` :
             sec.key === 'equipment' ? equipmentSubtitle(draft) :
             sec.key === 'skills'    ? skillsSubtitle(draft) :
             sec.key === 'spells'    ? spellsSubtitle(draft) :
@@ -311,7 +333,7 @@ export default function HubScreen() {
           return (
             <Pressable key={sec.key} style={styles.progressRow} onPress={() => router.push(sec.route as any)}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.progressLabel}>{sec.label}</Text>
+                <Text style={styles.progressLabel}>{labelOf(sec)}</Text>
                 {subtitle && <Text style={styles.progressSubtitle}>{subtitle}</Text>}
               </View>
               <Text style={[styles.progressStatus, done ? styles.statusDone : styles.statusPending]}>
@@ -326,29 +348,34 @@ export default function HubScreen() {
         })}
       </View>
 
-      <View style={styles.divider} />
-
-      {/* Next sequential button */}
-      {nextSection && !allDone && (
-        <Pressable style={styles.nextBtn} onPress={() => router.push(nextSection.route as any)}>
-          <Text style={styles.nextBtnText}>Next: {nextSection.label} →</Text>
-        </Pressable>
-      )}
-
-      {/* Review — only when everything done */}
-      {allDone && (
-        <Pressable style={styles.reviewBtn} onPress={() => router.push('/creation/review')}>
-          <Text style={styles.reviewBtnText}>Review Character →</Text>
-        </Pressable>
-      )}
-
     </ScrollView>
+    {(nextSection && !allDone || allDone) && (
+      <SafeBottomView>
+        <View style={styles.footer}>
+          {/* Next sequential button */}
+          {nextSection && !allDone && (
+            <Pressable style={styles.nextBtn} onPress={() => router.push(nextSection.route as any)}>
+              <Text style={styles.nextBtnText}>Next: {labelOf(nextSection)} →</Text>
+            </Pressable>
+          )}
+
+          {/* Review — only when everything done */}
+          {allDone && (
+            <Pressable style={styles.reviewBtn} onPress={() => router.push('/creation/review')}>
+              <Text style={styles.reviewBtnText}>Review Character →</Text>
+            </Pressable>
+          )}
+        </View>
+      </SafeBottomView>
+    )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  content:   { padding: Spacing.lg },
+  footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
   heading: { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.md },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.lg },
   sectionLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary, marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 1 },

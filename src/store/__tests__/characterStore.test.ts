@@ -4,7 +4,8 @@
 // mutation) and Phase B (the persistent timeline write is fire-and-forget
 // and never blocks the synchronous state update) of the undo/redo +
 // mechanical timeline track.
-import { useCharacterStore, makeEmptyEntity } from '../characterStore';
+import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../characterStore';
+import { applyCondition, removeCondition } from '../../engine/conditions';
 import { Entity } from '../../engine/types';
 import * as timelineRepo from '../../db/timelineRepo';
 import * as entityRepo from '../../db/entityRepo';
@@ -126,6 +127,85 @@ describe('undo/redo — pop/push symmetry', () => {
     expect(() => useCharacterStore.getState().undo()).not.toThrow();
     expect(useCharacterStore.getState().undoStack).toHaveLength(0); // stale entry still popped
     expect(useCharacterStore.getState().redoStack).toHaveLength(0); // nothing to push — character was gone
+  });
+});
+
+// Pre-device closed-alpha readiness pass (Part 5): the undo/redo stack
+// plumbing itself (push/pop symmetry, cap, redo invalidation, conflict
+// refusal) was already thoroughly covered above, but only ever through HP
+// mutations — conditions and inventory went through updateCharacter/undo/
+// redo structurally untested. These use the SAME real engine functions the
+// sheet screen's own onAddCondition/onRemoveCondition handlers call
+// (app/sheet/[id].tsx), not a hand-rolled field mutation, so this exercises
+// the real condition-application path through the undo stack.
+describe('undo/redo — condition mutations', () => {
+  it('undo() reverts an applied condition; redo() re-applies it', () => {
+    reset([testCharacter('c1', 20)]);
+    useCharacterStore.getState().updateCharacter(
+      'c1', e => applyCondition(e, 'poisoned', 'manual', DEFAULT_RULES), 'Added condition: Poisoned',
+    );
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'poisoned')).toBe(true);
+
+    useCharacterStore.getState().undo();
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'poisoned')).toBe(false);
+
+    useCharacterStore.getState().redo();
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'poisoned')).toBe(true);
+  });
+
+  it('undo() restores a removed condition; redo() removes it again', () => {
+    const withCondition = applyCondition(testCharacter('c1', 20), 'blinded', 'manual', DEFAULT_RULES);
+    reset([withCondition]);
+    useCharacterStore.getState().updateCharacter(
+      'c1', e => removeCondition(e, 'blinded', DEFAULT_RULES), 'Removed condition: Blinded',
+    );
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'blinded')).toBe(false);
+
+    useCharacterStore.getState().undo();
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'blinded')).toBe(true);
+
+    useCharacterStore.getState().redo();
+    expect(useCharacterStore.getState().characters[0].conditions.some(c => c.id === 'blinded')).toBe(false);
+  });
+});
+
+describe('undo/redo — inventory mutations', () => {
+  function withCarriedItem(id: string, hp = 20) {
+    const e = testCharacter(id, hp);
+    return { ...e, inventory: { ...e.inventory, carried: [{ id: 'inst-1', itemId: 'dagger', quantity: 1, attuned: false, features: [] }] } };
+  }
+
+  it('undo() restores a removed carried item; redo() removes it again', () => {
+    reset([withCarriedItem('c1')]);
+    useCharacterStore.getState().updateCharacter(
+      'c1', e => ({ ...e, inventory: { ...e.inventory, carried: e.inventory.carried.filter(i => i.id !== 'inst-1') } }), 'Dropped item',
+    );
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(0);
+
+    useCharacterStore.getState().undo();
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(1);
+    expect(useCharacterStore.getState().characters[0].inventory.carried[0].id).toBe('inst-1');
+
+    useCharacterStore.getState().redo();
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(0);
+  });
+
+  it('undo() reverts an item moved from carried to equipped; redo() re-applies the move', () => {
+    reset([withCarriedItem('c1')]);
+    useCharacterStore.getState().updateCharacter('c1', e => {
+      const inst = e.inventory.carried.find(i => i.id === 'inst-1')!;
+      return { ...e, inventory: { ...e.inventory, equipped: [...e.inventory.equipped, inst], carried: e.inventory.carried.filter(i => i.id !== 'inst-1') } };
+    }, 'Equipped item');
+    expect(useCharacterStore.getState().characters[0].inventory.equipped).toHaveLength(1);
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(0);
+
+    useCharacterStore.getState().undo();
+    expect(useCharacterStore.getState().characters[0].inventory.equipped).toHaveLength(0);
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(1);
+
+    useCharacterStore.getState().redo();
+    expect(useCharacterStore.getState().characters[0].inventory.equipped).toHaveLength(1);
+    expect(useCharacterStore.getState().characters[0].inventory.carried).toHaveLength(0);
   });
 });
 
@@ -429,6 +509,107 @@ describe('creation draft durability (re-audit A09, item 11)', () => {
   });
 });
 
+describe('Extra Attack sequence closure (final single-issue closure): attackSequence never survives the creation-draft boundary', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    useCharacterStore.setState({ draft: null, lastPersistError: null });
+  });
+
+  it('setDraft strips an attackSequence before it ever lands in Zustand state or the persisted draft row', () => {
+    const saveDraftSpy = jest.spyOn(draftRepo, 'saveDraftState').mockResolvedValue(undefined);
+    const draftWithSequence: Entity = {
+      ...testCharacter('draft1'),
+      attackSequence: { sequenceId: 'live-draft-seq', actorId: 'draft1', maxAttacks: 2, usedAttacks: 1 },
+    };
+
+    useCharacterStore.getState().setDraft(draftWithSequence);
+
+    expect(useCharacterStore.getState().draft?.attackSequence).toBeFalsy();
+    expect(saveDraftSpy).toHaveBeenCalledWith(expect.objectContaining({ attackSequence: null }));
+  });
+
+  it('saveDraft() strips attackSequence at the COMMIT boundary — defense-in-depth, independent of whatever load already did', async () => {
+    const saveEntitySpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    const clearDraftSpy = jest.spyOn(draftRepo, 'clearDraftState').mockResolvedValue(undefined);
+    reset([]);
+    // Simulate a draft whose Zustand state was populated with a non-null
+    // attackSequence WITHOUT going through setDraft (e.g. a stale/legacy
+    // persisted draft, or a future alternate loading path) — this bypasses
+    // setDraft's own stripping entirely, so a pass here proves saveDraft
+    // does its OWN independent normalization at commit time.
+    const forgedDraft: Entity = {
+      ...testCharacter('draft1'),
+      attackSequence: { sequenceId: 'forged-commit-seq', actorId: 'draft1', maxAttacks: 2, usedAttacks: 1 },
+    };
+    useCharacterStore.setState({ draft: forgedDraft });
+
+    const result = await useCharacterStore.getState().saveDraft();
+
+    expect(result).toBe(true);
+    const committed = useCharacterStore.getState().characters.find(c => c.id === 'draft1');
+    expect(committed?.attackSequence).toBeFalsy();
+    // The actual persisted write also never carried the sequence.
+    expect(saveEntitySpy).toHaveBeenCalledWith(expect.objectContaining({ attackSequence: null }));
+    saveEntitySpy.mockRestore();
+    clearDraftSpy.mockRestore();
+  });
+
+  it('legitimate creation progress survives the strip untouched — only attackSequence is affected', async () => {
+    const saveEntitySpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    jest.spyOn(draftRepo, 'clearDraftState').mockResolvedValue(undefined);
+    reset([]);
+    const richDraft: Entity = {
+      ...testCharacter('draft1'),
+      identity: { ...testCharacter('draft1').identity, raceId: 'elf', classId: 'wizard', backgroundId: 'sage', name: 'Thren' },
+      stats: { str: 8, dex: 14, con: 12, int: 16, wis: 10, cha: 10 },
+      inventory: { ...testCharacter('draft1').inventory, equipped: [{ id: 'inst-1', itemId: 'dagger', quantity: 1, attuned: false, features: [] }] },
+      spellcasting: { ability: 'int', known: ['fire_bolt'], prepared: [], slots: {} } as unknown as Entity['spellcasting'],
+      attackSequence: { sequenceId: 'x', actorId: 'draft1', maxAttacks: 2, usedAttacks: 1 },
+    };
+    useCharacterStore.setState({ draft: richDraft });
+
+    await useCharacterStore.getState().saveDraft();
+
+    const committed = useCharacterStore.getState().characters.find(c => c.id === 'draft1')!;
+    expect(committed.identity).toEqual(richDraft.identity);
+    expect(committed.stats).toEqual(richDraft.stats);
+    expect(committed.inventory).toEqual(richDraft.inventory);
+    expect(committed.spellcasting).toEqual(richDraft.spellcasting);
+    expect(committed.attackSequence).toBeFalsy();
+  });
+
+  it('an ordinary draft with no attackSequence commits completely unchanged', async () => {
+    jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    jest.spyOn(draftRepo, 'clearDraftState').mockResolvedValue(undefined);
+    reset([]);
+    const draft = testCharacter('draft1');
+    useCharacterStore.setState({ draft });
+
+    await useCharacterStore.getState().saveDraft();
+
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'draft1')).toEqual(draft);
+  });
+
+  it('old-token safety: a forged draft sequence token cannot authorize a free continuation after commit', async () => {
+    jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    jest.spyOn(draftRepo, 'clearDraftState').mockResolvedValue(undefined);
+    reset([]);
+    const forgedDraft: Entity = {
+      ...testCharacter('draft1'),
+      attackSequence: { sequenceId: 'old-token', actorId: 'draft1', maxAttacks: 2, usedAttacks: 1 },
+    };
+    useCharacterStore.setState({ draft: forgedDraft });
+
+    await useCharacterStore.getState().saveDraft();
+    const committed = useCharacterStore.getState().characters.find(c => c.id === 'draft1')!;
+
+    // At minimum: the old token no longer exists anywhere on the committed
+    // character to match against.
+    expect(committed.attackSequence).toBeFalsy();
+    expect(JSON.stringify(committed)).not.toContain('old-token');
+  });
+});
+
 describe('lastPersistError — surfaces SQLite write failures instead of only logging them (PERSIST-5)', () => {
   beforeEach(() => {
     // Earlier describe blocks in this file exercise real (unmocked)
@@ -467,5 +648,117 @@ describe('lastPersistError — surfaces SQLite write failures instead of only lo
     await Promise.resolve();
 
     expect(useCharacterStore.getState().lastPersistError).toBeNull();
+  });
+});
+
+describe('applyIncomingPatch — normalizes item-instance identity before exposing/persisting (item-identity closure, pass 3 finding B)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    useCharacterStore.setState({ lastPersistError: null });
+  });
+
+  it('a patch introducing a legacy identity-less carried item gets an id immediately, no restart required', async () => {
+    reset([testCharacter('c1', 20)]);
+    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+
+    await useCharacterStore.getState().applyIncomingPatch('c1', {
+      inventory: { equipped: [], carried: [{ itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] }] },
+    });
+
+    const entity = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
+    expect(entity.inventory.carried).toHaveLength(1);
+    expect(typeof entity.inventory.carried[0].id).toBe('string');
+    expect(entity.inventory.carried[0].id).toBeTruthy();
+    expect(useCharacterStore.getState().lastPersistError).toBeNull();
+    saveSpy.mockRestore();
+  });
+
+  it('rejects a patch whose supplied ItemInstance id is malformed (empty string), leaving prior local state untouched', async () => {
+    reset([testCharacter('c1', 20)]);
+    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    const before = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
+
+    await useCharacterStore.getState().applyIncomingPatch('c1', {
+      inventory: { equipped: [], carried: [{ id: '', itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] }] },
+    });
+
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')).toEqual(before);
+    expect(useCharacterStore.getState().lastPersistError).not.toBeNull();
+    expect(saveSpy).not.toHaveBeenCalled();
+    saveSpy.mockRestore();
+  });
+
+  it('rejects a patch that introduces two carried rows with the same supplied nonempty instance id', async () => {
+    reset([testCharacter('c1', 20)]);
+    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    const before = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
+
+    await useCharacterStore.getState().applyIncomingPatch('c1', {
+      inventory: {
+        equipped: [],
+        carried: [
+          { id: 'dup:1', itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] },
+          { id: 'dup:1', itemId: 'torch', quantity: 1, attuned: false, features: [] },
+        ],
+      },
+    });
+
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')).toEqual(before);
+    expect(useCharacterStore.getState().lastPersistError).not.toBeNull();
+    expect(saveSpy).not.toHaveBeenCalled();
+    saveSpy.mockRestore();
+  });
+});
+
+describe('Extra Attack sequence closure (two-issue final closure, Part B): attackSequence never survives applyIncomingEntity/applyIncomingPatch', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    useCharacterStore.setState({ lastPersistError: null });
+  });
+
+  it('F11: an incoming full snapshot carrying an in-progress attackSequence is stripped before it ever reaches state', async () => {
+    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    reset([]); // no local copy — this is the "brand-new/backup-restore" path
+
+    const incoming: Entity = {
+      ...testCharacter('c1', 20),
+      attackSequence: { sequenceId: 'sync-seq', actorId: 'c1', maxAttacks: 2, usedAttacks: 1 },
+    };
+    await useCharacterStore.getState().applyIncomingEntity(incoming);
+
+    const stored = useCharacterStore.getState().characters.find(c => c.id === 'c1');
+    expect(stored?.attackSequence).toBeFalsy();
+    saveSpy.mockRestore();
+  });
+
+  it('F12: an incoming patch attempting to SET attackSequence is stripped from the merged result before it is exposed/persisted', async () => {
+    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    reset([testCharacter('c1', 20)]);
+
+    await useCharacterStore.getState().applyIncomingPatch('c1', {
+      attackSequence: { sequenceId: 'forged-patch-seq', actorId: 'c1', maxAttacks: 2, usedAttacks: 1 },
+    });
+
+    const merged = useCharacterStore.getState().characters.find(c => c.id === 'c1');
+    expect(merged?.attackSequence).toBeFalsy();
+    expect(useCharacterStore.getState().lastPersistError).toBeNull();
+    saveSpy.mockRestore();
+  });
+
+  it('importCharacter (generic import entry point) also strips an attackSequence present on the raw entity', async () => {
+    const existsSpy = jest.spyOn(entityRepo, 'persistedCharacterExists').mockResolvedValue(false);
+    const saveSpy   = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
+    reset([]);
+
+    const raw: Entity = {
+      ...testCharacter('c1', 20),
+      attackSequence: { sequenceId: 'import-seq', actorId: 'c1', maxAttacks: 2, usedAttacks: 1 },
+    };
+    const ok = await useCharacterStore.getState().importCharacter(raw);
+    expect(ok).toBe(true);
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')?.attackSequence).toBeFalsy();
+
+    existsSpy.mockRestore();
+    saveSpy.mockRestore();
   });
 });

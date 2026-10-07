@@ -42,6 +42,8 @@ import { NEW_LEVEL8 }    from './level8';
 import { NEW_LEVEL9 }    from './level9';
 import { ALL_VAULT_SPELLS } from './generated';
 import srdClassification from './srdClassification.json';
+import { SPELL_LIST_2024 } from '../classes2024/spellLists2024';
+import { NEW_SPELLS_2024 } from '../classes2024/spells2024';
 
 // Vault spells carry no srd field in generated.ts itself (see that file's
 // header) — classification is merged in here, at load time, from the small
@@ -152,7 +154,7 @@ export const spellCureWounds: Spell = {
   duration: 'Instantaneous',
   description: 'A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier. This spell has no effect on undead or constructs.',
   upcast: 'When you cast this spell using a slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.',
-  ritual: false, concentration: false, srd: true, classes: [ 'bard', 'cleric', 'druid', 'paladin', 'ranger'],
+  ritual: false, concentration: false, srd: true, classes: ['artificer', 'bard', 'cleric', 'druid', 'paladin', 'ranger'],
 };
 
 export const spellHealingWord: Spell = {
@@ -205,7 +207,7 @@ export const spellHex: Spell = {
   duration: 'Concentration, up to 1 hour',
   description: 'You place a curse on a creature that you can see within range. The target takes an extra 1d6 necrotic damage whenever you hit it with an attack. Also, choose one ability when you cast the spell. The target has disadvantage on ability checks made with the chosen ability. If the target drops to 0 hit points before this spell ends, you can use a bonus action on a subsequent turn of yours to curse a new creature.',
   upcast: 'When you cast this spell using a slot of 3rd or 4th level, you can maintain your concentration on the spell for up to 8 hours. When you use a slot of 5th level or higher, you can maintain concentration for up to 24 hours.',
-  ritual: false, concentration: true, srd: true, classes: ['warlock'],
+  ritual: false, concentration: true, srd: false, classes: ['warlock'],
 };
 
 export const spellHuntersMark: Spell = {
@@ -239,7 +241,7 @@ export const spellDetectMagic: Spell = {
   castingTime: '1 action', range: 'Self', components: ['V', 'S'],
   duration: 'Concentration, up to 10 minutes',
   description: 'For the duration, you sense the presence of magic within 30 feet of you. If you sense magic in this way, you can use your action to see a faint aura around any visible creature or object in the area that bears magic, and you learn its school of magic, if any. The spell can penetrate most barriers, but it is blocked by 1 foot of stone, 1 inch of common metal, a thin sheet of lead, or 3 feet of wood or dirt.',
-  upcast: null, ritual: true, concentration: true, srd: true, classes: [ 'bard', 'cleric', 'druid', 'paladin', 'ranger', 'sorcerer', 'warlock', 'wizard'],
+  upcast: null, ritual: true, concentration: true, srd: true, classes: ['artificer', 'bard', 'cleric', 'druid', 'paladin', 'ranger', 'sorcerer', 'warlock', 'wizard'],
 };
 
 // ── Original level 2 spells ───────────────────────────────────────────────────
@@ -304,7 +306,7 @@ export const spellFly: Spell = {
   duration: 'Concentration, up to 10 minutes',
   description: 'You touch a willing creature. The target gains a flying speed of 60 feet for the duration. When the spell ends, the target falls if it is still aloft, unless it can stop the fall.',
   upcast: 'When you cast this spell using a slot of 4th level or higher, you can target one additional creature for each slot level above 3rd.',
-  ritual: false, concentration: true, srd: true, classes: [ 'sorcerer', 'warlock', 'wizard'],
+  ritual: false, concentration: true, srd: true, classes: ['artificer', 'sorcerer', 'warlock', 'wizard'],
 };
 
 export const spellCounterspell: Spell = {
@@ -385,7 +387,7 @@ export const spellGreaterRestoration: Spell = {
   castingTime: '1 action', range: 'Touch', components: ['V', 'S', 'M'],
   duration: 'Instantaneous',
   description: 'You imbue a creature you touch with positive energy to undo a debilitating effect. You can reduce the target\'s exhaustion level by one, or end one of the following effects on the target: one effect that charmed or petrified the target, one curse including attunement to a cursed magic item, any reduction to one of the target\'s ability scores, or one effect reducing the target\'s hit point maximum.',
-  upcast: null, ritual: false, concentration: false, srd: true, classes: [ 'bard', 'cleric', 'druid', 'ranger'],
+  upcast: null, ritual: false, concentration: false, srd: true, classes: ['artificer', 'bard', 'cleric', 'druid', 'ranger'],
 };
 
 // ── Original level 6 spell ────────────────────────────────────────────────────
@@ -489,6 +491,8 @@ const _rawSpellLibrary: Spell[] = [
   ...NEW_LEVEL9,
   // ── Vault-sourced library (auto-generated content, SRD status merged in) ──
   ...CLASSIFIED_VAULT_SPELLS,
+  // ── Spells that exist only in the 2024 rules ─────────────────────────────
+  ...NEW_SPELLS_2024,
 ];
 
 // The vault import (generated.ts) re-sourced a number of core SRD spells that
@@ -499,10 +503,40 @@ const _rawSpellLibrary: Spell[] = [
 // Dedup by id, first occurrence wins, so the hand-authored entry (which may
 // precedence over the later vault-sourced duplicate.
 const _seenSpellIds = new Set<string>();
+// The 2024 classes (bard_2024, ...) use the 2024 class spell lists (SRD 5.2.1): a spell on a 2024 list
+// gains that class's 2024 id. As above, an untagged spell is already offered to everyone and is left alone.
+const _classes2024BySpell = new Map<string, string[]>();
+for (const [cls, byLevel] of Object.entries(SPELL_LIST_2024)) {
+  for (const id of Object.values(byLevel).flat()) _classes2024BySpell.set(id, [...(_classes2024BySpell.get(id) ?? []), `${cls}_2024`]);
+}
+/**
+ * The generated spell data has ten records whose header ran together into `castingTime`
+ * ("1 action **Range**: Touch **Components**: V, S **Duration**: ..."), leaving range and duration empty. This
+ * splits that header back into its fields, and gives Delayed Blast Fireball the duration its record lacks
+ * (SRD 5.1: Concentration, up to 1 minute). A record that is already well formed is returned untouched.
+ */
+const MERGED_HEADER = /^(.*?)\s*\*\*Range\*\*:\s*(.*?)\s*\*\*Components\*\*:\s*(.*?)\s*\*\*Duration\*\*:\s*(.*)$/;
+export function repairSpellHeader(s: Spell): Spell {
+  const m = MERGED_HEADER.exec(s.castingTime ?? '');
+  let out = s;
+  if (m) {
+    const letters = (m[3].match(/\b[VSM]\b/g) ?? []) as string[];
+    out = { ...s, castingTime: m[1].trim(), range: s.range || m[2].trim(), duration: s.duration || m[4].trim(),
+      components: s.components.length > 0 ? s.components : letters };
+  }
+  if (!out.duration && out.id === 'delayed_blast_fireball') out = { ...out, duration: 'Concentration, up to 1 minute' };
+  return out;
+}
+
 export const FULL_SPELL_LIBRARY: Spell[] = _rawSpellLibrary.filter(s => {
   if (_seenSpellIds.has(s.id)) return false;
   _seenSpellIds.add(s.id);
   return true;
+}).map(s => {
+  let out = repairSpellHeader(s);
+  const c24 = _classes2024BySpell.get(s.id);
+  if (c24 && out.classes && out.classes.length > 0) out = { ...out, classes: [...new Set([...(out.classes ?? []), ...c24])] };
+  return out;
 });
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';

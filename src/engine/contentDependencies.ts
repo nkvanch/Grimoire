@@ -30,7 +30,7 @@
 // bloat packages with content the recipient may never actually need. This
 // matches the spec's own allowance for "required vs optional" — pool
 // references are treated as optional/unbundled, not required.
-import { Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait } from './types';
+import { Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, SpellList } from './types';
 import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
 
 export type DependencyRef = { type: ContentCacheType; id: string };
@@ -102,6 +102,9 @@ export function collectContentDependencies(type: ContentCacheType, item: Homebre
     case 'class': {
       const cls = item as CharClass;
       for (const id of cls.startingEquipment ?? []) refs.push({ type: 'item', id });
+      // A class that draws its spells from a saved Spell List needs that list to come along.
+      if (cls.spellListSource?.kind === 'list') refs.push({ type: 'spellList', id: cls.spellListSource.listId });
+      if (cls.spellListSource?.kind === 'class') refs.push({ type: 'class', id: cls.spellListSource.classId });
       // The class-builder's own authoring format (levelFeatures: DraftTrait[])
       // is what a homebrew class actually saves — NOT a real
       // ClassProgression.entries[] (that only exists on rawProgression, the
@@ -134,6 +137,9 @@ export function collectContentDependencies(type: ContentCacheType, item: Homebre
     }
     case 'spell':
       // Spells carry no cross-content reference fields of their own.
+      break;
+    case 'spellList':
+      for (const id of (item as SpellList).spellIds ?? []) refs.push({ type: 'spell', id });
       break;
   }
 

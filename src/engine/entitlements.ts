@@ -9,7 +9,9 @@
 // add/remove primitive in leveling.ts; the caller's simulate()/mutate()
 // recomputes.
 // ============================================================================
-import { Entity, EntitlementRecord, EntitlementKind, EntitlementSourceKind, SkillName } from './types';
+import { Entity, EntitlementRecord, EntitlementKind, EntitlementSourceKind, SkillName, Spell } from './types';
+import { spellRepo } from '../content/spellRepo';
+import { getClassLevels } from './multiclass';
 
 function sameEntitlement(a: EntitlementRecord, b: EntitlementRecord): boolean {
   return a.kind === b.kind && a.key === b.key
@@ -107,6 +109,15 @@ export function revokeEntitlementsFromChoice(entity: Entity, choiceId: string): 
   return reconcileRevokedResources(entity, next);
 }
 
+/** Removes one spell/cantrip entitlement a specific choice produced (swapping a chosen cantrip), leaving the rest of the choice's grants. */
+export function revokeSpellEntitlementFromChoice(entity: Entity, choiceId: string, spellId: string): Entity {
+  entity = initializeEntitlementInputs(entity);
+  const existing = entity.entitlements ?? [];
+  const next = existing.filter(e => !(e.choiceId === choiceId && e.key === spellId && (e.kind === 'cantrip_access' || e.kind === 'spell_access')));
+  if (next.length === existing.length) return entity;
+  return reconcileRevokedResources(entity, next);
+}
+
 export function hasEntitlement(entity: Entity, kind: EntitlementKind, key: string): boolean {
   return (entity.entitlements ?? []).some(e => e.kind === kind && e.key === key);
 }
@@ -140,6 +151,7 @@ export function deriveProficienciesFromEntitlements(entity: Entity): DerivedProf
     skills: { trained: new Set(), expertise: new Set() },
   };
   for (const e of entity.entitlements ?? []) {
+    if (e.minLevel && entity.identity.level < e.minLevel) continue;   // a level-gated spell grant is not yet in effect
     switch (e.kind) {
       case 'armor_proficiency':  if (!result.armor.includes(e.key))     result.armor.push(e.key);     break;
       case 'weapon_proficiency': if (!result.weapons.includes(e.key))   result.weapons.push(e.key);   break;
@@ -179,11 +191,57 @@ export function revokeResourceSource(
   return revokeEntitlementsFromSource(entity, sourceKind, sourceId);
 }
 
-/** One-time compatibility boundary. Historical unowned grants remain manual.
+function sameStringSet(a: string[] | undefined, b: string[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  return a.every(x => b.includes(x));
+}
+
+/**
+ * `homebrewSpells` (rules-engine blocker RE-AUDIT closure — dependency
+ * inversion, 1A/1B): explicit, application-resolved homebrew spell list —
+ * this function never reaches into a store for it. Omitting it (the
+ * default) means "no homebrew spell fallback, official spellRepo content
+ * only" (a deterministic static default: candidates simply resolve to
+ * fewer/no matches for a homebrew-only spell, never a crash or a guess).
+ */
+function reclassifyManualSpellSources(entity: Entity, homebrewSpells: readonly Spell[] = []): Entity {
+  const records = entity.entitlements;
+  if (!records || records.length === 0) return entity;
+  if (!records.some(r => (r.kind === 'spell_access' || r.kind === 'cantrip_access') && r.sourceKind === 'manual')) {
+    return entity;
+  }
+  const ownedClassIds = getClassLevels(entity).map(c => c.classId as string);
+  if (ownedClassIds.length === 0) return entity;
+
+  let changed = false;
+  const next = records.map(r => {
+    if (r.sourceKind !== 'manual' || (r.kind !== 'spell_access' && r.kind !== 'cantrip_access')) return r;
+    const spell = spellRepo.getSpellSync(r.key, entity.rulesetId) ?? homebrewSpells.find(s => s.id === r.key);
+    const candidates = (spell?.classes ?? []).filter(id => ownedClassIds.includes(id));
+    if (candidates.length === 1) {
+      changed = true;
+      return { ...r, sourceKind: 'class' as const, sourceId: candidates[0], ambiguousClassIds: undefined };
+    }
+    if (candidates.length >= 2) {
+      if (sameStringSet(r.ambiguousClassIds, candidates)) return r; // already correctly flagged
+      changed = true;
+      return { ...r, ambiguousClassIds: candidates };
+    }
+    return r; // 0 candidates — genuinely untraceable, left as an ordinary manual grant
+  });
+  if (!changed) return entity;
+  return { ...entity, entitlements: next };
+}
+
+/**
+ * One-time compatibility boundary. Historical unowned grants remain manual.
  * Previous derived snapshots are migration evidence only, never runtime ownership.
- * Run BEFORE a source mutation, so grant/remove needs no intervening recompute. */
-export function initializeEntitlementInputs(entity: Entity): Entity {
-  if (entity.entitlementInputsVersion === 1) return entity;
+ * Run BEFORE a source mutation, so grant/remove needs no intervening recompute.
+ * `homebrewSpells` — see reclassifyManualSpellSources' own doc comment;
+ * threaded straight through, same explicit/no-store contract.
+ */
+export function initializeEntitlementInputs(entity: Entity, homebrewSpells: readonly Spell[] = []): Entity {
+  if (entity.entitlementInputsVersion === 1) return reclassifyManualSpellSources(entity, homebrewSpells);
   const records = [...(entity.entitlements ?? [])];
   const previous = entity.effectGrantedProficiencies;
   const add = (kind: EntitlementKind, keys: string[], derived: string[] = []) => {
@@ -203,8 +261,8 @@ export function initializeEntitlementInputs(entity: Entity): Entity {
   }
   add('spell_access', entity.spellcasting?.known ?? [], previous?.spells);
   add('cantrip_access', entity.spellcasting?.cantrips ?? [], previous?.cantrips);
-  return { ...entity, entitlements: records, entitlementInputsVersion: 1,
-    effectGrantedProficiencies: undefined };
+  return reclassifyManualSpellSources({ ...entity, entitlements: records, entitlementInputsVersion: 1,
+    effectGrantedProficiencies: undefined }, homebrewSpells);
 }
 
 /** Manual editing owns only manual grants; it cannot revoke a class/race source. */

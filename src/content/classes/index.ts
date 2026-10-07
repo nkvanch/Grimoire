@@ -2,6 +2,7 @@
 // FILE: src/content/classes/index.ts
 // All 12 PHB classes with full level 1-20 progressions.
 // ============================================================================
+import { CLASSES_2024, PROGRESSIONS_2024 } from '../classes2024';
 import { ClassProgression, LevelEntry, ChoiceDefinition, ChoiceOption } from '../../engine/types';
 import { fighterProgression } from './fighter';
 import { ALL_TOOLS } from '../tools';
@@ -1168,6 +1169,7 @@ export const ALL_CLASS_PROGRESSIONS: ClassProgression[] = [
   monkProgression,
   sorcererProgression,
   warlockProgression,
+  ...PROGRESSIONS_2024,
 ];
 
 /** Lookup map: classId → ClassProgression. Use this instead of hardcoding class names. */
@@ -1193,6 +1195,7 @@ const MULTICLASS_PROFICIENCIES: Record<string, import('../../engine/types').Prof
   ranger:    { armor: ['light'], weapons: ['simple', 'martial'] },
   rogue:     { armor: ['light'], tools: ["Thieves' Tools"] },
   warlock:   { armor: ['light'], weapons: ['simple'] },
+  artificer: { armor: ['light'], weapons: ['simple'], tools: ["Thieves' Tools"] },
   // sorcerer, wizard: grant nothing per RAW — omitted, see multiclassProficienciesFor()'s
   // documented "undefined = grants nothing" semantics.
 };
@@ -1212,25 +1215,26 @@ export const ALL_CHAR_CLASSES_CATALOG = [
   { id: 'rogue',     name: 'Rogue',     hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.rogue,
     savingThrows: ['dex', 'int'], armorProfs: ['light'], weaponProfs: ['simple', 'Hand Crossbow', 'Longsword', 'Rapier', 'Shortsword'], toolProfs: ["Thieves' Tools"] },
   { id: 'wizard',    name: 'Wizard',    hitDie: 6,  features: [], srd: true,
-    savingThrows: ['int', 'wis'], armorProfs: [], weaponProfs: ['Dagger', 'Dart', 'Sling', 'Quarterstaff', 'Light Crossbow'], spellcastingAbility: 'int' },
+    savingThrows: ['int', 'wis'], armorProfs: [], weaponProfs: ['Dagger', 'Dart', 'Sling', 'Quarterstaff', 'Light Crossbow'], spellcastingAbility: 'int', spellPreparationPolicy: 'spellbook_prepared', ritualCastingPolicy: 'spellbook' },
   { id: 'cleric',    name: 'Cleric',    hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.cleric,
-    savingThrows: ['wis', 'cha'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['simple'], spellcastingAbility: 'wis' },
+    savingThrows: ['wis', 'cha'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['simple'], spellcastingAbility: 'wis', spellPreparationPolicy: 'full_list_prepared', ritualCastingPolicy: 'prepared' },
   { id: 'barbarian', name: 'Barbarian', hitDie: 12, features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.barbarian,
     savingThrows: ['str', 'con'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['simple', 'martial'] },
   { id: 'ranger',    name: 'Ranger',    hitDie: 10, features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.ranger,
-    savingThrows: ['str', 'dex'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['simple', 'martial'], spellcastingAbility: 'wis' },
+    savingThrows: ['str', 'dex'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['simple', 'martial'], spellcastingAbility: 'wis', spellPreparationPolicy: 'known' },
   { id: 'paladin',   name: 'Paladin',   hitDie: 10, features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.paladin,
-    savingThrows: ['wis', 'cha'], armorProfs: ['light', 'medium', 'heavy', 'shield'], weaponProfs: ['simple', 'martial'], spellcastingAbility: 'cha' },
+    savingThrows: ['wis', 'cha'], armorProfs: ['light', 'medium', 'heavy', 'shield'], weaponProfs: ['simple', 'martial'], spellcastingAbility: 'cha', spellPreparationPolicy: 'full_list_prepared' },
   { id: 'druid',     name: 'Druid',     hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.druid,
-    savingThrows: ['int', 'wis'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['Club', 'Dagger', 'Dart', 'Javelin', 'Mace', 'Quarterstaff', 'Scimitar', 'Sickle', 'Sling', 'Spear'], toolProfs: ['Herbalism Kit'], spellcastingAbility: 'wis' },
+    savingThrows: ['int', 'wis'], armorProfs: ['light', 'medium', 'shield'], weaponProfs: ['Club', 'Dagger', 'Dart', 'Javelin', 'Mace', 'Quarterstaff', 'Scimitar', 'Sickle', 'Sling', 'Spear'], toolProfs: ['Herbalism Kit'], spellcastingAbility: 'wis', spellPreparationPolicy: 'full_list_prepared', ritualCastingPolicy: 'prepared' },
   { id: 'bard',      name: 'Bard',      hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.bard,
-    savingThrows: ['dex', 'cha'], armorProfs: ['light'], weaponProfs: ['simple', 'Hand Crossbow', 'Longsword', 'Rapier', 'Shortsword'], spellcastingAbility: 'cha' },
+    savingThrows: ['dex', 'cha'], armorProfs: ['light'], weaponProfs: ['simple', 'Hand Crossbow', 'Longsword', 'Rapier', 'Shortsword'], spellcastingAbility: 'cha', spellPreparationPolicy: 'known', ritualCastingPolicy: 'known' },
   { id: 'monk',      name: 'Monk',      hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.monk,
     savingThrows: ['str', 'dex'], armorProfs: [], weaponProfs: ['simple', 'Shortsword'] },
   { id: 'sorcerer',  name: 'Sorcerer',  hitDie: 6,  features: [], srd: true,
-    savingThrows: ['con', 'cha'], armorProfs: [], weaponProfs: ['Dagger', 'Dart', 'Sling', 'Quarterstaff', 'Light Crossbow'], spellcastingAbility: 'cha' },
+    savingThrows: ['con', 'cha'], armorProfs: [], weaponProfs: ['Dagger', 'Dart', 'Sling', 'Quarterstaff', 'Light Crossbow'], spellcastingAbility: 'cha', spellPreparationPolicy: 'known' },
   { id: 'warlock',   name: 'Warlock',   hitDie: 8,  features: [], srd: true, multiclassProficiencies: MULTICLASS_PROFICIENCIES.warlock,
-    savingThrows: ['wis', 'cha'], armorProfs: ['light'], weaponProfs: ['simple'], spellcastingAbility: 'cha' },
+    savingThrows: ['wis', 'cha'], armorProfs: ['light'], weaponProfs: ['simple'], spellcastingAbility: 'cha', spellPreparationPolicy: 'known' },
+  ...CLASSES_2024,
 ] as import('../../engine/types').CharClass[];
 
 /** Exposure policy for public SRD builds. The full catalog remains bundled. */

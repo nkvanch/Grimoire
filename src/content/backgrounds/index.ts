@@ -2,8 +2,16 @@
 // FILE: src/content/backgrounds/index.ts
 // All 13 PHB backgrounds.
 // ============================================================================
-import { Background, } from '../../engine/types';
+import { Background, RulesetId, ChoiceOption, BACKGROUND_CHOICE_PREFIX } from '../../engine/types';
 import { ALL_TOOLS } from '../tools';
+import { BACKGROUNDS_2024, bgAcolyte2024 } from './backgrounds2024';
+export { bgAcolyte2024 };
+
+/** CHOICE-EXPANSION-2: same helper other content files use — restricts a
+ * tool choice's pool to one or more canonical categories. */
+function toolCategoryPool(...categories: string[]): ChoiceOption[] {
+  return ALL_TOOLS.filter(t => categories.includes(t.category)).map(t => ({ id: t.id, label: t.name, value: t.id }));
+}
 
 export const bgAcolyte: Background = {
   id: 'acolyte',
@@ -41,6 +49,7 @@ export const bgAcolyte: Background = {
 /** Every background, unfiltered. Prefer ALL_BACKGROUNDS below in app code. */
 export const FULL_BACKGROUND_LIBRARY: Background[] = [
   bgAcolyte,
+  ...BACKGROUNDS_2024,
 ];
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';

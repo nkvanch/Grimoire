@@ -12,7 +12,9 @@
 // not app-restart-persisted — matches every other screen this pass).
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, TextInput, InteractionManager } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { installedRulesReferences } from '../../src/content/rules/rulesReference';
+import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
 import { useBrowseStateStore } from '../../src/store/browseStateStore';
 import { loadFavorites, saveFavorites, favoriteKey } from '../../src/content/favorites';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
@@ -52,6 +54,7 @@ import { backgroundSkillGrants, backgroundSortOptions } from '../../src/content/
 import {
   primaryPrereqCategory, featGrantsAsi, featGrantsProficiency, featGrantsActivation, featSortOptions,
 } from '../../src/content/feats/featBrowse';
+import { CompendiumSpellDetail } from '../../src/components/compendium/CompendiumSpellDetail';
 import { spellSortOptions } from '../../src/content/spells/spellBrowse';
 import { actionType, ACTION_TYPES } from '../../src/content/spellFilterUtils';
 import {
@@ -664,8 +667,14 @@ function OfficialCompendiumView() {
     setMonsterLanguage(new Set()); setMonsterLegendary(false); setMonsterLair(false); setMonsterDarkvision(false); setMonsterSpellcaster(false);
   }
 
-  return (
-    <View style={styles.screen} testID="compendium-screen">
+  // SCROLL-HEADER-1: see the creation-flow browse screens' identical
+  // comment — heading/search/type-chips/filters used to sit in a plain View
+  // above the results FlatList, pinned in place while only the results
+  // scrolled beneath. Moved into ListHeaderComponent so the whole header —
+  // including an open Filters panel, which can be tall — scrolls away with
+  // the results instead of permanently eating screen space.
+  const listHeader = (
+    <>
       <View style={styles.header}>
         <Text style={styles.subtitle}>{contentType === 'all' ? 'All Content' : CONTENT_TYPE_LABELS[contentType]}</Text>
       </View>
@@ -929,9 +938,14 @@ function OfficialCompendiumView() {
         )}
         <ActiveFilterChips chips={globalFilterChips} onClearAll={clearAllFilters} />
       </View>
+    </>
+  );
 
+  return (
+    <View style={styles.screen} testID="compendium-screen">
       {results.length === 0 ? (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          {listHeader}
           <ZeroResultsState
             hasActiveFilters={globalFilterChips.length > 0 || filtersOpen}
             emptyMessage={favoritesOnly ? 'No favorites yet — tap ☆ on a result to add one.' : 'No results match your search.'}
@@ -947,7 +961,8 @@ function OfficialCompendiumView() {
           style={styles.scroll}
           contentContainerStyle={styles.content}
           data={results}
-          keyExtractor={entry => `${entry.type}:${entry.id}`}
+          keyExtractor={entry => `${entry.type}:${entry.id}:${entry.rulesetId ?? ""}`}
+          ListHeaderComponent={listHeader}
           initialNumToRender={20}
           windowSize={7}
           maxToRenderPerBatch={20}
@@ -970,7 +985,7 @@ function OfficialCompendiumView() {
                       <Text style={[styles.typeBadgeTxt, { color: visual.accent }]}>{visual.icon} {CONTENT_TYPE_LABELS[entry.type]}</Text>
                     </View>
                     <Text style={styles.rowName}>{entry.name}</Text>
-                    {!entry.isHomebrew && isNonSrd(entry.srd) && <NonSrdBadge />}
+                    {!entry.isHomebrew && isNonSrd(entry.srd, entry.rulesetId) && <NonSrdBadge />}
                   </View>
                   <View style={styles.rowBadges}>
                     <View style={[styles.provBadge, entry.isHomebrew ? styles.provBadgeHomebrew : styles.provBadgeOfficial]}>
@@ -987,6 +1002,7 @@ function OfficialCompendiumView() {
                     {entry.type === 'feat' && (entry.raw as { prerequisite: string | null }).prerequisite && (
                       <Text style={styles.rowDesc}>Prerequisite: {(entry.raw as { prerequisite: string }).prerequisite}</Text>
                     )}
+                    {entry.type === 'spell' && <CompendiumSpellDetail spellId={entry.id} rulesetId={rulesetFilter} />}
                     {entry.type === 'condition' && (
                       <Text style={styles.rowDesc}>{(entry.raw as { description: string }).description || 'No description.'}</Text>
                     )}
@@ -1018,7 +1034,10 @@ const styles = StyleSheet.create({
   shellHeader: {
     paddingTop: Spacing.xl + 8, paddingBottom: Spacing.xs,
     paddingHorizontal: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
+  rulesBtn: { borderWidth: 1, borderColor: Colors.gold + '88', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 6 },
+  rulesBtnTxt: { color: Colors.gold, fontWeight: FontWeight.bold },
   shellTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gold },
 
   searchWrap: { padding: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.xs },
@@ -1113,6 +1132,9 @@ export default function CompendiumScreen() {
   const mode = useCompendiumModeStore(s => s.mode);
   const setMode = useCompendiumModeStore(s => s.setMode);
   const closePack = useCompendiumModeStore(s => s.closePack);
+  const router = useRouter();
+  useOfficialContentVersion();   // the Rules button appears when a pack with a rules reference is installed
+  const hasRulesReference = installedRulesReferences().length > 0;
 
   const paramMode = parseCompendiumMode(params.mode);
   useEffect(() => {
@@ -1128,6 +1150,11 @@ export default function CompendiumScreen() {
     <View style={styles.screen}>
       <View style={styles.shellHeader}>
         <Text style={styles.shellTitle}>Compendium</Text>
+        {hasRulesReference && (
+          <Pressable style={styles.rulesBtn} onPress={() => router.push('/rules-reference')} accessibilityLabel="Open the Rules Reference" testID="open-rules-reference">
+            <Text style={styles.rulesBtnTxt}>Rules</Text>
+          </Pressable>
+        )}
       </View>
       <CompendiumModeSwitch mode={mode} onChange={changeMode} />
       {mode === 'official' && <OfficialCompendiumView />}

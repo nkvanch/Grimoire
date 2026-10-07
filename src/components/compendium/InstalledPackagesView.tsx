@@ -21,6 +21,7 @@ import { loadAllEncounters } from '../../db/encounterRepo';
 import type { PreparedEncounter, Issue } from '../../engine/types';
 import { diagnosePack } from '../../engine/packDiagnostics';
 import { makeHomebrewLookup } from '../../store/homebrewLookup';
+import { isOfficialRef, officialRefName } from '../../content/officialRefs';
 import { sortByOption } from '../../content/contentQuery';
 import { editHrefFor } from '../../content/homebrewLibrary';
 import {
@@ -30,6 +31,8 @@ import {
 import { SortControl } from '../SortControl';
 import { usePackageBuilderStore } from '../../store/packageBuilderStore';
 import { IssuesModal } from '../sheet/IssuesModal';
+import { OfficialPacksSection } from './OfficialPacksSection';
+import { ContentPacksPrompt } from '../ContentPacksPrompt';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 const STATE_KEY = 'compendium.packages';
@@ -54,6 +57,7 @@ export function InstalledPackagesView() {
   const feats       = useHomebrewStore(s => s.feats);
   const monsters    = useHomebrewStore(s => s.monsters);
   const conditions  = useHomebrewStore(s => s.conditions);
+  const spellLists  = useHomebrewStore(s => s.spellLists);
   const characters  = useCharacterStore(s => s.characters);
 
   const selectedPackId = useCompendiumModeStore(s => s.selectedPackId);
@@ -64,6 +68,7 @@ export function InstalledPackagesView() {
   const [encounters, setEncounters] = useState<PreparedEncounter[]>([]);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [diagnosingPackId, setDiagnosingPackId] = useState<string | null>(null);
+  const [choosingPacks, setChoosingPacks] = useState(false);
 
   const refresh = useCallback(() => {
     loadInstalledPacks().then(setPacks).catch(e => console.error('[compendium] loadInstalledPacks failed:', e));
@@ -73,8 +78,8 @@ export function InstalledPackagesView() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const homebrew = useMemo(
-    () => ({ races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions }),
-    [races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions],
+    () => ({ races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions, spellLists }),
+    [races, subraces, classes, subclasses, spells, backgrounds, features, items, feats, monsters, conditions, spellLists],
   );
   const lookup = useMemo(() => makeHomebrewLookup(homebrew), [homebrew]);
 
@@ -86,7 +91,7 @@ export function InstalledPackagesView() {
   const statusOf = useCallback((p: InstalledPack) => packageStatusOf(diagnostics.get(p.id) ?? []), [diagnostics]);
   const details = useMemo(() => {
     const map = new Map<string, PackDetail>();
-    for (const p of packs) map.set(p.id, buildPackDetail(p, lookup));
+    for (const p of packs) map.set(p.id, buildPackDetail(p, lookup, { isOfficial: isOfficialRef, nameOf: officialRefName }));
     return map;
   }, [packs, lookup]);
 
@@ -260,11 +265,15 @@ export function InstalledPackagesView() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
+            <OfficialPacksSection />
             <View style={styles.headerRow}>
               <Text style={styles.count}>{packs.length} package{packs.length === 1 ? '' : 's'}</Text>
               <View style={styles.headerBtns}>
                 <Pressable style={styles.importBtn} testID="packages-create" onPress={() => { usePackageBuilderStore.getState().begin(); router.push('/homebrew/package-builder'); }}>
                   <Text style={styles.importBtnTxt}>＋ Create Package</Text>
+                </Pressable>
+                <Pressable style={styles.importBtn} testID="packages-install-srd" onPress={() => setChoosingPacks(true)}>
+                  <Text style={styles.importBtnTxt}>📦 SRD Packs</Text>
                 </Pressable>
                 <Pressable style={styles.importBtn} testID="packages-import" onPress={() => router.push('/homebrew/import-package')}>
                   <Text style={styles.importBtnTxt}>⬇️ Import</Text>
@@ -327,6 +336,7 @@ export function InstalledPackagesView() {
           );
         }}
       />
+      <ContentPacksPrompt visible={choosingPacks} onClose={() => setChoosingPacks(false)} />
       {modals}
     </View>
   );
