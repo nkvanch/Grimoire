@@ -2,7 +2,7 @@
   "expo": {
     "name": "Grimoire",
     "slug": "grimoire",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "scheme": "dndapp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +24,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.nkvanch.grimoire",
+      "versionCode": 2,
       "permissions": [
         "ACCESS_WIFI_STATE",
         "ACCESS_NETWORK_STATE"

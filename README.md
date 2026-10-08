@@ -8,18 +8,21 @@ Website: https://nkvanch.github.io/Grimoire/ (documentation, changelog, privacy,
 
 ## What this repository is
 
-This is the **official, SRD-only edition** of Grimoire. It contains the app code and only content that is safe to distribute: the System Reference Document 5.1 (CC-BY-4.0) and original data written for this project. It is meant to be the central place people build from, fork, and download releases of.
+This is the **official, SRD-only edition** of Grimoire. It contains the app code and only content that is safe to distribute: the System Reference Document 5.1 and the System Reference Document 5.2.1 (both CC-BY-4.0) and original data written for this project. Characters can follow either the 2014 rules (SRD 5.1) or the 2024 rules (SRD 5.2.1, often called 5.5e). It is meant to be the central place people build from, fork, and download releases of.
 
-| Content | Count |
-| --- | --- |
-| Spells | 335 |
-| Items | 695 |
-| Monsters | 322 |
-| Classes | 12, each with its one SRD subclass |
-| Races | 9 (with their SRD subraces) |
-| Backgrounds | 1 (Acolyte) |
-| Feats | 1 (Grappler) |
-| Conditions | 14 |
+The content ships as two signed packs, `assets/packs/grimoire.srd.5.1.json` and `assets/packs/grimoire.srd.5.2.1.json`, which the app installs on first launch.
+
+| Content | SRD 5.1 pack (2014 rules) | SRD 5.2.1 pack (2024 rules) |
+| --- | --- | --- |
+| Spells | 319 | 339 |
+| Items | 95 | 427 (gear, equipment and magic items) |
+| Monsters | 322 | uses the SRD 5.1 stat blocks |
+| Classes | 12, each with its one SRD subclass | 12, each with its one SRD subclass |
+| Species / races | 9 (with their SRD subraces) | 9 |
+| Backgrounds | 1 (Acolyte) | 4 |
+| Feats | 1 (Grappler) | 19 |
+| Conditions | 14 | 14 |
+| Rules tables | Wild Shape beast forms | Weapon Mastery, class spell lists, beast forms, reference |
 
 Anything else you play with lives in the app as **homebrew**: you create it, or import it from a `.grimoire-pack` file someone sent you. Homebrew is never bundled here.
 
@@ -50,7 +53,7 @@ Grimoire's application source code is licensed under the **GNU General Public Li
 The GPL covers the code only. Other parts have their own terms:
 
 - **Documentation** (the website, this README, the changelog): CC BY-SA 4.0.
-- **SRD 5.1 game content**: licensed by Wizards of the Coast LLC under CC-BY-4.0, not the GPL. The attribution is in [NOTICE.md](NOTICE.md) and in the app's "About & Legal" screen.
+- **SRD 5.1 and SRD 5.2.1 game content**: licensed by Wizards of the Coast LLC under CC-BY-4.0, not the GPL. The attribution is in [NOTICE.md](NOTICE.md) and in the app's "About & Legal" screen.
 - **Libraries**: their own licences, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - **Homebrew** that you create or import stays yours and is not part of this repository.
 - **Other Wizards of the Coast or third-party content** is not included.

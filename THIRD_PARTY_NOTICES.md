@@ -2,9 +2,9 @@
 
 Grimoire is built on other people's work. This file lists what it includes and under which terms. It does not change those terms.
 
-## Game content: SRD 5.1
+## Game content: SRD 5.1 and SRD 5.2.1
 
-The bundled game content comes from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, licensed under the Creative Commons Attribution 4.0 International License (CC-BY-4.0). The full attribution is in [NOTICE.md](NOTICE.md). No other Wizards of the Coast content and no other third-party game content is included in this repository or the app. How that is checked, and its limits, are in [docs/SRD_EDITION.md](docs/SRD_EDITION.md).
+The bundled game content comes from the System Reference Document 5.1 ("SRD 5.1") and the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, both licensed under the Creative Commons Attribution 4.0 International License (CC-BY-4.0). The full attribution is in [NOTICE.md](NOTICE.md). No other Wizards of the Coast content and no other third-party game content is included in this repository or the app. How that is checked, and its limits, are in [docs/SRD_EDITION.md](docs/SRD_EDITION.md).
 
 ## Libraries
 
