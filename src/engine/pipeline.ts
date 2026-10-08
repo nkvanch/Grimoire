@@ -557,7 +557,7 @@ export function recomputeDerived(
  *     "resource:glassback_pressure<=1" — true while that pool's CURRENT value is 1 or less). This
  *     is how a state meter (a state meter) drives tiered penalties with no new state: the
  *     effects simply switch on and off as the resource moves, and a missing pool is false.
- *   - a worn-gear test: `worn:no_armor`, `worn:not_heavy` (no Heavy armor), or `worn:no_armor_or_shield`
+ *   - a worn-gear test: `worn:no_armor`, `worn:not_heavy` (no Heavy armor), `worn:no_medium_or_heavy`, or `worn:no_armor_or_shield`
  *     ("while you aren't wearing armor or wielding a Shield"). Needs the worn-gear state, which the
  *     effect collector computes once from the equipped items.
  */
@@ -575,6 +575,7 @@ export function effectConditionActive(
       case 'no_armor':           return worn.armor === 'none';
       case 'not_heavy':          return worn.armor !== 'heavy';
       case 'no_armor_or_shield': return worn.armor === 'none' && !worn.shield;
+      case 'no_medium_or_heavy': return worn.armor === 'none' || worn.armor === 'light';   // "provided you are not wearing medium or heavy armor" (a shield is fine)
       default:                   return false;
     }
   }

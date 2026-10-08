@@ -9,6 +9,7 @@ import { Entity, CampaignRules } from '../../engine/types';
 import { replaceSpellChoiceSelection } from '../../engine/leveling';
 import { spellRepo } from '../../content/spellRepo';
 import { candidateSpellsForChoice } from '../../content/spellChoiceFilter';
+import { extraClassSpellIds } from '../../engine/spellModifiers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 const nameOf = (id: string) => spellRepo.getIndex().find(s => s.id === id)?.name ?? id;
@@ -27,7 +28,7 @@ export function ReplaceSpellPanel({ entity, rules, onEntityUpdate }: { entity: E
   const choice = target ? entity.choices.find(c => c.id === target.choiceId) : undefined;
   const known = new Set([...(entity.spellcasting?.cantrips ?? []), ...(entity.spellcasting?.known ?? []), ...(entity.spellcasting?.prepared ?? [])]);
   const candidates = choice
-    ? candidateSpellsForChoice(spellRepo.getIndex(), choice.definition, { ownClassId: choice.definition.forClassId ?? entity.identity.classId, maxCastableLevel: 9 })
+    ? candidateSpellsForChoice(spellRepo.getIndex(), choice.definition, { ownClassId: choice.definition.forClassId ?? entity.identity.classId, maxCastableLevel: 9, extraSpellIds: extraClassSpellIds(entity, choice.definition.forClassId ?? entity.identity.classId ?? '') })
         .filter(s => !known.has(s.id))
     : [];
 

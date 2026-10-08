@@ -1,4 +1,5 @@
 import { parseStartingItem } from './startingItems';
+import { extraClassSpellIds } from './spellModifiers';
 import { originFeats, officialClasses } from '../content/runtimeRules';
 import { grantedSpellAbility } from './grantedSpellAbility';
 import { itemIdForCharacter } from '../content/itemForCharacter';
@@ -1390,7 +1391,7 @@ export function replaceSpellChoiceSelection(
   const { spellMatchesChoice } = require('../content/spellChoiceFilter') as typeof import('../content/spellChoiceFilter');
   const next = spellRepo.getIndex().find(sp => sp.id === newSpellId);
   const ownClassId = choice.definition.forClassId ?? entity.identity.classId;
-  if (!next || !spellMatchesChoice(next, choice.definition, { ownClassId, maxCastableLevel: 9 })) throw new Error('That spell is not one this choice could have offered.');
+  if (!next || !spellMatchesChoice(next, choice.definition, { ownClassId, maxCastableLevel: 9, extraSpellIds: extraClassSpellIds(entity, ownClassId ?? '') })) throw new Error('That spell is not one this choice could have offered.');
 
   const source: { kind: EntitlementSourceKind; id?: string } = choice.sourceKind ? { kind: choice.sourceKind, id: choice.sourceId } : { kind: 'manual' };
   let updated = revokeSpellEntitlementFromChoice(entity, choiceId, oldSpellId);

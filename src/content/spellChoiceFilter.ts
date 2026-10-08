@@ -18,7 +18,7 @@ export const hasOwnSpellPool = (def: Pick<ChoiceDefinition, 'spellFilter'>): boo
 export function spellMatchesChoice(
   spell: PoolSpell,
   def: Pick<ChoiceDefinition, 'id' | 'spellFilter'>,
-  ctx: { ownClassId: string | null | undefined; maxCastableLevel: number },
+  ctx: { ownClassId: string | null | undefined; maxCastableLevel: number; extraSpellIds?: readonly string[] },
 ): boolean {
   const f: SpellPickFilter | undefined = def.spellFilter;
   const cantrip = isCantripChoiceDef(def);
@@ -35,7 +35,7 @@ export function spellMatchesChoice(
   if (f?.schools && !f.schools.includes(spell.school)) return false;
   if (f?.ritualOnly && !spell.ritual) return false;
 
-  if (!f?.lists) return isSpellInClassPool(spell, ctx.ownClassId ?? '');
+  if (!f?.lists) return isSpellInClassPool(spell, ctx.ownClassId ?? '') || !!ctx.extraSpellIds?.includes(spell.id);
   if (f.lists === 'any') return true;
   // An explicit list means explicit membership: an untagged spell is not on every class's list here.
   return f.lists.some(id => (spell.classes ?? []).includes(id));
@@ -44,7 +44,7 @@ export function spellMatchesChoice(
 export function candidateSpellsForChoice<T extends PoolSpell>(
   all: readonly T[],
   def: Pick<ChoiceDefinition, 'id' | 'spellFilter'>,
-  ctx: { ownClassId: string | null | undefined; maxCastableLevel: number },
+  ctx: { ownClassId: string | null | undefined; maxCastableLevel: number; extraSpellIds?: readonly string[] },
 ): T[] {
   return all.filter(s => spellMatchesChoice(s, def, ctx));
 }

@@ -14,6 +14,7 @@ import { recomputeDerived } from '../../engine/pipeline';
 import { getProgressionForClass } from '../classes/progressions';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { candidateSpellsForChoice } from '../spellChoiceFilter';
+import { extraClassSpellIds } from '../../engine/spellModifiers';
 import type { AbilityScores, CampaignRules, Entity } from '../../engine/types';
 import type { ContentProvider } from './contentProvider';
 
@@ -94,7 +95,8 @@ export function spellCandidates(provider: ContentProvider, entity: Entity, choic
   const slots = entity.spellcasting?.slots ?? {};
   const maxCastableLevel = Math.max(0, ...Object.entries(slots).filter(([, s]) => (s as { total: number }).total > 0).map(([lvl]) => Number(lvl)));
   return candidateSpellsForChoice([...provider.spells()], choice.definition,
-    { ownClassId: choice.definition.forClassId ?? entity.identity.classId, maxCastableLevel: maxCastableLevel || 1 });
+    { ownClassId: choice.definition.forClassId ?? entity.identity.classId, maxCastableLevel: maxCastableLevel || 1,
+      extraSpellIds: extraClassSpellIds(entity, choice.definition.forClassId ?? entity.identity.classId ?? '') });
 }
 
 /** Resolves a spell choice with spells that must be among the provider's candidates for it. */

@@ -26,7 +26,7 @@ import { hasLegalSpellPayment } from './spellPayment';
 import { isIncapacitated, isDead, incapacitationReason } from './combat';
 import { CampaignRules } from './types';
 import { getClassLevels } from './multiclass';
-import { spellRangeOverride, spellDamageBonus } from './spellModifiers';
+import { spellRangeOverride, spellDamageBonus, spellDamageTypeOverride, spellDamageDieOverride } from './spellModifiers';
 import { masteryPropertyFor } from './weaponMastery';
 
 // ── Large-creature weapon dice (house rule) ──────────────────────────
@@ -858,7 +858,10 @@ export function buildLayer2ForSpell(spell: Spell, entity?: Entity, classDefs: re
   const diceMatch = spell.description.match(/(\d+d\d+)\s+(\w+)\s+damage/i);
   if (diceMatch) {
     const bonus = entity ? spellDamageBonus(entity, spell.id) : 0;
-    parts.push(`${diceMatch[1]}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ''} ${capitalize(diceMatch[2])}`);
+    const die = entity ? spellDamageDieOverride(entity, spell.id) : null;
+    const dice = die ? diceMatch[1].replace(/d\d+$/, `d${die}`) : diceMatch[1];
+    const type = (entity ? spellDamageTypeOverride(entity, spell.id) : null) ?? diceMatch[2];
+    parts.push(`${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ''} ${capitalize(type)}`);
   } else if (spell.description.toLowerCase().includes('heal') || spell.description.toLowerCase().includes('hit points')) {
     const healMatch = spell.description.match(/(\d+d\d+(?:\s*\+\s*\d+)?)/);
     if (healMatch) parts.push(`Heal ${healMatch[1]}`);

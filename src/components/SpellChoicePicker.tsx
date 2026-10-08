@@ -15,6 +15,7 @@ import type { SpellIndexEntry } from '../content/spellRepo.types';
 import { mergeSpellIndex } from '../content/contentResolution';
 import { spellListsForClass, filterSpellsForClass, spellSourceLabel } from '../content/spellLists';
 import { candidateSpellsForChoice, hasOwnSpellPool } from '../content/spellChoiceFilter';
+import { extraClassSpellIds } from '../engine/spellModifiers';
 import { useHomebrewStore } from '../store/homebrewStore';
 import { Entity, ChoiceState, CampaignRules } from '../engine/types';
 import { SortOption, nameSortOptions, sortByOption } from '../content/contentQuery';
@@ -99,14 +100,17 @@ export function SpellChoicePicker({
   const classSpellLists = useMemo(() => spellListsForClass(spellLists, classId), [spellLists, classId]);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
   const classSpellSource = useMemo(() => getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource, [getMergedContentDB, classId]);
-  const classFiltered = useMemo(
-    () => filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource),
-    [allSpells, classId, activeSpellListId, spellLists, classSpellSource],
-  );
+  const extraSpellIds = useMemo(() => extraClassSpellIds(entity, classId), [entity, classId]);
+  const classFiltered = useMemo(() => {
+    const base = filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource);
+    if (extraSpellIds.length === 0) return base;
+    const have = new Set(base.map(s => s.id));
+    return [...base, ...allSpells.filter(s => extraSpellIds.includes(s.id) && !have.has(s.id))];
+  }, [allSpells, classId, activeSpellListId, spellLists, classSpellSource, extraSpellIds]);
 
   const preFilterOptions = useMemo(() => {
     if (ownPool) {
-      return candidateSpellsForChoice(allSpells, choice.definition, { ownClassId: classId, maxCastableLevel })
+      return candidateSpellsForChoice(allSpells, choice.definition, { ownClassId: classId, maxCastableLevel, extraSpellIds })
         .filter(s => !known.has(s.id));
     }
     return classFiltered.filter(s => {
