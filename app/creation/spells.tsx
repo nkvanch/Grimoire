@@ -21,6 +21,7 @@ import { spellRepo } from '../../src/content/spellRepo';
 import type { SpellIndexEntry } from '../../src/content/spellRepo.types';
 import { mergeSpellIndex } from '../../src/content/contentResolution';
 import { spellListsForClass, filterSpellsForClass, spellSourceLabel } from '../../src/content/spellLists';
+import { extraClassSpellIds } from '../../src/engine/spellModifiers';
 import { AddSpellModal } from '../../src/components/sheet/AddSpellModal';
 import { actionType, ACTION_TYPES } from '../../src/content/spellFilterUtils';
 import { spellSortOptions } from '../../src/content/spells/spellBrowse';
@@ -187,7 +188,8 @@ export default function SpellsScreen() {
       const classId = currentDraft.identity.classId;
       const hb = useHomebrewStore.getState();
       const classSource = hb.getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource;
-      const eligibleForClass = filterSpellsForClass([spell], classId, null, hb.spellLists, classSource).length > 0;
+      const eligibleForClass = filterSpellsForClass([spell], classId, null, hb.spellLists, classSource).length > 0
+        || extraClassSpellIds(currentDraft, classId).includes(spell.id);
       const targets = SPELLS_AT_L1[classId] ?? { cantrips: 0, spells: 0 };
       if (!eligibleForClass) {
         Alert.alert('Not added', `"${spell.name}" isn't on ${classId}'s spell list, so it wasn't added to your picks. It's saved and available from "+ Add extra from another class."`);
@@ -316,9 +318,16 @@ export default function SpellsScreen() {
   // The class's own chosen default source (an existing Spell List, or another class's list).
   const classSpellSource = useHomebrewStore.getState().getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource;
   const classSourceLabel = spellSourceLabel(classSpellSource, spellLists, useHomebrewStore.getState().getMergedContentDB().classes);
+  // A feature can widen the class list for this character (a patron's expanded spells): those join the class's own spells.
+  const extraSpellIds = extraClassSpellIds(draft, classId);
   const classSpells = otherClasses
     ? allSpells
-    : filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource);
+    : (() => {
+        const own = filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource);
+        if (extraSpellIds.length === 0) return own;
+        const have = new Set(own.map(s => s.id));
+        return [...own, ...allSpells.filter(s => extraSpellIds.includes(s.id) && !have.has(s.id))];
+      })();
 
   // "+ Add Additional Spell" — writes directly into spellcasting.cantrips/
   // .known (mirroring the pre-existing "externally granted" spell pattern
