@@ -6,6 +6,12 @@ Everything stays on your own devices. Nothing is collected or sent to any server
 
 Website: https://nkvanch.github.io/Grimoire/ (documentation, changelog, privacy, feedback). Feedback: feedback.grimoire@gmail.com or a GitHub issue.
 
+## Download
+
+**Android alpha:** [Download Grimoire-alpha-0.2.1.apk](https://github.com/nkvanch/Grimoire/releases/download/v0.2.1-alpha/Grimoire-alpha-0.2.1.apk) (about 60 MB), or open the [latest release](https://github.com/nkvanch/Grimoire/releases/latest) for the checksum, the sample packs and what changed. Install steps are in the [documentation](https://nkvanch.github.io/Grimoire/documentation.html#install). It is a sideloaded alpha, not on the Play Store.
+
+Coming from 0.1.0? It was signed with a different key, so export your characters, uninstall it, then install this one. From 0.2.0 it is a normal update.
+
 ## What this repository is
 
 This is the **official, SRD-only edition** of Grimoire. It contains the app code and only content that is safe to distribute: the System Reference Document 5.1 and the System Reference Document 5.2.1 (both CC-BY-4.0) and original data written for this project. Characters can follow either the 2014 rules (SRD 5.1) or the 2024 rules (SRD 5.2.1, often called 5.5e). It is meant to be the central place people build from, fork, and download releases of.

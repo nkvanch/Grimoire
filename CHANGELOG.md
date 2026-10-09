@@ -2,6 +2,24 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.1 alpha
+
+Released 9 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.1-alpha).
+
+APK SHA-256: `536e281fbc17dfc83f9771ac575742f1ea86588ff9f0c0d3dbd42b9759f44c0d`
+
+Same signing key as 0.2.0, so it installs over 0.2.0 as a normal update and keeps your characters.
+
+### New
+
+- Homebrew can now widen a class's spell list for one character (for example a patron's expanded spells). The spell pickers on the sheet and in character creation both offer those spells.
+- Homebrew can change the damage type and the die a spell shows on its card (a cantrip that deals fire damage on a d12 instead of its printed type and die).
+- A new armor condition for homebrew effects: "while not wearing medium or heavy armor".
+
+### Fixed
+
+- The character creation Spells screen ignored a feature's expanded spell list. It now offers those spells.
+
 ## 0.2.0 alpha
 
 Released 8 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.0-alpha).
