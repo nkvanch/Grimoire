@@ -7,6 +7,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Entity, Spell, RulesetId } from '../../src/engine/types';
 import { validateSpell } from '../../src/engine/homebrewValidator';
@@ -70,6 +72,7 @@ export default function SpellBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [level,       setLevel]       = useState<number>(0);
   const [school,      setSchool]      = useState('Evocation');
   const [castingTime, setCastingTime] = useState('1 action');
@@ -91,6 +94,7 @@ export default function SpellBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setLevel(editing.level);
     setSchool(editing.school);
@@ -126,7 +130,7 @@ export default function SpellBuilderScreen() {
     ]);
     return mergeHomebrewDefinition(editing, {
       id:            editing?.id ?? disambiguateId(toId(name) || 'homebrew_spell', takenSpellIds),
-      name:          name.trim(),
+      name:          name.trim(), origin: cleanOrigin(origin),
       level,
       school:        school.trim(),
       castingTime:   castingTime.trim(),
@@ -236,6 +240,8 @@ export default function SpellBuilderScreen() {
           <TextInput style={styles.input} value={name} onChangeText={setName}
             placeholder="Spell name" placeholderTextColor={Colors.textDim} />
         </Field>
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Field label="Game / Ruleset">
           <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />

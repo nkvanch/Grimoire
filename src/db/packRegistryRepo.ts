@@ -46,7 +46,6 @@ export async function recordInstalledPack(
   itemRefs: PackItemRef[],
   meta?:    { packageVersion?: string; author?: string },
 ): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     'INSERT OR REPLACE INTO installed_packs (id, name, importedAt, itemRefs, packageVersion, author) VALUES (?, ?, ?, ?, ?, ?)',
@@ -56,7 +55,6 @@ export async function recordInstalledPack(
 
 /** Every installed pack, newest first. Empty on web. */
 export async function loadInstalledPacks(): Promise<InstalledPack[]> {
-  if (Platform.OS === 'web') return [];
   const db = getDb();
   const rows = await db.getAllAsync<InstalledPackRow>(
     'SELECT * FROM installed_packs ORDER BY importedAt DESC',
@@ -108,7 +106,6 @@ export function buildPackOwnershipIndex(packs: InstalledPack[]): Map<string, { p
  *  turned out to be a mistake) without losing content they've since
  *  edited and want to keep. */
 export async function deleteInstalledPack(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync('DELETE FROM installed_packs WHERE id = ?', [id]);
 }

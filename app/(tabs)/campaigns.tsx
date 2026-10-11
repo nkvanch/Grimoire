@@ -7,6 +7,7 @@
 //   DM ACTIVE    → connection block + campaign overview (notes/quests/log/party)
 //   PLAYER ACTIVE → read-only campaign overview + sync status
 // ============================================================================
+import { LAN_SESSIONS_AVAILABLE } from '../../src/platform/features';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { CampaignPacksNote } from '../../src/components/CampaignPacksNote';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -782,7 +783,7 @@ function DmActiveView() {
         <Pressable style={styles.dmBtn} onPress={() => router.push('/dm/dashboard' as any)}>
           <Text style={styles.dmBtnTxt}>🎲 Open DM Dashboard</Text>
         </Pressable>
-        {liveSession ? (
+        {LAN_SESSIONS_AVAILABLE && (liveSession ? (
           <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={confirmEnd} testID="campaign-end-live-session">
             <Text style={[styles.dmBtnTxt, { color: Colors.red }]}>⏹ End Live Session</Text>
           </Pressable>
@@ -790,10 +791,12 @@ function DmActiveView() {
           <Pressable style={[styles.dmBtn, styles.dmBtnSecondary, starting && { opacity: 0.6 }]} disabled={starting} onPress={() => { void beginLiveSession(); }} testID="campaign-host-session">
             <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>{starting ? 'Starting…' : '📡 Host Session'}</Text>
           </Pressable>
+        ))}
+        {LAN_SESSIONS_AVAILABLE && (
+          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={() => setHostOpen(true)} testID="campaign-host-live-session">
+            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>🛰 Host Live Table (advanced)</Text>
+          </Pressable>
         )}
-        <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={() => setHostOpen(true)} testID="campaign-host-live-session">
-          <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>🛰 Host Live Table (advanced)</Text>
-        </Pressable>
         <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={confirmClose} testID="campaign-close">
           <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>↩ Close Campaign / Switch</Text>
         </Pressable>
@@ -1159,11 +1162,13 @@ function NoCampaignView({
                 Open Existing Campaign
               </Text>
             </Pressable>
-            <Pressable style={[styles.primaryBtn, styles.secondaryBtn]} onPress={onJoinLive} testID="live-join-campaign">
-              <Text style={[styles.primaryBtnTxt, { color: Colors.textPrimary }]}>
-                🗡 Join Live Session
-              </Text>
-            </Pressable>
+            {LAN_SESSIONS_AVAILABLE && (
+              <Pressable style={[styles.primaryBtn, styles.secondaryBtn]} onPress={onJoinLive} testID="live-join-campaign">
+                <Text style={[styles.primaryBtnTxt, { color: Colors.textPrimary }]}>
+                  🗡 Join Live Session
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           {/*

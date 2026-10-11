@@ -18,6 +18,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Condition, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
 import { validateRace } from '../../src/engine/homebrewValidator';
@@ -47,6 +49,7 @@ export default function ConditionBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [description, setDescription] = useState('');
   const [traits,       setTraits]     = useState<DraftTrait[]>([]);
   // Re-audit A05: see buildCondition's own comment — starting the traits
@@ -69,6 +72,7 @@ export default function ConditionBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setDescription(editing.description);
     setTraits([]);
@@ -100,7 +104,7 @@ export default function ConditionBuilderScreen() {
     }
     return mergeHomebrewDefinition(editing, {
       id,
-      name: name.trim(),
+      name: name.trim(), origin: cleanOrigin(origin),
       description: description.trim(),
       features,
       rulesetId,
@@ -167,6 +171,8 @@ export default function ConditionBuilderScreen() {
           <TextInput style={styles.input} value={name} onChangeText={setName}
             placeholder="Condition name" placeholderTextColor={Colors.textDim} />
         </View>
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Game / Ruleset</Text>

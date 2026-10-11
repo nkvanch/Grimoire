@@ -10,6 +10,7 @@
 // pattern exactly (same expo-file-system/legacy subpath, same
 // write→share/SAF, same pick→read→JSON.parse→validate→preview shape) so
 // there are not two different file-handling conventions in the app.
+import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
@@ -62,6 +63,7 @@ export async function exportPackage(
   const json = JSON.stringify(pack, null, 2);
   const filename = `${sanitize(filenameHint ?? meta.name)}.grimoire-pack`;
 
+  if (Platform.OS === 'web') { downloadTextFile(json, filename, 'application/json'); return; }
   if (action === 'save' && Platform.OS === 'android') {
     await saveTextViaSAF(json, filename, 'application/json', FileSystem.EncodingType.UTF8);
     return;
@@ -103,6 +105,11 @@ export async function pickAndValidatePackage(
   /** Whether a reference points at bundled official content (see content/officialRefs.ts). */
   isOfficialRef:   (ref: DependencyRef) => boolean = () => false,
 ): Promise<PackageImportPreview | OfficialPackImport | null> {
+  if (Platform.OS === 'web') {
+    const picked = await pickTextFileInBrowser('.grimoire-pack,.json');
+    if (!picked) return null;
+    return validatePackageText(picked.text, picked.name, knownRulesetIds, localLookup, isOfficialRef);
+  }
   const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
   if (result.canceled || !result.assets?.[0]) return null;
 

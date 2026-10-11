@@ -8,7 +8,7 @@
 // Only Homebrew-scoped data is read: this view never touches the official
 // content DB, so it can't reintroduce anything SRD-only hides in Official mode.
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { useCharacterStore } from '../../store/characterStore';
@@ -27,7 +27,7 @@ import { sortByOption } from '../../content/contentQuery';
 import type { DependencyRef } from '../../engine/contentDependencies';
 import {
   LibraryEntry, LIBRARY_CATEGORIES, LIBRARY_SORT_OPTIONS, buildLibraryEntries, filterLibraryEntries,
-  libraryRulesets, editHrefFor, originLabel, descriptionOf, rulesetIdOf,
+  libraryRulesets, editHrefFor, originLabel, descriptionOf, rulesetIdOf, sourceOf,
 } from '../../content/homebrewLibrary';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
@@ -223,6 +223,14 @@ export function HomebrewLibraryView() {
             <Text style={styles.detailDim}>
               {originLabel(entry, packOwnership)}{ruleset ? ` · Ruleset ${ruleset}` : ''}
             </Text>
+            {sourceOf(item) && (
+              <Text style={styles.detailDim}>
+                Source: {sourceOf(item)!.name}
+                {sourceOf(item)!.link ? (
+                  <Text style={{ textDecorationLine: 'underline' }} onPress={() => { void Linking.openURL(sourceOf(item)!.link!).catch(() => undefined); }}>{`  ${sourceOf(item)!.link}`}</Text>
+                ) : null}
+              </Text>
+            )}
             <Text style={styles.detailDim}>Tap 🕐 for version history.</Text>
           </View>
         )}

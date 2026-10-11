@@ -90,7 +90,6 @@ export async function getOrCreateSession(): Promise<DeviceSession> {
 export async function updateSession(
   updates: Partial<Omit<DeviceSession, 'deviceId'>>
 ): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   const fields: string[]  = [];
   const values: unknown[] = [];

@@ -35,7 +35,7 @@ const emptyCatalog = new Map([
 ].map(([from, to]) => [path.resolve(__dirname, 'src/content', from), path.resolve(__dirname, 'src/content/empty', to)]));
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName.endsWith('.wasm')) {
+  if (false && platform === 'web' && moduleName.endsWith('.wasm')) {
     return { type: 'empty' };
   }
   const resolved = context.resolveRequest(context, moduleName, platform);
@@ -43,5 +43,8 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   const replacement = emptyCatalog.get(path.resolve(resolved.filePath));
   return replacement ? { type: 'sourceFile', filePath: replacement } : resolved;
 };
+
+// expo-sqlite on web ships wa-sqlite as a .wasm that Metro must treat as an asset (prototype for a PC build).
+if (!config.resolver.assetExts.includes('wasm')) config.resolver.assetExts.push('wasm');
 
 module.exports = config;

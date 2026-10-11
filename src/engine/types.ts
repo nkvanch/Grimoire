@@ -73,6 +73,9 @@ export const asMonsterId    = (id: string): MonsterId    => id as MonsterId;
 export const asRulesetId    = (id: string): RulesetId    => id as RulesetId;
 export const asGameId       = (id: string): GameId       => id as GameId;
 
+/** Where a piece of homebrew came from, for content that was not made in Grimoire: a name (book, creator, post) and an optional link. */
+export type ContentOrigin = { name: string; link?: string };
+
 /**
  * Documented reference shape, NOT a structural base type — no content type
  * `extends`/intersects this. Every content type (Race, CharClass, Spell,
@@ -278,6 +281,8 @@ export type Subrace = {
    * full draft. The engine itself never reads this field.
    */
   homebrewDraft?: Record<string, unknown>;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /**
@@ -386,6 +391,8 @@ export type Race = {
   srd?:      boolean;
   /** Which ruleset this race belongs to. Undefined = available under every ruleset (every race authored before this field existed, including all official 5e content). See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 /**
  * One switchable set of options ("modes") for a class. The app never rolls for the player: a
@@ -530,6 +537,8 @@ export type CharClass  = {
   srd?: boolean;
   /** Which ruleset this class belongs to. Undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 export type Background = {
   id: string;
@@ -593,6 +602,8 @@ export type Background = {
    * Race.pendingChoices is swept on race change.
    */
   pendingChoices?: ChoiceDefinition[];
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /**
@@ -604,7 +615,7 @@ export type Background = {
 export const BACKGROUND_CHOICE_PREFIX = 'background_choice_';
 
 /** rulesetId undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
-export type Condition  = { id: string; name: string; description: string; features: Feature[]; rulesetId?: RulesetId };
+export type Condition  = { id: string; name: string; description: string; features: Feature[]; rulesetId?: RulesetId; origin?: ContentOrigin };
 
 export type Item = {
   id:         string;
@@ -636,6 +647,8 @@ export type Item = {
    * source is revoked.
    */
   resources?: ResourceGrant[];
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /**
@@ -693,6 +706,8 @@ export type Feat = {
   srd?: boolean;
   /** Which ruleset this feat belongs to. Undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /** Namespacing convention for Feat.pendingChoices ids — see that field's doc
@@ -1453,6 +1468,8 @@ export type Spell = {
   rulesetId?:               RulesetId;
   /** The material component's description ("a bell and silver wire"), where the source text states it. */
   material?:                string;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /**
@@ -2087,6 +2104,22 @@ export type DraftTrait = {
   outcomeOn?:         'none' | 'hit' | 'miss' | 'success' | 'failure';
   outcomeRegain?:     string;
   infusionBonus?:     string;
+  /** A card with nothing to track: usable as an action, bonus action or reaction (see actionType) without limit, like Cunning Action. */
+  atWill?:            boolean;
+  /**
+   * Spend from a resource that already exists (a class's Ki, Wild Shape, Rage ...) instead of a pool of this trait's own.
+   * Either the resource's id, or `local:<localId of another trait>` for a pool another trait in the same build creates.
+   */
+  spendsResourceId?:  string;
+  /** How much of that resource one use spends (default 1). */
+  spendsQuantity?:    string;
+  /** This trait's own pool starts at `uses`, then follows the proficiency bonus, an ability modifier, or level × usesPerLevel. */
+  usesScaling?:       'none' | 'proficiency' | 'ability' | 'level';
+  usesScalingAbility?: Ability;
+  usesPerLevel?:      string;
+  /** At this trait's level, raise an existing resource's maximum to this number (Superiority Dice 4 → 5 at 7th level). Class and subclass features only. */
+  raiseResourceId?:   string;
+  raiseResourceTo?:   string;
   /**
    * Set ONLY when a builder hydrates a saved/imported (already-compiled) feature it cannot turn back into an
    * editable effect kind: a one-line summary of the mechanics the compiled feature really carries (see
@@ -2535,6 +2568,8 @@ export type ClassProgression = {
   srd?: boolean;
   /** Which ruleset this progression (class or subclass) belongs to. Undefined = available under every ruleset. See the ContentHeader comment near the top of this file. */
   rulesetId?: RulesetId;
+  /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
+  origin?: ContentOrigin;
 };
 
 /**

@@ -142,3 +142,10 @@ export function descriptionOf(entry: LibraryEntry): string | undefined {
   const d = (entry.item as { description?: unknown }).description;
   return typeof d === 'string' && d.trim() ? d.trim() : undefined;
 }
+
+/** The source a creator recorded for this content (a name, and a link when they gave one), or null. */
+export function sourceOf(item: unknown): { name: string; link?: string } | null {
+  const o = (item as { origin?: { name?: unknown; link?: unknown } }).origin;
+  if (!o || typeof o.name !== 'string' || !o.name.trim()) return null;
+  return { name: o.name.trim(), ...(typeof o.link === 'string' && ['http://', 'https://'].some(prefix => o.link!.toString().trim().toLowerCase().startsWith(prefix)) ? { link: o.link.trim() } : {}) };
+}

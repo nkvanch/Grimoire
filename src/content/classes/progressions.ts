@@ -1,6 +1,6 @@
 import { ALL_PROGRESSIONS } from './index';
 import {
-  ClassProgression, CharClass, LevelEntry, ChoiceDefinition, Grant,
+  ClassProgression, CharClass, LevelEntry, ChoiceDefinition, Grant, Ability,
 } from '../../engine/types';
 import {
   FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, WARLOCK_SLOTS,
@@ -108,6 +108,8 @@ export function buildProgressionFromClass(cls: CharClass): ClassProgression {
   }
 
   const entries: LevelEntry[] = [];
+  // Pools made by one authored feature that a later feature spends from or raises (see traitCompiler BuildTraitOpts).
+  const localResources = new Map<string, string>();
 
   for (let level = 1; level <= 20; level++) {
     const grants: Grant[] = [];
@@ -155,9 +157,9 @@ export function buildProgressionFromClass(cls: CharClass): ClassProgression {
     const authoredFeatures = featuresByLevel.get(level);
     if (authoredFeatures) {
       for (const f of authoredFeatures) {
-        const { feature, resource, extraFeatures, extraResources } = buildTraitFeature(
+        const { feature, resource, extraFeatures, extraResources, resourceUpgrades } = buildTraitFeature(
           { ...f, effectKind: f.effectKind ?? 'none' },
-          { idPrefix: `${cls.id}_l${level}`, sourceKind: 'class', sourceRefId: cls.id, level, usedIds },
+          { idPrefix: `${cls.id}_l${level}`, sourceKind: 'class', sourceRefId: cls.id, level, usedIds, localResources },
         );
         grants.push({ kind: 'feature', value: feature });
         if (resource) grants.push({ kind: 'resource', value: resource });
@@ -169,6 +171,7 @@ export function buildProgressionFromClass(cls: CharClass): ClassProgression {
         // sub-grant simply won't produce a card until then.
         for (const ef of extraFeatures ?? []) grants.push({ kind: 'feature', value: ef });
         for (const er of extraResources ?? []) grants.push({ kind: 'resource', value: er });
+        for (const up of resourceUpgrades ?? []) grants.push({ kind: 'resource_upgrade', value: up });
       }
     }
 

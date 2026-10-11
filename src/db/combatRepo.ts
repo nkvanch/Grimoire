@@ -19,7 +19,6 @@ export type PersistedCombatState = { combat: CombatState; entities: Entity[] };
 
 /** Upserts the current combat state + its live entities (single-row table). */
 export async function saveCombatState(combat: CombatState, entities: Entity[]): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   const payload: PersistedCombatState = { combat, entities };
   await db.runAsync(
@@ -42,7 +41,6 @@ export async function saveCombatState(combat: CombatState, entities: Entity[]): 
  * outcome instead of a parse-shape mismatch.
  */
 export async function loadCombatState(): Promise<PersistedCombatState | null> {
-  if (Platform.OS === 'web') return null;
   try {
     const db  = getDb();
     const row = await db.getFirstAsync<{ data: string }>(
@@ -61,7 +59,6 @@ export async function loadCombatState(): Promise<PersistedCombatState | null> {
 
 /** Removes saved combat state (called when encounter ends). */
 export async function clearCombatState(): Promise<void> {
-  if (Platform.OS === 'web') return;
   try {
     const db = getDb();
     await db.runAsync('DELETE FROM combat_state WHERE id = 1');

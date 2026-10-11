@@ -22,7 +22,6 @@ type EntityRow = {
 
 /** Upsert a full Entity. Overwrites any existing row with the same id. */
 export async function saveEntity(entity: Entity): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     `INSERT INTO entities (id, kind, data, updatedAt)
@@ -40,7 +39,6 @@ export async function saveEntity(entity: Entity): Promise<void> {
  * This deliberately avoids parsing entity JSON and ignores drafts, metadata,
  * profiles, content ids, and any in-memory character list. */
 export async function persistedCharacterExists(id: string): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
   const db = getDb();
   const row = await db.getFirstAsync<{ present: number }>(
     "SELECT 1 AS present FROM entities WHERE id = ? AND kind = 'character' LIMIT 1",
@@ -53,7 +51,6 @@ export async function persistedCharacterExists(id: string): Promise<boolean> {
  *  invalid (re-audit A07 — same validated path parseEntityRow uses, so a
  *  direct single-entity load can't crash on a malformed row either). */
 export async function loadEntity(id: string): Promise<Entity | null> {
-  if (Platform.OS === 'web') return null;
   const db  = getDb();
   const row = await db.getFirstAsync<EntityRow>(
     'SELECT * FROM entities WHERE id = ?',
@@ -103,7 +100,6 @@ function parseEntityRow(r: EntityRow): Entity | null {
 
 /** Load all stored entities, sorted by updatedAt descending (most recent first). */
 export async function loadAllEntities(): Promise<Entity[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<EntityRow>(
     'SELECT * FROM entities ORDER BY updatedAt DESC'
@@ -113,7 +109,6 @@ export async function loadAllEntities(): Promise<Entity[]> {
 
 /** Load all entities of a specific kind. */
 export async function loadEntitiesByKind(kind: Entity['kind']): Promise<Entity[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<EntityRow>(
     'SELECT * FROM entities WHERE kind = ? ORDER BY updatedAt DESC',
@@ -138,7 +133,6 @@ export type EntityMeta = {
  * Full entity data is only deserialized when a character sheet is opened (loadEntity).
  */
 export async function loadAllEntityMeta(): Promise<EntityMeta[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<EntityRow>(
     'SELECT id, kind, data, updatedAt FROM entities ORDER BY updatedAt DESC'
@@ -167,7 +161,6 @@ export async function loadAllEntityMeta(): Promise<EntityMeta[]> {
 
 /** Permanently delete an entity by id. */
 export async function deleteEntity(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync('DELETE FROM entities WHERE id = ?', [id]);
 }

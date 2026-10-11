@@ -4,6 +4,7 @@
 // file-system/sharing pattern (same expo-file-system/legacy subpath — SDK 56's
 // default expo-file-system API is a different class-based shape that doesn't
 // have writeAsStringAsync).
+import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
 import { withRequiredPacks } from '../content/requiredPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -129,6 +130,7 @@ export async function saveTextViaSAF(content: string, filename: string, mimeType
 
 export async function shareText(content: string, filename: string, format: 'txt' | 'md' | 'json', action: ExportAction = 'share'): Promise<void> {
   const mimeType = format === 'md' ? 'text/markdown' : format === 'json' ? 'application/json' : 'text/plain';
+  if (Platform.OS === 'web') { downloadTextFile(content, filename, mimeType); return; }
   if (action === 'save' && Platform.OS === 'android') {
     await saveTextViaSAF(content, filename, mimeType, FileSystem.EncodingType.UTF8);
     return;

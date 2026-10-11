@@ -17,6 +17,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, ResourceGrant, Feature, Entity, RulesetId } from '../../src/engine/types';
 import { MonsterTemplate } from '../../src/content/monsters/types';
@@ -116,6 +118,7 @@ export default function MonsterBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,      setName]      = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [cr,        setCr]        = useState<number>(1);
   const [size,      setSize]      = useState<MonsterTemplate['size']>('medium');
   const [type,      setType]      = useState('humanoid');
@@ -147,6 +150,7 @@ export default function MonsterBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setCr(editing.cr);
     setSize(editing.size);
@@ -238,7 +242,7 @@ export default function MonsterBuilderScreen() {
 
     return mergeHomebrewDefinition(editing, {
       id,
-      name: name.trim(),
+      name: name.trim(), origin: cleanOrigin(origin),
       cr,
       size,
       type: type.trim(),
@@ -314,6 +318,8 @@ export default function MonsterBuilderScreen() {
           <TextInput style={styles.input} value={name} onChangeText={setName}
             placeholder="Monster name" placeholderTextColor={Colors.textDim} />
         </Field>
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Field label="Game / Ruleset">
           <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />

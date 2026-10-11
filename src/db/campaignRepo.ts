@@ -14,7 +14,6 @@ type CampaignRow = {
 
 /** Upsert a Campaign. */
 export async function saveCampaign(campaign: Campaign): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     `INSERT INTO campaigns (id, data, updatedAt)
@@ -28,7 +27,6 @@ export async function saveCampaign(campaign: Campaign): Promise<void> {
 
 /** Load a single Campaign by id. Returns null if not found. */
 export async function loadCampaign(id: string): Promise<Campaign | null> {
-  if (Platform.OS === 'web') return null;
   const db  = getDb();
   const row = await db.getFirstAsync<CampaignRow>(
     'SELECT * FROM campaigns WHERE id = ?',
@@ -45,7 +43,6 @@ export async function loadCampaign(id: string): Promise<Campaign | null> {
  * and hiding every other valid campaign (audit finding PERSIST-4).
  */
 export async function loadAllCampaigns(): Promise<Campaign[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<CampaignRow>(
     'SELECT * FROM campaigns ORDER BY updatedAt DESC'
@@ -64,7 +61,6 @@ export async function loadAllCampaigns(): Promise<Campaign[]> {
 
 /** Permanently delete a campaign by id. */
 export async function deleteCampaign(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync('DELETE FROM campaigns WHERE id = ?', [id]);
 }

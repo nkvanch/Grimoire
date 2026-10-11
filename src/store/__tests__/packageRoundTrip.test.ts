@@ -47,7 +47,12 @@ const CATEGORY_KEY: Record<ContentCacheType, keyof GrimoirePackHomebrew> = {
 /** One minimal-but-structurally-plausible fixture per supported content
  *  type, id-prefixed 'rt_' (round-trip) to avoid colliding with any other
  *  test's ids sharing this same store module instance. */
+/** Every fixture carries a source, so the round trip also proves `origin` (name and link) survives export, import and resolution. */
 function fixtureFor(type: ContentCacheType): HomebrewContent {
+  return { ...baseFixtureFor(type), origin: { name: 'Example Post', link: 'https://example.com/post' } } as HomebrewContent;
+}
+
+function baseFixtureFor(type: ContentCacheType): HomebrewContent {
   switch (type) {
     case 'race': return { id: 'rt_race', name: 'RT Race', features: [] } as unknown as HomebrewContent;
     case 'subrace': return { id: 'rt_subrace', name: 'RT Subrace', parentId: 'rt_race', features: [] } as unknown as HomebrewContent;

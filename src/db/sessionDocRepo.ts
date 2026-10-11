@@ -49,7 +49,7 @@ let shared: KeyValueStore | null = null;
 
 /** The app-wide session document store. */
 export function getSessionKv(): KeyValueStore {
-  if (!shared) shared = Platform.OS === 'web' ? new InMemoryKv() : new SqliteKv();
+  if (!shared) shared = new SqliteKv();
   return shared;
 }
 

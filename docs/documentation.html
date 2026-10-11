@@ -44,6 +44,16 @@
   </ol>
   <p>To see which build you have, open Android Settings, Apps, Grimoire. The version should match the <a href="changelog.html">changelog</a>.</p>
 
+  <h2 id="browser">Use it in a browser</h2>
+  <p>The same app also runs in a desktop browser at <a href="app/">nkvanch.github.io/Grimoire/app</a>. It is meant for the part that is tedious on a phone: write homebrew on a computer, export a <code>.grimoire-pack</code>, and import that file on your phone (see <a href="#packs">Sharing with .grimoire-pack</a>).</p>
+  <ul>
+    <li>Your characters, homebrew and installed packs are stored in this browser, on this computer. Nothing is sent to a server. The phone app and the browser do not share data, so move things by exporting and importing files.</li>
+    <li>Clearing the site's data, or using a private window, deletes what is stored there. Export a backup of anything you want to keep.</li>
+    <li>The first visit loads the page and then reloads it once. That is normal: a small helper (a service worker) is needed for the local database.</li>
+    <li>Tested in Microsoft Edge. Chrome should behave the same. Firefox and Safari have not been tested.</li>
+    <li>Not available there yet: hosting or joining a live session, scanning a QR code and PDF export.</li>
+  </ul>
+
   <h2 id="content">What content is in the app</h2>
   <p>The app ships only content from the System Reference Document 5.1 and 5.2.1 (CC-BY-4.0) plus original content. Everything else you use is homebrew that you create or import. That is deliberate: it keeps the app and this repository safe to distribute. Details are on the <a href="license.html">license and content policy</a> page.</p>
 
@@ -97,7 +107,8 @@
 
   <h2 id="limits">Current limitations</h2>
   <ul>
-    <li>Android only. There is no iOS build.</li>
+    <li>The Android app is the main build. There is no iOS build.</li>
+    <li>The browser version is newer and has had less testing than the Android app.</li>
     <li>Alpha software, so expect rough edges and please report them.</li>
     <li>Reactive features and outcomes are shown as text. Grimoire does not resolve them automatically.</li>
     <li>Homebrew is 5e-compatible only.</li>

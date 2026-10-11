@@ -11,6 +11,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Alert } from '../../src/utils/alert';
 import {
@@ -156,6 +158,7 @@ export default function RaceBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [age,          setAge]         = useState('');
   const [size,         setSize]        = useState<typeof SIZES[number]>('Medium');
   const [speed,        setSpeed]       = useState('30');
@@ -185,6 +188,7 @@ export default function RaceBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setAge(editing.age ?? '');
     setSize(editing.size ?? 'Medium');
     setLanguages((editing.languages ?? ['Common']).join(', '));
@@ -334,7 +338,7 @@ export default function RaceBuilderScreen() {
       ...(editing && !editing.homebrewDraft ? {
         features: editing.features, resources: editing.resources, pendingChoices: editing.pendingChoices,
       } : {}),
-      id, name: name.trim(), features,
+      id, name: name.trim(), origin: cleanOrigin(origin), features,
       resources: resources.length > 0 ? resources : undefined,
       subraces: compiledSubraces.length > 0 ? compiledSubraces : undefined,
       age: age.trim() || undefined,
@@ -440,6 +444,8 @@ export default function RaceBuilderScreen() {
         <Text style={styles.fieldLabel}>Race Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Pandafolk" placeholderTextColor={Colors.textDim} />
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Text style={styles.fieldLabel}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />

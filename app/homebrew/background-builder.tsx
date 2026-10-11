@@ -11,6 +11,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Background, Feature, SkillName, Entity, RulesetId, BACKGROUND_CHOICE_PREFIX } from '../../src/engine/types';
 import {
@@ -166,6 +168,7 @@ export default function BackgroundBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name, setName] = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [skills, setSkills] = useState<SkillName[]>([]);
   const [toolProfs, setToolProfs] = useState<string[]>([]);
   const [newTool, setNewTool] = useState('');
@@ -182,6 +185,7 @@ export default function BackgroundBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
     if (draft) {
@@ -291,7 +295,7 @@ export default function BackgroundBuilderScreen() {
       ...(editing && !editing.homebrewDraft ? {
         features: editing.features, pendingChoices: editing.pendingChoices,
       } : {}),
-      id, name: name.trim(), features: serializedFeatures.features, rulesetId,
+      id, name: name.trim(), origin: cleanOrigin(origin), features: serializedFeatures.features, rulesetId,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, BACKGROUND_CHOICE_PREFIX),
       homebrewDraft: { skills, toolProfs, languages, equipmentNote, features, pendingChoices, traitOwners: serializedFeatures.owners },
     });
@@ -380,6 +384,8 @@ export default function BackgroundBuilderScreen() {
         <Text style={styles.fieldLabel}>Background Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Wandering Scholar" placeholderTextColor={Colors.textDim} />
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Text style={styles.fieldLabel}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />

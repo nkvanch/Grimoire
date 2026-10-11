@@ -77,7 +77,6 @@ export async function saveHomebrewContent(
   type:    ContentCacheType,
   content: HomebrewContent,
 ): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.withTransactionAsync(() => upsertOne(db, type, content));
 }
@@ -99,7 +98,6 @@ export async function saveHomebrewContent(
 export async function saveHomebrewContentBatch(
   items: { type: ContentCacheType; content: HomebrewContent }[],
 ): Promise<void> {
-  if (Platform.OS === 'web') return;
   if (items.length === 0) return;
   const db = getDb();
   await db.withTransactionAsync(async () => {
@@ -115,7 +113,6 @@ export async function loadContentHistory(
   type: ContentCacheType,
   id:   string,
 ): Promise<ContentVersionEntry[]> {
-  if (Platform.OS === 'web') return [];
   const db  = getDb();
   const key = `${type}:${id}`;
   const rows = await db.getAllAsync<ContentCacheHistoryRow>(
@@ -141,7 +138,6 @@ export async function restoreContentVersion(
   id:      string,
   version: string,
 ): Promise<HomebrewContent> {
-  if (Platform.OS === 'web') throw new Error('Not available on web.');
   const db  = getDb();
   const key = `${type}:${id}`;
   const row = await db.getFirstAsync<ContentCacheHistoryRow>(
@@ -171,7 +167,6 @@ function parseContentRow(r: ContentCacheRow): HomebrewContent | null {
 
 /** Load all homebrew content of a given type. */
 export async function loadHomebrewByType(type: ContentCacheType): Promise<HomebrewContent[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<ContentCacheRow>(
     'SELECT * FROM content_cache WHERE type = ?',
@@ -182,7 +177,6 @@ export async function loadHomebrewByType(type: ContentCacheType): Promise<Homebr
 
 /** Load all homebrew content (all types). */
 export async function loadAllHomebrew(): Promise<Partial<Record<ContentCacheType, HomebrewContent[]>>> {
-  if (Platform.OS === 'web') return {};
   const db   = getDb();
   const rows = await db.getAllAsync<ContentCacheRow>('SELECT * FROM content_cache');
   const result: Partial<Record<ContentCacheType, HomebrewContent[]>> = {};
@@ -197,7 +191,6 @@ export async function loadAllHomebrew(): Promise<Partial<Record<ContentCacheType
 }
 
 export async function deleteHomebrewContent(type: ContentCacheType, id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db   = getDb();
   const key  = `${type}:${id}`;
   await db.runAsync('DELETE FROM content_cache WHERE id = ?', [key]);

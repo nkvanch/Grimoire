@@ -10,7 +10,7 @@
 // everything from this file.
 import {
   Ability, SkillName, SenseType, Feature, FeatureSource, Effect, ResourceGrant,
-  DraftTrait, Race, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation, AbilityEffect, Rider,
+  DraftTrait, Race, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation, AbilityEffect, Rider, ResourceUpgrade,
 } from '../engine/types';
 
 export const ABILITIES: Ability[] = ['str','dex','con','int','wis','cha'];
@@ -133,6 +133,44 @@ export function buildRequiresSave(t: DraftTrait): FeatureActivation['requiresSav
   return { ability, dc: { ability: t.saveDcAbility ?? 'cha' } };
 }
 
+/** What every trait compile call is given. `localResources` maps a trait's localId to the id of the pool it created, so a later
+ *  trait in the same build can spend from it (`spendsResourceId: 'local:<localId>'`); pass one Map for a whole class or subclass. */
+export type BuildTraitOpts = {
+  idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null;
+  usedIds?: Set<string>; localResources?: Map<string, string>;
+};
+
+/** The existing resource a trait spends from, and how much per use, or null when it uses a pool of its own. */
+function spentResource(t: DraftTrait, local?: Map<string, string>): { resourceId: string; quantity: number } | null {
+  const raw = (t.spendsResourceId ?? '').trim();
+  if (!raw) return null;
+  const resourceId = raw.startsWith('local:') ? local?.get(raw.slice('local:'.length)) : raw;
+  if (!resourceId) return null;
+  return { resourceId, quantity: Math.max(1, parseInt(t.spendsQuantity ?? '1', 10) || 1) };
+}
+
+/** Applies the authored "maximum follows ..." setting to a pool (proficiency bonus, an ability modifier, or level × N). */
+function scaledPool(pool: ResourceGrant, t: DraftTrait): ResourceGrant {
+  switch (t.usesScaling) {
+    case 'proficiency': return { ...pool, perProficiencyBonus: true };
+    case 'ability':     return t.usesScalingAbility ? { ...pool, perAbilityModifier: t.usesScalingAbility } : pool;
+    case 'level': {
+      const n = parseInt(t.usesPerLevel ?? '', 10);
+      return Number.isFinite(n) && n > 0 ? { ...pool, perLevel: n } : pool;
+    }
+    default: return pool;
+  }
+}
+
+/** The resource upgrade a trait asks for at its own level (class and subclass features), or null. */
+export function resourceUpgradeOf(t: DraftTrait, local?: Map<string, string>): ResourceUpgrade | null {
+  const raw = (t.raiseResourceId ?? '').trim();
+  const id = raw.startsWith('local:') ? local?.get(raw.slice('local:'.length)) : raw;
+  const to = parseInt(t.raiseResourceTo ?? '', 10);
+  if (!id || !Number.isFinite(to) || to < 1) return null;
+  return { resourceId: id, newMaximum: to };
+}
+
 export function toId(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
@@ -209,7 +247,7 @@ export function disambiguateId(base: string, usedIds?: Set<string>): string {
  */
 function buildTraitFeatureCore(
   t: DraftTrait,
-  opts: { idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null; usedIds?: Set<string> },
+  opts: BuildTraitOpts,
 ): { feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[] } {
   const fid = disambiguateId(`${opts.idPrefix}_${toId(t.name)}`, opts.usedIds);
   const base: Omit<Feature, 'effects' | 'activation' | 'abilityEffects'> = {
@@ -411,12 +449,14 @@ function buildTraitFeatureCore(
     };
   }
   if (t.effectKind === 'resource_ability') {
-    const resourceId = `${fid}_pool`;
+    const spent = spentResource(t, opts.localResources);
+    const resourceId = spent ? spent.resourceId : `${fid}_pool`;
     const maxUses = Math.max(1, parseInt(t.uses, 10) || 1);
     const recharge = resolveRecharge(t.recharge, t.rechargeOther);
-    const resource: ResourceGrant = {
+    const resource: ResourceGrant | null = spent ? null : scaledPool({
       resourceId, name: t.name, maximum: maxUses, recharge,
-    };
+    }, t);
+    if (resource) opts.localResources?.set(t.localId, resource.resourceId);
     const actionType = t.actionType === 'other' ? 'free' : t.actionType;
     const descPrefix = t.actionType === 'other' && t.actionTypeOther.trim()
       ? `${t.actionTypeOther.trim()} — ` : '';
@@ -428,7 +468,7 @@ function buildTraitFeatureCore(
         passive: false,
         activation: {
           actionType,
-          resourceCost: { resourceId, quantity: 1 },
+          resourceCost: { resourceId, quantity: spent ? spent.quantity : 1 },
           range: 'self', target: buildRequiresSave(t) ? 'single' : 'self', requiresSave: buildRequiresSave(t),
         },
         abilityEffects: t.healDice.trim() ? [{ type: 'heal', dice: t.healDice.trim() }] : [],
@@ -456,11 +496,26 @@ function buildTraitFeatureCore(
  */
 function buildTraitFeatureBase(
   t: DraftTrait,
-  opts: { idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null; usedIds?: Set<string> },
+  opts: BuildTraitOpts,
 ): { feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[] } {
   const result = buildTraitFeatureCore(t, opts);
-  if (!t.limitedUse || t.effectKind === 'resource_ability' || t.effectKind === 'spell_grant') {
-    return result;
+  if (t.effectKind === 'resource_ability' || t.effectKind === 'spell_grant') return result;
+  const spent = spentResource(t, opts.localResources);
+  // A card is wanted when the trait is limited-use, spends an existing resource, or is simply usable at will.
+  if (!t.limitedUse && !t.atWill && !spent) return result;
+  const actionType = t.actionType === 'other' ? 'free' : t.actionType;
+  const activation = (cost: FeatureActivation['resourceCost']): FeatureActivation => ({
+    actionType, resourceCost: cost,
+    range: 'self', target: buildRequiresSave(t) ? 'single' : 'self', requiresSave: buildRequiresSave(t),
+  });
+  if (spent) {
+    // Spends a resource that already exists (Ki, Wild Shape ...): no pool of its own.
+    return { ...result, feature: { ...result.feature, passive: false,
+      activation: activation({ resourceId: spent.resourceId, quantity: spent.quantity }) } };
+  }
+  if (!t.limitedUse) {
+    // At will: a card with nothing to track.
+    return { ...result, feature: { ...result.feature, passive: false, activation: activation(null) } };
   }
   // Derived from the (possibly disambiguated) feature id itself, not
   // recomputed from idPrefix/name, so the resource pool stays tied to the
@@ -468,26 +523,22 @@ function buildTraitFeatureBase(
   const resourceId = `${result.feature.id}_pool`;
   const maxUses     = Math.max(1, parseInt(t.uses, 10) || 1);
   const recharge    = resolveRecharge(t.recharge, t.rechargeOther);
-  const resource: ResourceGrant = { resourceId, name: `${t.name} (Uses)`, maximum: maxUses, recharge };
-  const actionType = t.actionType === 'other' ? 'free' : t.actionType;
+  const resource: ResourceGrant = scaledPool({ resourceId, name: `${t.name} (Uses)`, maximum: maxUses, recharge }, t);
+  opts.localResources?.set(t.localId, resourceId);
   return {
     ...result,
-    feature: {
-      ...result.feature,
-      passive: false,
-      activation: {
-        actionType,
-        resourceCost: { resourceId, quantity: 1 },
-        range: 'self', target: buildRequiresSave(t) ? 'single' : 'self', requiresSave: buildRequiresSave(t),
-      },
-    },
+    feature: { ...result.feature, passive: false, activation: activation({ resourceId, quantity: 1 }) },
     resource,
   };
 }
 
 
 // ── Advanced fields: riders, timing, per-target effects, auras, derived-stat rules ─────────────────────────────────
-type BuiltTrait = { feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[] };
+type BuiltTrait = {
+  feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[];
+  /** Resource maximums this trait raises at its own level; the class and subclass compilers turn each into a `resource_upgrade` grant. */
+  resourceUpgrades?: ResourceUpgrade[];
+};
 
 /** True when the trait sets anything in the advanced section. */
 export function hasAdvancedFields(t: DraftTrait): boolean {
@@ -596,7 +647,8 @@ function layerAdvanced(r: BuiltTrait, t: DraftTrait): BuiltTrait {
       limit: d.limit,
       ...(d.requires.trim() ? { requires: d.requires.trim() } : {}),
       ...(d.clears.trim() ? { clears: d.clears.trim() } : {}),
-      ...(d.usesPool && r.resource ? { cost: { resourceId: r.resource.resourceId, quantity: 1 } } : {}),
+      ...(d.usesPool && r.resource ? { cost: { resourceId: r.resource.resourceId, quantity: 1 } }
+        : d.usesPool && r.feature.activation?.resourceCost ? { cost: { ...r.feature.activation.resourceCost } } : {}),
     });
   });
   if (riders.length) f.riders = riders;
@@ -615,9 +667,11 @@ function layerAdvanced(r: BuiltTrait, t: DraftTrait): BuiltTrait {
  */
 export function buildTraitFeature(
   t: DraftTrait,
-  opts: { idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null; usedIds?: Set<string> },
+  opts: BuildTraitOpts,
 ): BuiltTrait {
-  return layerAdvanced(buildTraitFeatureBase(t, opts), t);
+  const built = layerAdvanced(buildTraitFeatureBase(t, opts), t);
+  const upgrade = resourceUpgradeOf(t, opts.localResources);
+  return upgrade ? { ...built, resourceUpgrades: [upgrade] } : built;
 }
 
 // ── Draft subrace model ───────────────────────────────────────────────────────

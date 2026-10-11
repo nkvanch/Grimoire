@@ -11,7 +11,6 @@ import { Entity, stripTransientRuntimeState } from '../engine/types';
 
 /** Upserts the current creation draft (single-row table). */
 export async function saveDraftState(entity: Entity): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     `INSERT INTO character_draft (id, data, updatedAt) VALUES (1, ?, ?)
@@ -34,7 +33,6 @@ export async function saveDraftState(entity: Entity): Promise<void> {
  * `{ attackSequence: null }` patch.
  */
 export async function loadDraftState(): Promise<Entity | null> {
-  if (Platform.OS === 'web') return null;
   try {
     const db  = getDb();
     const row = await db.getFirstAsync<{ data: string }>(
@@ -49,7 +47,6 @@ export async function loadDraftState(): Promise<Entity | null> {
 
 /** Removes the persisted draft (called once the character is durably saved, or discarded). */
 export async function clearDraftState(): Promise<void> {
-  if (Platform.OS === 'web') return;
   try {
     const db = getDb();
     await db.runAsync('DELETE FROM character_draft WHERE id = 1');

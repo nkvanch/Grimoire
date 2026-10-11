@@ -36,7 +36,6 @@ function fromRow(row: PreparedEncounterRow): PreparedEncounter | null {
  *  columns purely for indexed search/filter — the blob is still the single
  *  source of truth, see schema.ts's own note on this table. */
 export async function saveEncounter(encounter: PreparedEncounter): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     `INSERT INTO prepared_encounters (id, campaignId, status, data, updatedAt)
@@ -52,7 +51,6 @@ export async function saveEncounter(encounter: PreparedEncounter): Promise<void>
 
 /** Load a single PreparedEncounter by id. Returns null if not found. */
 export async function loadEncounter(id: string): Promise<PreparedEncounter | null> {
-  if (Platform.OS === 'web') return null;
   const db  = getDb();
   const row = await db.getFirstAsync<PreparedEncounterRow>(
     'SELECT * FROM prepared_encounters WHERE id = ?',
@@ -63,7 +61,6 @@ export async function loadEncounter(id: string): Promise<PreparedEncounter | nul
 
 /** Load every PreparedEncounter, newest-updated first. Empty on web. */
 export async function loadAllEncounters(): Promise<PreparedEncounter[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<PreparedEncounterRow>(
     'SELECT * FROM prepared_encounters ORDER BY updatedAt DESC',
@@ -73,7 +70,6 @@ export async function loadAllEncounters(): Promise<PreparedEncounter[]> {
 
 /** Permanently delete a PreparedEncounter by id. */
 export async function deleteEncounter(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync('DELETE FROM prepared_encounters WHERE id = ?', [id]);
 }

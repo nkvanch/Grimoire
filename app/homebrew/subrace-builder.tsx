@@ -11,6 +11,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, Entity, RulesetId, RACE_CHOICE_PREFIX } from '../../src/engine/types';
 import {
@@ -71,6 +73,7 @@ export default function SubraceBuilderScreen() {
   const [parentSearch, setParentSearch] = useState('');
   const [parentId, setParentId] = useState<string | null>(parentIdParam ?? null);
   const [name, setName] = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [abiBonuses, setAbiBonuses] = useState<Record<Ability, string>>({
     str: '', dex: '', con: '', int: '', wis: '', cha: '',
   });
@@ -87,6 +90,7 @@ export default function SubraceBuilderScreen() {
     if (!editing) return;
     setParentId(editing.parentId);
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
     if (draft) {
@@ -119,7 +123,7 @@ export default function SubraceBuilderScreen() {
     const serializedTraits = serializeDraftTraits({ originalFeatures: editing?.features ?? [], originalResources: editing?.resources,
       originalDrafts: (originalDraft?.traits as DraftTrait[] | undefined) ?? [], editedDrafts: traits, idPrefix: compiled.id,
       sourceKind: 'race', sourceRefId: compiled.id, generatedFeatures: generated, generatedIds, owners: originalDraft?.traitOwners });
-    const subrace = { ...compiled, rulesetId, features: serializedTraits.features, resources: serializedTraits.resources.length ? serializedTraits.resources : undefined,
+    const subrace = { ...compiled, rulesetId, origin: cleanOrigin(origin), features: serializedTraits.features, resources: serializedTraits.resources.length ? serializedTraits.resources : undefined,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, RACE_CHOICE_PREFIX),
       homebrewDraft: { abiBonuses, traits, pendingChoices, traitOwners: serializedTraits.owners } };
     // A standalone subrace keeps the editId (if editing) so re-saving
@@ -175,7 +179,7 @@ export default function SubraceBuilderScreen() {
   function runTest() {
     if (!parentId) return;
     const draft = { ...newDraftSubrace(name.trim()), abiBonuses, traits };
-    const subrace = buildSubrace(draft, parentId);
+    const subrace = { ...buildSubrace(draft, parentId), origin: cleanOrigin(origin) };
     const empty = makeEmptyEntity('homebrew-test');
     const scratch: Entity = { ...empty, identity: { ...empty.identity, level: 1 } };
     const { before, after } = simulate(scratch, e => {
@@ -247,6 +251,8 @@ export default function SubraceBuilderScreen() {
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Subrace Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Fire Pandafolk" placeholderTextColor={Colors.textDim} />
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(initialParentRace?.rulesetId ?? draftRulesetId)} />

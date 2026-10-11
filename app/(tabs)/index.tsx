@@ -1,5 +1,6 @@
 // app/(tabs)/index.tsx
 // Home dashboard: last character, active campaign section, quick actions, dice roller.
+import { LAN_SESSIONS_AVAILABLE } from '../../src/platform/features';
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
@@ -344,7 +345,7 @@ export default function HomeScreen() {
               <Text style={styles.actionBtnIcon}>🗺️</Text>
               <Text style={styles.actionBtnText}>Open Campaign</Text>
             </Pressable>
-          ) : (
+          ) : LAN_SESSIONS_AVAILABLE ? (
             <Pressable
               style={[styles.actionBtn, styles.actionBtnSecondary]}
               onPress={() => router.push({ pathname: '/(tabs)/campaigns', params: { action: 'join' } } as any)}
@@ -352,7 +353,7 @@ export default function HomeScreen() {
               <Text style={styles.actionBtnIcon}>🤝</Text>
               <Text style={styles.actionBtnText}>Join Campaign</Text>
             </Pressable>
-          )}
+          ) : null}
 
           <Pressable testID="home-dice-roller" accessibilityLabel="Dice Roller" style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => setDiceOpen(true)}>
             <Text style={styles.actionBtnIcon}>🎲</Text>

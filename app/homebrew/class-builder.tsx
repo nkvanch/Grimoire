@@ -7,6 +7,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { CharClass, Ability, DraftTrait, Entity, RulesetId, ChoiceDefinition } from '../../src/engine/types';
 import {
@@ -21,6 +23,7 @@ import { Alert } from '../../src/utils/alert';
 import { mergeItemIndex, resolveItemById } from '../../src/content/contentResolution';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { poolChoicesBefore } from '../../src/content/classes/knownResources';
 import { newDraftTrait, TraitEditorModal, COMMON_TOOLS, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
 import { globalContentDB } from '../../src/content/classes/library';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
@@ -114,6 +117,7 @@ export default function ClassBuilderScreen() {
 
   // ── Basics
   const [name,        setName]        = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [hitDie,      setHitDie]      = useState<4|6|8|10|12>(8);
   const [hpAbility,   setHpAbility]   = useState<Ability>('con');
   const [description, setDescription] = useState('');
@@ -180,6 +184,7 @@ export default function ClassBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setHitDie(editing.hitDie as 4|6|8|10|12);
     setHpAbility(editing.hpAbility ?? 'con');
@@ -335,7 +340,7 @@ export default function ClassBuilderScreen() {
     const levelChoices = serializeLeveledChoices(editing?.levelChoices, levelChoicesList, id);
     return mergeHomebrewDefinition(editing, {
       id,
-      name:        name.trim(),
+      name:        name.trim(), origin: cleanOrigin(origin),
       hitDie,
       features:    editing?.features ?? [],
       description: description.trim() || undefined,
@@ -513,6 +518,8 @@ export default function ClassBuilderScreen() {
         <Text style={styles.fieldLabel}>Class Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Runesmith" placeholderTextColor={Colors.textDim} />
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Text style={styles.fieldLabel}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />
@@ -972,6 +979,8 @@ export default function ClassBuilderScreen() {
         onChange={t => updateFeature(t as LevelFeature)}
         onDone={() => setOpenFeatureId(null)}
         onDelete={() => openFeature && deleteFeature(openFeature.localId)}
+        resourceChoices={poolChoicesBefore(levelFeatures, openFeature)}
+        allowRaise
       />
 
       <HomebrewTestModal

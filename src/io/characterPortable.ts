@@ -1,4 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { Platform } from 'react-native';
+import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
 import * as FileSystem from 'expo-file-system/legacy';
 import { CustomRuleProfile, Entity } from '../engine/types';
 import { migrateEntity } from '../engine/multiclass';
@@ -64,6 +66,10 @@ export async function resolvePortableCharacterImport(
 }
 
 export async function pickPortableCharacter(localProfiles: readonly CustomRuleProfile[] = []): Promise<ParsedPortableCharacter | null> {
+  if (Platform.OS === 'web') {
+    const picked = await pickTextFileInBrowser('.json,application/json');
+    return picked ? resolvePortableCharacterImport(picked.text, localProfiles) : null;
+  }
   const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
   if (result.canceled) return null;
   const text = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.UTF8 });

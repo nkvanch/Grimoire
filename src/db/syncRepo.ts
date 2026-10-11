@@ -23,7 +23,6 @@ type SyncEventRow = {
 
 /** Persist a new sync event (applied = false). */
 export async function queueSyncEvent(event: SyncEvent): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     `INSERT INTO sync_events
@@ -46,7 +45,6 @@ export async function queueSyncEvent(event: SyncEvent): Promise<void> {
  * so they can be replayed in correct order on reconnect.
  */
 export async function getUnflushedEvents(sessionId: string): Promise<SyncEvent[]> {
-  if (Platform.OS === 'web') return [];
   const db   = getDb();
   const rows = await db.getAllAsync<SyncEventRow>(
     `SELECT * FROM sync_events
@@ -77,7 +75,6 @@ export async function getUnflushedEvents(sessionId: string): Promise<SyncEvent[]
 
 /** Mark a single event as applied (flushed to peers). */
 export async function markEventApplied(eventId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     'UPDATE sync_events SET applied = 1 WHERE id = ?',
@@ -87,7 +84,6 @@ export async function markEventApplied(eventId: string): Promise<void> {
 
 /** Mark all unapplied events for a session as applied in bulk. */
 export async function markAllEventsApplied(sessionId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     'UPDATE sync_events SET applied = 1 WHERE sessionId = ? AND applied = 0',
@@ -97,7 +93,6 @@ export async function markAllEventsApplied(sessionId: string): Promise<void> {
 
 /** Purge applied events older than cutoffTimestamp (housekeeping). */
 export async function pruneAppliedEvents(cutoffTimestamp: number): Promise<void> {
-  if (Platform.OS === 'web') return;
   const db = getDb();
   await db.runAsync(
     'DELETE FROM sync_events WHERE applied = 1 AND timestamp < ?',

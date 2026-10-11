@@ -49,7 +49,6 @@ export async function recordTimelineEntry(
   timestamp: number,
   category?: TimelineCategory,
 ): Promise<void> {
-  if (Platform.OS === 'web') return;
   try {
     const db = getDb();
     await db.runAsync(
@@ -66,7 +65,6 @@ export async function recordTimelineEntry(
  *  already covers "step back a few actions"; restoring an ARBITRARY past
  *  snapshot is a separate, bigger, deliberately-deferred feature). */
 export async function loadTimeline(entityId: string): Promise<TimelineEntry[]> {
-  if (Platform.OS === 'web') return [];
   try {
     const db = getDb();
     const rows = await db.getAllAsync<TimelineRow>(

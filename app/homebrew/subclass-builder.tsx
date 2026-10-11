@@ -18,6 +18,8 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { DraftTrait, HomebrewSubclass, LevelEntry, Grant, Entity, asSubclassId, RulesetId, Feature, ResourceGrant } from '../../src/engine/types';
 import {
@@ -30,6 +32,7 @@ import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { classResourceChoices, poolChoicesBefore } from '../../src/content/classes/knownResources';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal } from '../../src/components/homebrew/TraitEditor';
 import { toId, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/content/traitCompiler';
 import { mechanicsLabel } from '../../src/content/featureMechanics';
@@ -106,6 +109,7 @@ export default function SubclassBuilderScreen() {
   const [parentSearch, setParentSearch] = useState('');
   const [classId, setClassId] = useState<string | null>(classIdParam ?? null);
   const [name, setName] = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [levelFeatures, setLevelFeatures] = useState<LevelFeature[]>([]);
   // Re-audit A05: which feature localIds the user has actually opened and
   // edited this session — buildHomebrewSubclass uses this to decide whether
@@ -136,6 +140,7 @@ export default function SubclassBuilderScreen() {
     if (!editing) return;
     setClassId(editing.classId);
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setLevelFeatures(draftFeaturesFromEntries(editing.entries));
     setLevelChoicesList(hydrateLeveledChoices(editing.entries.map(e => ({ level: e.level, choices: e.choices })), editing.id));
@@ -205,6 +210,8 @@ export default function SubclassBuilderScreen() {
     // which class they picked.
     const hpDie = parentClass.hitDie as 4 | 6 | 8 | 10 | 12;
     const featureEdits: SubclassFeatureEdit[] = [];
+    // Pools one authored feature makes, so a later feature can spend from them or raise them.
+    const localResources = new Map<string, string>();
     for (let level = 1; level <= 20; level++) {
       const usedIds = new Set<string>();
       for (const f of (featuresByLevel.get(level) ?? [])) {
@@ -218,16 +225,17 @@ export default function SubclassBuilderScreen() {
           usedIds.add(f.originalFeature.id);
           continue;
         }
-        const built = buildTraitFeature(f, { idPrefix: `${subclassId}_l${level}`, sourceKind: 'subclass', sourceRefId: subclassId, level, usedIds });
+        const built = buildTraitFeature(f, { idPrefix: `${subclassId}_l${level}`, sourceKind: 'subclass', sourceRefId: subclassId, level, usedIds, localResources });
         const grants: Grant[] = [{ kind: 'feature', value: built.feature }];
         if (built.resource) grants.push({ kind: 'resource', value: built.resource });
         for (const feature of built.extraFeatures ?? []) grants.push({ kind: 'feature', value: feature });
         for (const resource of built.extraResources ?? []) grants.push({ kind: 'resource', value: resource });
+        for (const upgrade of built.resourceUpgrades ?? []) grants.push({ kind: 'resource_upgrade', value: upgrade });
         featureEdits.push({ level, originalFeatureId: f.originalFeature?.id, grants });
       }
     }
     const entries = mergeSubclassEntries(editing?.entries, featureEdits, levelChoicesList, hpDie, subclassId);
-    return mergeHomebrewDefinition(editing, { id: asSubclassId(subclassId), name: name.trim(), classId, entries, rulesetId });
+    return mergeHomebrewDefinition(editing, { id: asSubclassId(subclassId), name: name.trim(), origin: cleanOrigin(origin), classId, entries, rulesetId });
   }
 
   // Read-only test: apply EVERY authored level's grants to a disposable
@@ -342,6 +350,8 @@ export default function SubclassBuilderScreen() {
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Way of the Storm" placeholderTextColor={Colors.textDim} />
 
+        <OriginFields value={origin} onChange={setOrigin} />
+
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(initialParentClass?.rulesetId ?? draftRulesetId)} />
 
@@ -454,6 +464,8 @@ export default function SubclassBuilderScreen() {
         onChange={t => updateFeature(t as LevelFeature)}
         onDone={() => setOpenFeatureId(null)}
         onDelete={() => openFeature && deleteFeature(openFeature.localId)}
+        resourceChoices={[...classResourceChoices(parentClass), ...poolChoicesBefore(levelFeatures, openFeature)]}
+        allowRaise
       />
 
       <HomebrewTestModal

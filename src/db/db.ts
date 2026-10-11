@@ -17,7 +17,6 @@ let _db: SQLite.SQLiteDatabase | null = null;
  */
 export async function initDb(): Promise<SQLite.SQLiteDatabase | null> {
   // SQLite is not supported on web — return null, all db calls are no-ops on web.
-  if (Platform.OS === 'web') return null;
 
   if (_db) return _db;
 
@@ -57,9 +56,6 @@ export async function initDb(): Promise<SQLite.SQLiteDatabase | null> {
  * Throws if initDb() has not been called yet.
  */
 export function getDb(): SQLite.SQLiteDatabase {
-  if (Platform.OS === 'web') {
-    throw new Error('SQLite is not available on web.');
-  }
   if (!_db) {
     throw new Error(
       'Database not initialized. Call initDb() before using any repo functions.'

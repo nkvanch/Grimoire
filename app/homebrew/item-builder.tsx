@@ -6,6 +6,8 @@
 // Effects" per request). Edit-mode reloads via homebrewDraft.
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Item, Feature, Effect, AbilityEffect, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
@@ -71,6 +73,7 @@ export default function ItemBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name, setName]         = useState('');
+  const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [cost, setCost]         = useState('');
   const [weight, setWeight]     = useState('');
   const [description, setDescription] = useState('');
@@ -126,6 +129,7 @@ export default function ItemBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setCost(editing.cost === '-' ? '' : editing.cost);
     setWeight(editing.weight ? String(editing.weight) : '');
@@ -308,7 +312,7 @@ export default function ItemBuilderScreen() {
     const originalDraft = editing ? hydrateItemBuilder(editing).draft : null;
     const draft = { description, category, rarity, armorCategory, weaponProps, extraProps, weaponDamage, weaponClass, weaponRangeSel, acValue, acAddsDex, trait };
     const mechanicsChanged = !editing || mechanicsTouched || (originalDraft !== null && JSON.stringify(draft) !== JSON.stringify({ ...originalDraft, editorFeatureId: undefined }));
-    const built = mergeHomebrewDefinition(editing, { id, name: name.trim(), weight: parseFloat(weight) || 0, cost: cost.trim() || '-',
+    const built = mergeHomebrewDefinition(editing, { id, name: name.trim(), origin: cleanOrigin(origin), weight: parseFloat(weight) || 0, cost: cost.trim() || '-',
       properties: buildProperties(), features: [feature], imageUri, rulesetId, homebrewDraft: draft });
     return serializeItemBuilder(editing, built, draft, mechanicsChanged);
   }
@@ -411,6 +415,8 @@ export default function ItemBuilderScreen() {
         <Text style={styles.fieldLabel}>Item Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Cloak of the Deep" placeholderTextColor={Colors.textDim} />
+
+        <OriginFields value={origin} onChange={setOrigin} />
 
         <Text style={styles.fieldLabel}>Game / Ruleset</Text>
         <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />

@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import { View, Text, StyleSheet, ActivityIndicator, AppState } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
@@ -366,8 +366,11 @@ export default function RootLayout() {
   );
 }
 
+if (Platform.OS === 'web' && typeof document !== 'undefined') document.body.style.backgroundColor = Colors.bg;
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
+  // On a wide desktop window the phone layout stays a readable column, centred, instead of stretching across the screen.
+  root: { flex: 1, backgroundColor: Colors.bg, ...(Platform.OS === 'web' ? { width: '100%', maxWidth: 1000, alignSelf: 'center' } : {}) },
   boot: {
     flex: 1, backgroundColor: Colors.bg,
     alignItems: 'center', justifyContent: 'center', gap: 12,

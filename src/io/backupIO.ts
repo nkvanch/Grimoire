@@ -5,6 +5,7 @@
 // writes a file and opens the OS share sheet so the user chooses where it
 // goes (their own cloud drive, email to themselves, etc.) — Grimoire itself
 // never transmits it anywhere.
+import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
 import { withRequiredPacks } from '../content/requiredPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -93,6 +94,7 @@ export async function exportBackup(
   const json     = JSON.stringify(pack, null, 2);
   const stamp    = new Date().toISOString().slice(0, 10);
   const filename = `grimoire-backup-${stamp}.grimoire-pack`;
+  if (Platform.OS === 'web') { downloadTextFile(json, filename, 'application/json'); return; }
   const uri      = FileSystem.cacheDirectory + filename;
 
   await FileSystem.writeAsStringAsync(uri, json, { encoding: FileSystem.EncodingType.UTF8 });
@@ -122,6 +124,7 @@ export async function exportContentPack(
   const json     = JSON.stringify(pack, null, 2);
   const filename = `${filenameHint}.grimoire-pack`;
 
+  if (Platform.OS === 'web') { downloadTextFile(json, filename, 'application/json'); return; }
   if (action === 'save' && Platform.OS === 'android') {
     await saveTextViaSAF(json, filename, 'application/json', FileSystem.EncodingType.UTF8);
     return;
@@ -173,13 +176,22 @@ export function prepareImportedPack(data: unknown): GrimoirePack {
 }
 
 export async function pickAndValidateBackup(): Promise<ImportPreview | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: '*/*',   // .grimoire-pack has no registered MIME type — accept broadly
-    copyToCacheDirectory: true,
-  });
-  if (result.canceled || !result.assets?.[0]) return null;
-
-  const content = await FileSystem.readAsStringAsync(result.assets[0].uri);
+  let content: string;
+  let pickedName: string | null = null;
+  if (Platform.OS === 'web') {
+    const picked = await pickTextFileInBrowser('.grimoire-pack,.json');
+    if (!picked) return null;
+    content = picked.text;
+    pickedName = picked.name;
+  } else {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',   // .grimoire-pack has no registered MIME type — accept broadly
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return null;
+    content = await FileSystem.readAsStringAsync(result.assets[0].uri);
+    pickedName = result.assets[0].name ?? null;
+  }
   let data: unknown;
   try {
     data = JSON.parse(content);
@@ -189,7 +201,7 @@ export async function pickAndValidateBackup(): Promise<ImportPreview | null> {
 
   const pack = prepareImportedPack(data);
 
-  const rawName = result.assets[0].name ?? 'Imported Pack';
+  const rawName = pickedName ?? 'Imported Pack';
   return {
     pack,
     characterCount: pack.characters.length,

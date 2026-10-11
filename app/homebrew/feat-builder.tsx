@@ -13,6 +13,7 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, Entity, Feat, RulesetId, FEAT_CHOICE_PREFIX } from '../../src/engine/types';
 import {
@@ -75,6 +76,7 @@ export default function FeatBuilderScreen() {
   const [name,         setName]         = useState('');
   const [prerequisite, setPrerequisite] = useState('');
   const [source,       setSource]       = useState('Homebrew');
+  const [sourceLink,   setSourceLink]   = useState('');
   const [description,  setDescription]  = useState('');
   const [trait,        setTrait]        = useState<DraftTrait>(() => newDraftTrait('Effect'));
   const [traitOpen,    setTraitOpen]    = useState(false);
@@ -108,6 +110,7 @@ export default function FeatBuilderScreen() {
     setRulesetId(editing.rulesetId);
     setPrerequisite(editing.prerequisite ?? '');
     setSource(editing.source);
+    setSourceLink(editing.origin?.link ?? '');
     setDescription(editing.description);
     // The compiled Feature can't be losslessly reversed back into a DraftTrait
     // (effects are already-compiled Effect objects, not the authoring shape) —
@@ -175,6 +178,7 @@ export default function FeatBuilderScreen() {
       prerequisite: prerequisite.trim() || null,
       description: description.trim(),
       source: source.trim() || 'Homebrew',
+      origin: cleanOrigin(source.trim() && source.trim() !== 'Homebrew' || sourceLink.trim() ? { name: source.trim() === 'Homebrew' ? '' : source.trim(), link: sourceLink } : undefined),
       feature: { ...feature, id: `feat_${id}`, description: description.trim() },
       abilityChoice: abilityChoiceOn
         ? { options: abilityOptions, amount: parseInt(abilityAmount, 10) || 1, grantsSaveProficiency: grantsSaveProf }
@@ -267,6 +271,11 @@ export default function FeatBuilderScreen() {
         <Field label="Source">
           <TextInput style={styles.input} value={source} onChangeText={setSource}
             placeholder="Homebrew" placeholderTextColor={Colors.textDim} />
+        </Field>
+
+        <Field label="Source link (optional)">
+          <TextInput style={styles.input} value={sourceLink} onChangeText={setSourceLink} autoCapitalize="none" autoCorrect={false}
+            placeholder="Link to the original post or PDF" placeholderTextColor={Colors.textDim} />
         </Field>
 
         <Field label="Description *">
