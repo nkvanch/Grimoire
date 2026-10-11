@@ -28,32 +28,32 @@ function languageDef(id: string, pool: ChoiceDefinition['pool'] = 'all', count =
 
 describe('applyFeatToEntity — Feat.pendingChoices (homebrew authoring end-to-end)', () => {
   const featFeature: Feature = {
-    id: 'prodigy_feature', name: 'Prodigy', description: '', source: { kind: 'feat', refId: 'prodigy' },
+    id: 'tool_language_feature', name: 'Tool and Language', description: '', source: { kind: 'feat', refId: 'tool_language' },
     level: null, actions: [], choices: [], passive: true, effects: [],
   };
 
   it('queues each pendingChoice alongside the feat grant, namespaced to the feature id', () => {
     const e = entity({ choices: [{ id: 'featChoice_5', definition: { id: 'featChoice', prompt: '', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: false }, grantedAt: 5, resolved: false, selections: [] }] });
-    const toolChoice = toolDef('feat_choice_prodigy_tool');
-    const langChoice = languageDef('feat_choice_prodigy_lang');
-    const updated = applyFeatToEntity(e, 'featChoice_5', 5, featFeature, 'prodigy', DEFAULT_RULES, [toolChoice, langChoice]);
+    const toolChoice = toolDef('feat_choice_tool_language_tool');
+    const langChoice = languageDef('feat_choice_tool_language_lang');
+    const updated = applyFeatToEntity(e, 'featChoice_5', 5, featFeature, 'tool_language', DEFAULT_RULES, [toolChoice, langChoice]);
 
-    expect(updated.features.some(f => f.id === 'prodigy_feature')).toBe(true);
+    expect(updated.features.some(f => f.id === 'tool_language_feature')).toBe(true);
     const queued = updated.choices.filter(c => !c.resolved && c.definition.kind !== 'feat');
     expect(queued).toHaveLength(2);
-    expect(queued.every(c => c.id.startsWith('prodigy_feature:'))).toBe(true);
+    expect(queued.every(c => c.id.startsWith('tool_language_feature:'))).toBe(true);
     expect(queued.map(c => c.definition.kind).sort()).toEqual(['language', 'tool']);
   });
 
   it('applying zero pendingChoices behaves exactly as before (no new choices queued)', () => {
     const e = entity({ choices: [{ id: 'featChoice_5', definition: { id: 'featChoice', prompt: '', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: false }, grantedAt: 5, resolved: false, selections: [] }] });
-    const updated = applyFeatToEntity(e, 'featChoice_5', 5, featFeature, 'prodigy', DEFAULT_RULES);
+    const updated = applyFeatToEntity(e, 'featChoice_5', 5, featFeature, 'tool_language', DEFAULT_RULES);
     expect(updated.choices.filter(c => !c.resolved)).toHaveLength(0);
   });
 
   it('a queued feat tool choice resolves through the same applyToolChoiceToEntity official content uses', () => {
     const e = entity({ choices: [{ id: 'featChoice_1', definition: { id: 'featChoice', prompt: '', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: false }, grantedAt: 1, resolved: false, selections: [] }] });
-    let updated = applyFeatToEntity(e, 'featChoice_1', 1, featFeature, 'prodigy', DEFAULT_RULES, [toolDef('feat_choice_prodigy_tool')]);
+    let updated = applyFeatToEntity(e, 'featChoice_1', 1, featFeature, 'tool_language', DEFAULT_RULES, [toolDef('feat_choice_tool_language_tool')]);
     const queuedId = updated.choices.find(c => c.definition.kind === 'tool')!.id;
     updated = applyToolChoiceToEntity(updated, queuedId, ['thieves_tools'], DEFAULT_RULES);
     expect(updated.proficiencies.tools).toContain('thieves_tools');
@@ -62,13 +62,13 @@ describe('applyFeatToEntity — Feat.pendingChoices (homebrew authoring end-to-e
 
   it('removeFeature strips the still-unresolved pendingChoice but leaves an already-resolved one intact', () => {
     const e = entity({ choices: [{ id: 'featChoice_1', definition: { id: 'featChoice', prompt: '', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: false }, grantedAt: 1, resolved: false, selections: [] }] });
-    let updated = applyFeatToEntity(e, 'featChoice_1', 1, featFeature, 'prodigy', DEFAULT_RULES, [toolDef('feat_choice_prodigy_tool'), languageDef('feat_choice_prodigy_lang')]);
+    let updated = applyFeatToEntity(e, 'featChoice_1', 1, featFeature, 'tool_language', DEFAULT_RULES, [toolDef('feat_choice_tool_language_tool'), languageDef('feat_choice_tool_language_lang')]);
     // Resolve the tool choice, leave the language one pending.
     const toolChoiceId = updated.choices.find(c => c.definition.kind === 'tool')!.id;
     updated = applyToolChoiceToEntity(updated, toolChoiceId, ['thieves_tools'], DEFAULT_RULES);
 
-    const afterRemove = removeFeature(updated, 'prodigy_feature');
-    expect(afterRemove.features.some(f => f.id === 'prodigy_feature')).toBe(false);
+    const afterRemove = removeFeature(updated, 'tool_language_feature');
+    expect(afterRemove.features.some(f => f.id === 'tool_language_feature')).toBe(false);
     // Resolved tool choice stays (it's history, not dangling state).
     expect(afterRemove.choices.some(c => c.id === toolChoiceId && c.resolved)).toBe(true);
     // Unresolved language choice is swept.

@@ -361,9 +361,9 @@ export default function FeatBuilderScreen() {
 
         <Field label="Tool / Language / Expertise Choices (optional)">
           <Text style={styles.emptyNote}>
-            For feats like Prodigy ("one tool proficiency and one language") or Artificer
-            Initiate ("one artisan's tools of your choice") — a real, resolvable choice,
-            distinct from the Ability/Skill Choice blocks above.
+            For a feat that lets the player pick a tool proficiency, a language or an expertise (for example
+            "one tool proficiency and one language"). This is a real, resolvable choice, separate from the
+            Ability/Skill Choice blocks above.
           </Text>
           <ChoiceDefinitionListEditor choices={pendingChoices} onChange={setPendingChoices} />
         </Field>

@@ -14,8 +14,21 @@ const keyFile = path.join(__dirname, '..', 'release', 'keys', 'pack-signing.key'
 const signingKey: { keyId: string; privateKey: string } | null = fs.existsSync(keyFile) ? JSON.parse(fs.readFileSync(keyFile, 'utf8')) : null;
 if (!signingKey) console.warn('No signing key (release/keys/pack-signing.key): the packs are NOT signed.');
 const sign = <T extends { manifest: import('../src/engine/contentPackManifest').ContentPackManifest }>(pack: T): T => (signingKey ? signPack(pack, signingKey.keyId, signingKey.privateKey) : pack);
+// The public source tree has no signing key, but its bundled packs must be signed (the app refuses unsigned bundled packs, so a
+// fresh install could not load its own SRD). A pack whose content is unchanged keeps the signature the committed asset already has;
+// the signature is over the manifest, which the content hash covers.
+const keepSigned = <T extends { manifest: import('../src/engine/contentPackManifest').ContentPackManifest }>(pack: T): T => {
+  if (pack.manifest.signature) return pack;
+  try {
+    const existing = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'packs', `${pack.manifest.id}.json`), 'utf8'));
+    if (existing?.manifest?.contentHash === pack.manifest.contentHash && existing.manifest.signature) {
+      return { ...pack, manifest: { ...pack.manifest, signature: existing.manifest.signature } };
+    }
+  } catch { /* no committed asset yet */ }
+  return pack;
+};
 fs.mkdirSync(outDir, { recursive: true });
-for (const pack of [buildSrd51Pack(), buildSrd521Pack()].map(sign)) {
+for (const pack of [buildSrd51Pack(), buildSrd521Pack()].map(sign).map(keepSigned)) {
   const file = path.join(outDir, `${pack.manifest.id}-${pack.manifest.version}.grimoire-pack`);
   fs.writeFileSync(file, serializePack(pack));
   const kb = Math.round(fs.statSync(file).size / 1024);
