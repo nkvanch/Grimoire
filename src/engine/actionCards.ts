@@ -9,7 +9,7 @@
 // Passive features (no activation field) are never given cards.
 // ============================================================================
 
-import { officialClasses, officialRaces } from '../content/runtimeRules';
+import { officialClasses, officialRaces, findBeastForm } from '../content/runtimeRules';
 import { grantedSpellAbility } from './grantedSpellAbility';
 import {
   Feature, Entity, ActionCard, ActionCardType, ActionCardColor,
@@ -26,6 +26,11 @@ import { hasLegalSpellPayment } from './spellPayment';
 import { isIncapacitated, isDead, incapacitationReason } from './combat';
 import { CampaignRules } from './types';
 import { getClassLevels } from './multiclass';
+import { damageTakenSince } from './damageLog';
+import { ridersForCard } from './riders';
+import { cantripTierAt } from './cantripScaling';
+import { wildShapeLimits, eligibleWildShapeForms, wildShapeOptions } from './wildShapeForms';
+import { isFeatureSuspended } from './suspension';
 import { spellRangeOverride, spellDamageBonus, spellDamageTypeOverride, spellDamageDieOverride } from './spellModifiers';
 import { masteryPropertyFor } from './weaponMastery';
 
@@ -671,7 +676,7 @@ export function classifyFeature(feature: Feature, rulesetId?: RulesetId | null):
   const fx = feature.abilityEffects ?? [];
   if (fx.some(e => e.type === 'transform'))        return 'transformation';
   if (fx.some(e => e.type === 'damage'))           return 'damage';
-  if (fx.some(e => e.type === 'heal'))             return 'healing';
+  if (fx.some(e => e.type === 'heal' || e.type === 'heal_from_damage_taken' || e.type === 'temp_hp')) return 'healing';
   if (fx.some(e => e.type === 'apply_condition'))  return 'control';
 
   // Infer from active effects and passive effects
@@ -768,6 +773,12 @@ export function buildLayer1ForSpell(spell: Spell, cardType: ActionCardType): str
  * Layer 2: key mechanical summary.
  * Examples: "8d6 Fire • 20 ft radius", "+2 damage, B/P/S resistance"
  */
+/** "PBd6" becomes the character's real dice ("3d6"), and a bare "PB" the number. Anything else is returned unchanged. */
+export function resolveProficiencyDice(dice: string, entity?: Entity): string {
+  if (!entity || !/PB/.test(dice)) return dice;
+  return dice.replace(/PB/g, String(entity.derived.proficiencyBonus));
+}
+
 export function buildLayer2(feature: Feature, entity?: Entity, opts: CardGenOptions = {}): string {
   const grantedSpell = findGrantedSpell(feature, entity?.rulesetId);
   if (grantedSpell) return buildLayer2ForSpell(grantedSpell);
@@ -807,6 +818,14 @@ export function buildLayer2(feature: Feature, entity?: Entity, opts: CardGenOpti
       }
     } else if (e.type === 'heal') {
       parts.push(`Heal ${e.dice}`);
+    } else if (e.type === 'track_effect') {
+      parts.push(`Puts ${e.name} on a target`);
+    } else if (e.type === 'temp_hp') {
+      parts.push(`Temp HP ${resolveProficiencyDice(e.dice, entity)}`);
+    } else if (e.type === 'heal_from_damage_taken') {
+      const taken = entity ? damageTakenSince(entity, e.turnsBack) : 0;
+      const frac = e.fraction === 0.5 ? 'half' : e.fraction === 1 ? 'all' : `${Math.round(e.fraction * 100)}%`;
+      parts.push(entity ? `Heal ${Math.floor(taken * e.fraction)} (${frac} of the ${taken} taken since your ${e.turnsBack > 0 ? 'previous' : 'current'} turn began)` : `Heal ${frac} of damage taken`);
     } else if (e.type === 'apply_condition') {
       parts.push(capitalize(e.conditionId.replace(/_/g, ' ')));
     } else if (e.type === 'grant_speed') {
@@ -831,6 +850,9 @@ export function buildLayer2(feature: Feature, entity?: Entity, opts: CardGenOpti
 
   if (feature.activation?.range && feature.activation.range !== 'self') {
     parts.push(`Range ${feature.activation.range}`);
+  }
+  if (feature.activation?.alsoCosts) {
+    parts.push(`Also uses your ${feature.activation.alsoCosts === 'bonus_action' ? 'bonus action' : 'action'}`);
   }
 
   return parts.join(' • ') || feature.description.slice(0, 60);
@@ -859,9 +881,17 @@ export function buildLayer2ForSpell(spell: Spell, entity?: Entity, classDefs: re
   if (diceMatch) {
     const bonus = entity ? spellDamageBonus(entity, spell.id) : 0;
     const die = entity ? spellDamageDieOverride(entity, spell.id) : null;
-    const dice = die ? diceMatch[1].replace(/d\d+$/, `d${die}`) : diceMatch[1];
+    // A cantrip grows with the character's level (engine/cantripScaling.ts), not with a slot.
+    const tier = entity ? cantripTierAt(spell, entity.identity.level) : null;
+    // A tier may carry a flat amount with its dice ("3d6+2"); it is added to any damage bonus the character has.
+    const base = tier?.dice ?? diceMatch[1];
+    const split = base.match(/^([0-9]+d[0-9]+)([+-][0-9]+)?$/);
+    const core = split ? split[1] : base;
+    const flat = (split && split[2] ? parseInt(split[2], 10) : 0) + bonus;
+    const dice = die ? core.replace(/d[0-9]+$/, `d${die}`) : core;
     const type = (entity ? spellDamageTypeOverride(entity, spell.id) : null) ?? diceMatch[2];
-    parts.push(`${dice}${bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : ''} ${capitalize(type)}`);
+    const beams = tier?.count ? ` ×${tier.count}` : '';
+    parts.push(`${dice}${flat ? (flat > 0 ? `+${flat}` : `${flat}`) : ''} ${capitalize(type)}${beams}`);
   } else if (spell.description.toLowerCase().includes('heal') || spell.description.toLowerCase().includes('hit points')) {
     const healMatch = spell.description.match(/(\d+d\d+(?:\s*\+\s*\d+)?)/);
     if (healMatch) parts.push(`Heal ${healMatch[1]}`);
@@ -995,6 +1025,15 @@ function formatOutcomeEffects(effects: AbilityEffect[]): string[] {
  * still resolves everything themselves. Returns [] when the feature has no
  * `outcomes`.
  */
+/** A weapon or attack ability's critical hit line, with the creature's own crit range. Empty for abilities that are not attacks. */
+export function buildCritLine(feature: Feature, entity?: Entity): string[] {
+  const dealsDamage = (feature.abilityEffects ?? []).some(e => e.type === 'damage');
+  const isAttack = feature.source?.kind === 'item' || (feature.tags ?? []).includes('attack');
+  if (!dealsDamage || !isAttack || !entity) return [];
+  const range = entity.derived.critRange ?? 20;
+  return [`On a critical hit (${range >= 20 ? '20' : `${range}–20`}): roll the damage dice twice`];
+}
+
 export function buildOutcomeLines(feature: Feature): string[] {
   const outcomes = feature.outcomes;
   if (!outcomes) return [];
@@ -1077,6 +1116,10 @@ function resourceAndEconomyLegal(
       : entity.turnState.reactionUsed;
     if (used) {
       return { legal: false, reason: `Already used your ${ACTION_ECONOMY_LABEL[actionType]} this turn.` };
+    }
+    const also = feature.activation?.alsoCosts;
+    if (also && also !== actionType && (also === 'action' ? entity.turnState.actionUsed : entity.turnState.bonusActionUsed)) {
+      return { legal: false, reason: `Needs your ${ACTION_ECONOMY_LABEL[also]} as well, and it is already used this turn.` };
     }
   }
 
@@ -1188,12 +1231,28 @@ export function generateActionCard(
   itemInstanceId?: string,
 ): ActionCard | null {
   if (!feature.activation) return null;
+  let activation: FeatureActivation = feature.activation;
+  // The 2014 Druid's Wild Shape is one card whose picker lists the forms the character's level allows (engine/wildShapeForms.ts).
+  if (activation.beastFormPicker && entity) {
+    const limits = wildShapeLimits(entity);
+    activation = {
+      ...activation,
+      actionType: limits?.bonusAction ? 'bonus_action' : activation.actionType,
+      options: wildShapeOptions(eligibleWildShapeForms(entity)),
+    };
+    feature = { ...feature, activation };
+  }
 
   const cardType = classifyFeature(feature, entity?.rulesetId);
-  const { available, reason, incapacitatedOverridable } = isFeatureAvailable(feature, entity);
+  const base = isFeatureAvailable(feature, entity);
+  // A feature switched off for a time (engine/suspension.ts) cannot be used until it comes back.
+  const suspended = !!entity && isFeatureSuspended(entity, feature.id);
+  const available = base.available && !suspended;
+  const reason = suspended ? 'Switched off for now (until the end of your next turn).' : base.reason;
+  const incapacitatedOverridable = suspended ? false : base.incapacitatedOverridable;
 
   const tabs: ActionCard['tabs'] = ['features'];
-  const actionType = feature.activation.actionType;
+  const actionType = activation.actionType;
   // 'free' (usable alongside another action, e.g. a maneuver riding a normal
   // attack) still spends a resource and needs a discoverable [Use] button —
   // the Actions tab is the only place that exists in the app. Only bare
@@ -1212,10 +1271,10 @@ export function generateActionCard(
     layer1:            buildLayer1(feature, cardType, entity?.rulesetId),
     layer2:            buildLayer2(feature, entity, opts),
     layer3:            buildLayer3(feature, entity),
-    outcomes:          buildOutcomeLines(feature),
+    outcomes:          [...buildOutcomeLines(feature), ...buildCritLine(feature, entity)],
     triggerNote:       feature.trigger ?? null,
-    activation:        feature.activation,
-    resourceCost:      feature.activation.resourceCost,
+    activation,
+    resourceCost:      activation.resourceCost,
     tabs,
     available,
     unavailableReason: reason,
@@ -1528,6 +1587,27 @@ export function generateAllActionCards(
     });
   }
 
+  // 1d. While in a Wild Shape form, the form's own attacks (its bite, claws) as cards: your game statistics are the beast's.
+  const shaped = entity.wildShapeState?.active ? findBeastForm(entity.wildShapeState.formId) : undefined;
+  if (shaped) {
+    const strMod = Math.floor((shaped.stats.str - 10) / 2);
+    const dexMod = Math.floor((shaped.stats.dex - 10) / 2);
+    shaped.attacks.forEach((a, i) => {
+      if (a.effect.type !== 'damage') return;
+      const toHit = a.attackBonus ?? Math.max(strMod, dexMod) + entity.derived.proficiencyBonus;
+      const activation: FeatureActivation = { actionType: 'action', resourceCost: null, range: '5 feet', target: 'single', requiresSave: null };
+      const av = isFeatureAvailable({ activation, effects: [], abilityEffects: [] } as unknown as Feature, entity);
+      cards.push({
+        featureId: `wild_shape_attack_${shaped.id}_${i}`, name: `${a.name} (${shaped.name})`,
+        cardType: 'damage', color: 'red', layer1: 'Action • Beast Attack',
+        layer2: `${fmtBonus(toHit)} to hit • ${a.effect.dice} ${capitalize(a.effect.damageType)}`,
+        layer3: null, outcomes: [], triggerNote: null, activation, resourceCost: null,
+        tabs: ['actions', 'features'], available: av.available, unavailableReason: av.reason,
+        incapacitatedOverridable: av.incapacitatedOverridable, isWeaponAttack: true,
+      });
+    });
+  }
+
   // 2. Spell-based cards (cantrips + known/prepared)
   if (entity.spellcasting) {
     const spellIds = new Set([
@@ -1541,7 +1621,10 @@ export function generateAllActionCards(
     }
   }
 
-  return cards;
+  return cards.map(c => {
+    const riders = ridersForCard(entity, c);
+    return riders.length ? { ...c, riders } : c;
+  });
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────

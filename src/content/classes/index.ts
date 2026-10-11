@@ -3,6 +3,7 @@
 // All 12 PHB classes with full level 1-20 progressions.
 // ============================================================================
 import { CLASSES_2024, PROGRESSIONS_2024 } from '../classes2024';
+import { WILD_SHAPE_2014 } from '../beastforms/wildShape2014';
 import { ClassProgression, LevelEntry, ChoiceDefinition, ChoiceOption } from '../../engine/types';
 import { fighterProgression } from './fighter';
 import { ALL_TOOLS } from '../tools';
@@ -687,22 +688,20 @@ export const druidProgression: ClassProgression = {
       ],
     },
     { level: 2, hpDie: 8, choices: [{ id: 'druid_circle_choice', prompt: 'Choose a Druid Circle.', kind: 'subclass', count: 1, pool: 'all', grants: [], required: true, resolved: false }], grants: [
-      { kind: 'feature', value: { id: 'wild_shape_wolf', name: 'Wild Shape: Wolf', description: 'Magically assume the shape of a wolf. You retain your own Intelligence, Wisdom, and Charisma; everything else (AC, HP, speed, senses, attacks) becomes the wolf\'s while transformed.', source: { kind: 'class', refId: 'druid' }, level: 2, effects: [], actions: [], choices: [], passive: false, tags: ['transformation'], activation: { actionType: 'action', resourceCost: { resourceId: 'wild_shape_pool', quantity: 1 }, range: 'self', target: 'self', requiresSave: null }, abilityEffects: [{ type: 'transform', formId: 'wolf' }] } },
-      { kind: 'feature', value: { id: 'wild_shape_giant_spider', name: 'Wild Shape: Giant Spider', description: 'Magically assume the shape of a giant spider. You retain your own Intelligence, Wisdom, and Charisma; everything else becomes the spider\'s while transformed.', source: { kind: 'class', refId: 'druid' }, level: 2, effects: [], actions: [], choices: [], passive: false, tags: ['transformation'], activation: { actionType: 'action', resourceCost: { resourceId: 'wild_shape_pool', quantity: 1 }, range: 'self', target: 'self', requiresSave: null }, abilityEffects: [{ type: 'transform', formId: 'giant_spider' }] } },
-      { kind: 'feature', value: { id: 'wild_shape_brown_bear', name: 'Wild Shape: Brown Bear', description: 'Magically assume the shape of a brown bear. You retain your own Intelligence, Wisdom, and Charisma; everything else becomes the bear\'s while transformed.', source: { kind: 'class', refId: 'druid' }, level: 2, effects: [], actions: [], choices: [], passive: false, tags: ['transformation'], activation: { actionType: 'action', resourceCost: { resourceId: 'wild_shape_pool', quantity: 1 }, range: 'self', target: 'self', requiresSave: null }, abilityEffects: [{ type: 'transform', formId: 'brown_bear' }] } },
+      { kind: 'feature', value: WILD_SHAPE_2014 },
       { kind: 'feature', value: { id: 'druid_circle', name: 'Druid Circle', description: 'You choose to identify with a circle of druids.', source: { kind: 'class', refId: 'druid' }, level: 2, effects: [], actions: [], choices: [], passive: true } },
       { kind: 'resource', value: { resourceId: 'wild_shape_pool', name: 'Wild Shape', maximum: 2, recharge: 'short_rest' } },
     ] },
     { level: 3, hpDie: 8, choices: [], grants: [] },
     {
       level: 4, hpDie: 8, choices: [asiChoice('druid_asi_4')], grants: [
-        { kind: 'feature', value: { id: 'wild_shape_swim', name: 'Wild Shape: Swim Speed Allowed', description: 'Your Wild Shape restriction eases: you can now transform into a beast with a swimming speed, up to Challenge Rating 1/2. Author new swim-capable beast forms as this app\'s monster library grows — no swim-capable form is wired to Wild Shape yet.', source: { kind: 'class', refId: 'druid' }, level: 4, effects: [], actions: [], choices: [], passive: true } },
+        { kind: 'feature', value: { id: 'wild_shape_swim', name: 'Wild Shape: Swim Speed Allowed', description: 'Your Wild Shape restriction eases: you can now transform into a beast with a swimming speed, up to Challenge Rating 1/2. The Wild Shape card lists the forms you can take.', source: { kind: 'class', refId: 'druid' }, level: 4, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     ...stubEntries([5,6,7], 8),
     {
       level: 8, hpDie: 8, choices: [asiChoice('druid_asi_8')], grants: [
-        { kind: 'feature', value: { id: 'wild_shape_fly', name: 'Wild Shape: Fly Speed Allowed', description: 'Your Wild Shape restriction eases again: you can now transform into a beast with a flying speed, up to Challenge Rating 1. Author new fly-capable beast forms as this app\'s monster library grows — no fly-capable form is wired to Wild Shape yet.', source: { kind: 'class', refId: 'druid' }, level: 8, effects: [], actions: [], choices: [], passive: true } },
+        { kind: 'feature', value: { id: 'wild_shape_fly', name: 'Wild Shape: Fly Speed Allowed', description: 'Your Wild Shape restriction eases again: you can now transform into a beast with a flying speed, up to Challenge Rating 1. The Wild Shape card lists the forms you can take.', source: { kind: 'class', refId: 'druid' }, level: 8, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     ...stubEntries([9,10,11], 8),

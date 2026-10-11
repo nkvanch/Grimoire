@@ -1,7 +1,9 @@
 import { isFeatureAvailable, isSpellPreparationLegal, resolveSpellCastingContexts, CardGenOptions } from './actionCards';
 import { officialClasses } from '../content/runtimeRules';
 import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, AttackSequenceUse } from './types';
-import { applyAbilityEffects, castConcentrationSpell, markActionSlotUsed } from './combat';
+import { applyAbilityEffects, castConcentrationSpell, markActionSlotUsed, startWildShape } from './combat';
+import { eligibleWildShapeForms } from './wildShapeForms';
+import { recordPendingOutcomes } from './outcomes';
 import { legalSpellPaymentOptions, commitSpellPayment, SpellPaymentOption } from './spellPayment';
 import { recomputeDerived } from './pipeline';
 import { spellRepo } from '../content/spellRepo';
@@ -183,6 +185,13 @@ export function applyActionCardUse(
   if (!isFeatureAvailable({ activation: availabilityActivation }, entity, bypassIncapacitated, bypassActionEconomy).available) return entity;
   const classDefs = content.classDefs ?? officialClasses();
 
+  // Wild Shape's picker: the chosen form is revalidated against the character now, not trusted from when the card was shown, and a
+  // character already in a beast form cannot start another (the use would spend the resource and change nothing).
+  if (chosenOption?.transformFormId) {
+    if (entity.wildShapeState?.active) return entity;
+    if (!eligibleWildShapeForms(entity).some(f => f.id === chosenOption.transformFormId)) return entity;
+  }
+
   // Item-identity closure (pass 2, finding D3/D4): a card generated from a
   // SPECIFIC equipped ItemInstance (card.sourceKind === 'item') must
   // revalidate that EXACT instance is still equipped BEFORE any economy/
@@ -254,6 +263,7 @@ export function applyActionCardUse(
   const actionType = card.activation.actionType;
   if (!bypassActionEconomy && (actionType === 'action' || actionType === 'bonus_action' || actionType === 'reaction')) {
     updated = markActionSlotUsed(updated, actionType);
+    if (card.activation.alsoCosts) updated = markActionSlotUsed(updated, card.activation.alsoCosts);
   }
 
   if (cost) {
@@ -299,6 +309,9 @@ export function applyActionCardUse(
     // manual/table resolution) — see its own doc comment.
     updated = applyAbilityEffects(updated, sourceFeature.abilityEffects, rules, sourceFeature.activation);
   }
+  if (chosenOption?.transformFormId) updated = startWildShape(updated, chosenOption.transformFormId, rules);
+  // Outcomes that carry effects wait for the table to say what happened; none is applied just because the card was used.
+  updated = recordPendingOutcomes(updated, sourceFeature);
 
   // A spell-granted card's featureId is the spell's own id (see
   // generateSpellCard) — this keeps Actions-tab/Favorites casts of a

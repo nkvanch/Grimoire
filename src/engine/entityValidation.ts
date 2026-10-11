@@ -103,7 +103,10 @@ function validateFeature(raw: unknown, path: string, errors: string[]) {
     if (!object(effect) || !string(effect.type) || !string(effect.target) || !string(effect.operation)) {
       errors.push(`${path}.effects[${i}]: malformed effect`);
     } else if (effect.value !== null && effect.value !== undefined && typeof effect.value !== 'string'
-      && typeof effect.value !== 'boolean' && !finite(effect.value)) {
+      && typeof effect.value !== 'boolean' && !finite(effect.value)
+      // A list of ids is a valid effect value (Effect.value is `number | string | string[] | null`): the spells a
+      // `spell_list:<class>` effect adds. Rejecting it quarantined every character that had such a feature.
+      && !(Array.isArray(effect.value) && effect.value.every(v => typeof v === 'string'))) {
       errors.push(`${path}.effects[${i}].value: invalid`);
     }
   });

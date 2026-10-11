@@ -29,7 +29,7 @@ import { itemRepo } from '../../src/content/itemRepo';
 import { spellRepo } from '../../src/content/spellRepo';
 import { spellIdsOnEntity } from '../../src/content/spellRepo.types';
 import { getInfusion } from '../../src/content/runtimeRules';
-import { maxInfusedItems } from '../../src/engine/infusionRules';
+import { infusionCapacity } from '../../src/engine/infusionCapacity';
 import { TabCharacter } from '../../src/components/sheet/TabCharacter';
 import { TabExploration } from '../../src/components/sheet/TabExploration';
 import { TabActions }   from '../../src/components/sheet/TabActions';
@@ -479,7 +479,7 @@ export default function CharacterSheetScreen() {
     mutate(e => {
       const infusion = getInfusion(infusionId);
       if (!infusion) return e;
-      const cap = maxInfusedItems(e.identity.level);
+      const cap = infusionCapacity(e);
       const infusedCount = [...e.inventory.equipped, ...e.inventory.carried].filter(i => i.infusedWith).length;
       if (infusedCount >= cap) return e;
 

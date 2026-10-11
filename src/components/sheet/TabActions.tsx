@@ -3,7 +3,9 @@
 import { useState, useCallback, useEffect, memo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext } from '../../engine/types';
+import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, RiderOffer, OutcomeOffer } from '../../engine/types';
+import { ridersForCard, applyRider } from '../../engine/riders';
+import { outcomeOffersForCard, confirmOutcome, dismissOutcomes } from '../../engine/outcomes';
 import { endWildShape, endAttackSequence } from '../../engine/combat';
 import { collectAllEffects } from '../../engine/pipeline';
 import { getTriggeredFeatures, isFeatureAvailable, formatCastingContextLabel, CardGenOptions, isContextLegalForCastMode, needsPreparationOverride } from '../../engine/actionCards';
@@ -180,6 +182,15 @@ type PendingActionUse = {
 
 export interface UseModalProps {
   card:    ActionCard | null;
+  /** Riders from the character's features that can ride this attack or spell, with whether each can be used now. */
+  riders?: RiderOffer[];
+  /** Uses one: spends its cost and records the use. The extra damage is rolled by the player alongside the card's own. */
+  onApplyRider?: (offer: RiderOffer) => void;
+  /** Outcomes of this use waiting on the table (it hit, the save failed): press the one that happened. */
+  outcomeOffers?: OutcomeOffer[];
+  onConfirmOutcome?: (offer: OutcomeOffer) => void;
+  /** None of them happened. */
+  onDismissOutcomes?: () => void;
   /** `crit` (item 11 — roll improvements): true when the player has toggled
    *  "Critical Hit" before rolling — the caller is responsible for doubling
    *  the dice portion (dice.ts's doubleDiceCount) before rolling, not this
@@ -189,10 +200,11 @@ export interface UseModalProps {
   onClose: () => void;
 }
 
-export function UseModal({ card, onRoll, onClose }: UseModalProps) {
+export function UseModal({ card, riders, onApplyRider, outcomeOffers, onConfirmOutcome, onDismissOutcomes, onRoll, onClose }: UseModalProps) {
   const insets = useSafeAreaInsets();
   const [result, setResult] = useState<DiceRoll | null>(null);
   const [crit, setCrit] = useState(false);
+  const [applied, setApplied] = useState<RiderOffer[]>([]);
 
   // Reset the stored roll whenever the modal switches to a different card (or
   // closes). Without this, the previous spell's result lingers: the modal shows
@@ -202,6 +214,7 @@ export function UseModal({ card, onRoll, onClose }: UseModalProps) {
   useEffect(() => {
     setResult(null);
     setCrit(false);
+    setApplied([]);
   }, [cardKey]);
 
   if (!card) return null;
@@ -226,6 +239,41 @@ export function UseModal({ card, onRoll, onClose }: UseModalProps) {
           {card.triggerNote ? <Text style={styles.modalOutcome}>{card.triggerNote}</Text> : null}
           {card.outcomes.map((line, i) => (
             <Text key={i} style={styles.modalOutcome}>{line}</Text>
+          ))}
+
+          {(outcomeOffers ?? []).length > 0 && (
+            <View style={{ gap: Spacing.xs }}>
+              <Text style={styles.modalOutcome}>What happened? Press the one that did; nothing is applied until you do.</Text>
+              {(outcomeOffers ?? []).map(o => (
+                <Pressable key={o.key} style={styles.riderBtn} onPress={() => onConfirmOutcome?.(o)} accessibilityLabel={`Confirm: ${o.label}`}>
+                  <Text style={styles.riderBtnTxt}>{o.label}{o.effects ? `: ${o.effects}` : ''}</Text>
+                </Pressable>
+              ))}
+              <Pressable style={[styles.riderBtn, styles.riderBtnOff]} onPress={() => onDismissOutcomes?.()} accessibilityLabel="None of these happened">
+                <Text style={[styles.riderBtnTxt, styles.riderBtnTxtOff]}>None of these</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {applied.map(r => (
+            <Text key={`${r.featureId}:${r.riderId}`} style={styles.riderApplied}>
+              + {r.name}{r.damage ? `: also roll ${crit ? doubleDiceCount(r.damage.dice) : r.damage.dice} ${r.damage.damageType}` : ''}{r.note ? ` (${r.note})` : ''}
+            </Text>
+          ))}
+          {(riders ?? []).filter(r => !applied.some(a => a.featureId === r.featureId && a.riderId === r.riderId)).map(r => (
+            <Pressable
+              key={`${r.featureId}:${r.riderId}`}
+              disabled={!r.available}
+              style={[styles.riderBtn, !r.available && styles.riderBtnOff]}
+              onPress={() => { onApplyRider?.(r); setApplied(a => [...a, r]); }}
+              accessibilityLabel={`Add rider ${r.name}`}
+            >
+              <Text style={[styles.riderBtnTxt, !r.available && styles.riderBtnTxtOff]}>
+                {r.available
+                  ? `Add ${r.name}${r.damage ? ` (+${r.damage.dice} ${r.damage.damageType})` : ''}`
+                  : `${r.name}: ${r.reason ?? 'not available'}`}
+              </Text>
+            </Pressable>
           ))}
 
           {diceExpr && !result && (
@@ -284,24 +332,29 @@ export function ActivationOptionModal({ entity, card, onChoose, onClose, bypassI
   if (!card || !card.activation.options || card.activation.options.length === 0) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
+      {/* Sibling backdrop and a plain-View sheet, so the option list can scroll (SCROLL-TOUCH-1). */}
+      <View style={styles.modalOverlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.modalSheet}>
           <Text style={styles.modalName}>{card.name}</Text>
           <Text style={styles.modalL1}>Choose how to use this:</Text>
-          {card.activation.options.map(opt => (
-            <Pressable key={opt.id} style={styles.optionRow}
-              disabled={!isFeatureAvailable({ activation: { ...card.activation, options: undefined,
-                resourceCost: opt.resourceCost ?? card.resourceCost } }, entity, bypassIncapacitated).available}
-              onPress={() => onChoose(opt)}>
-              <Text style={styles.optionLabel}>{opt.label}</Text>
-              {opt.description && <Text style={styles.optionDesc}>{opt.description}</Text>}
-            </Pressable>
-          ))}
+          {/* A long list (Wild Shape lists every form the level allows) scrolls inside the sheet. */}
+          <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: Spacing.sm }}>
+            {card.activation.options.map(opt => (
+              <Pressable key={opt.id} style={styles.optionRow}
+                disabled={!isFeatureAvailable({ activation: { ...card.activation, options: undefined,
+                  resourceCost: opt.resourceCost ?? card.resourceCost } }, entity, bypassIncapacitated).available}
+                onPress={() => onChoose(opt)}>
+                <Text style={styles.optionLabel}>{opt.label}</Text>
+                {opt.description && <Text style={styles.optionDesc}>{opt.description}</Text>}
+              </Pressable>
+            ))}
+          </ScrollView>
           <Pressable style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeBtnTxt}>Cancel</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -941,6 +994,11 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
       {paymentChooser}
       <UseModal
         card={activeCard}
+        riders={activeCard && onEntityUpdate ? ridersForCard(entity, activeCard) : []}
+        onApplyRider={offer => onEntityUpdate?.(applyRider(entity, offer.featureId, offer.riderId))}
+        outcomeOffers={activeCard && onEntityUpdate ? outcomeOffersForCard(entity, activeCard) : []}
+        onConfirmOutcome={offer => onEntityUpdate?.(confirmOutcome(entity, offer.featureId, offer.key, rules))}
+        onDismissOutcomes={() => activeCard && onEntityUpdate?.(dismissOutcomes(entity, activeCard.featureId))}
         onRoll={rollForCard}
         onClose={handleCloseUseModal}
       />
@@ -1041,6 +1099,11 @@ const styles = StyleSheet.create({
   modalL2:   { fontSize: FontSize.sm, color: Colors.textSecondary },
   modalL3:   { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic' },
   modalOutcome: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 1 },
+  riderBtn:    { borderWidth: 1, borderColor: Colors.gold, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginTop: Spacing.sm },
+  riderBtnOff: { borderColor: Colors.border, opacity: 0.6 },
+  riderBtnTxt: { color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  riderBtnTxtOff: { color: Colors.textSecondary },
+  riderApplied: { color: Colors.gold, fontSize: FontSize.sm, marginTop: Spacing.xs },
 
   rollPrompt:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', gap: Spacing.sm },
   rollExpr:    { fontSize: FontSize.lg, color: Colors.textPrimary, fontWeight: FontWeight.bold },

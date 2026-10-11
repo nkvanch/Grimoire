@@ -16,6 +16,7 @@
 // and continue to see every spell, exactly as before this filter existed.
 // ============================================================================
 import { Spell } from '../../engine/types';
+import type { RulesetId } from '../../engine/types';
 import { ContentRegistry } from '../ContentRegistry';
 
 // ── New spells from level files ───────────────────────────────────────────────
@@ -528,12 +529,16 @@ export function repairSpellHeader(s: Spell): Spell {
   return out;
 }
 
+/** SRD 5.1 spells the 2024 rules dropped (SRD 5.2.1 replaced Branding Smite with Shining Smite): shown for 2014 characters only. */
+const REMOVED_IN_2024 = new Set(['branding_smite']);
+
 export const FULL_SPELL_LIBRARY: Spell[] = _rawSpellLibrary.filter(s => {
   if (_seenSpellIds.has(s.id)) return false;
   _seenSpellIds.add(s.id);
   return true;
 }).map(s => {
   let out = repairSpellHeader(s);
+  if (REMOVED_IN_2024.has(s.id)) out = { ...out, rulesetId: 'dnd5e-2014' as RulesetId };
   const c24 = _classes2024BySpell.get(s.id);
   if (c24 && out.classes && out.classes.length > 0) out = { ...out, classes: [...new Set([...(out.classes ?? []), ...c24])] };
   return out;

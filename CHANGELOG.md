@@ -2,6 +2,29 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.2 alpha
+
+Released 11 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.2-alpha).
+
+Same signing key as 0.2.1, so it installs over 0.2.1 as a normal update and keeps your characters.
+
+### New
+
+- Wild Shape for the 2014 Druid is one card with a picker. It lists every SRD beast your Druid level allows, with its real walking, swimming, flying and climbing speeds, and the form's own attacks show as cards while you are shaped.
+- Cantrip cards follow your character level. Fire Bolt shows 2d10 at 5th level, and a homebrew cantrip can upgrade at any levels and amounts you choose.
+- Skill rolls use the advantage or disadvantage a character has from a feature, and the skill list shows ADV or DIS. Homebrew can target one skill or every check with an ability.
+- A resource whose recharge the app cannot detect ("after a turn without moving", "12 days") says so and has a Reset button. No rest refills it by accident.
+- A used card can ask what happened, so an effect that depends on a hit or a failed save is applied only when you confirm it, and once.
+- A temporary speed from an ability (a fly speed for a minute) is now actually granted and counts down.
+- Homebrew: an Advanced section in the trait editor for riders, timing, per-target effects, auras, healing from damage taken and derived rules, plus "use one ability instead of another", a movement speed for a while, an outcome that refunds a use, and an infusion bonus.
+- Live Play: the DM sees passive scores, defenses and running effects on the party card, can run a hidden check against passives, and can preview what a hit does before applying it. Players see their allies' conditions and the enemies' state.
+
+### Fixed
+
+- A character with a homebrew feature that widens the spell list could fail to load and disappear from the character list. It loads again.
+- Cantrip cards showed the base dice at every level.
+- Skill rolls ignored a feature that gave advantage on that skill.
+
 ## 0.2.1 alpha
 
 Released 9 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.1-alpha).

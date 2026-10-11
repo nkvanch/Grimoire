@@ -17,7 +17,7 @@ import { mergeItemIndex, resolveItemById } from '../../content/contentResolution
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { usesLargeCreatureWeaponDice } from '../../engine/houseRules';
 import { infusions } from '../../content/runtimeRules';
-import { maxInfusedItems } from '../../engine/infusionRules';
+import { infusionCapacity } from '../../engine/infusionCapacity';
 import { itemRequiresAttunement, attunementCap, countAttuned } from '../../engine/inventory';
 import { NonSrdBadge, isNonSrd } from '../NonSrdBadge';
 import {
@@ -759,7 +759,7 @@ function InfuseItemModal({
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [damageType, setDamageType] = useState<string>('fire');
 
-  const cap = maxInfusedItems(entity.identity.level);
+  const cap = infusionCapacity(entity);
   const infusedInstances = [...entity.inventory.equipped, ...entity.inventory.carried].filter(i => i.infusedWith);
   const atCap = infusedInstances.length >= cap;
   // Item-identity closure: tag each candidate with WHICH side it's on so
@@ -1159,7 +1159,7 @@ function TabInventoryInner({
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>
-              INFUSIONS ({[...inventory.equipped, ...inventory.carried].filter(i => i.infusedWith).length}/{maxInfusedItems(entity.identity.level)})
+              INFUSIONS ({[...inventory.equipped, ...inventory.carried].filter(i => i.infusedWith).length}/{infusionCapacity(entity)})
             </Text>
             <Pressable style={styles.addBtn} onPress={() => setInfuseOpen(true)}>
               <Text style={styles.addBtnTxt}>+ Infuse Item</Text>

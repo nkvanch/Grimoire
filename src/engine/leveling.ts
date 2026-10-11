@@ -1044,6 +1044,24 @@ export function applyPoolChoiceToEntity(
         feature = { ...feature, id: `${feature.id}::${target}`, name: `${feature.name} (${label})`, description: `${feature.description} Taken for: ${label}.` };
       }
       updated = applyGrant(updated, { kind: 'feature', value: feature }, pending.grantedAt);
+      // An option taken for an Origin feat (Lessons of the First Ones) also brings that feat's own feature, pools and picks. They are
+      // namespaced under the granted feature (`<id>::feat`) so swapping the option takes them back out with it.
+      if (target !== undefined && option.repeatable?.target === 'origin_feat') {
+        const feat = originFeats().find(f => f.id === target);
+        if (feat) {
+          const featFeatureId = `${feature.id}::feat`;
+          updated = applyGrant(updated, {
+            kind: 'feature',
+            value: { ...feat.feature, id: featFeatureId, name: `${feat.name} (${option.label})`, source: { kind: 'feat', refId: feat.id }, level: null, isActive: true },
+          }, pending.grantedAt);
+          for (const r of feat.resources ?? []) {
+            updated = applyGrant(updated, { kind: 'resource', value: { ...r, resourceId: `${featFeatureId}_${r.resourceId}` } }, pending.grantedAt, undefined, { kind: 'feat', id: featFeatureId });
+          }
+          for (const pc of feat.pendingChoices ?? []) {
+            updated = queueChoice(updated, pc, pending.grantedAt, featFeatureId, { kind: 'feat', id: featFeatureId });
+          }
+        }
+      }
     }
   }
   updated = {
@@ -1093,7 +1111,10 @@ export function replacePoolOption(
 
   const classContext = choice.definition.forClassId ?? entity.identity.classId;
   const oldTarget = splitSelection(oldOptionId).target;
-  const withoutOld = removeFeature(entity, `${(oldOpt.value as Feature).id}${oldTarget !== undefined ? `::${oldTarget}` : ''}`);
+  const oldFeatureId = `${(oldOpt.value as Feature).id}${oldTarget !== undefined ? `::${oldTarget}` : ''}`;
+  let withoutOld = removeFeature(entity, oldFeatureId);
+  // What an Origin-feat-targeted option brought along goes with it.
+  if (withoutOld.features.some(f => f.id === `${oldFeatureId}::feat`)) withoutOld = removeFeature(withoutOld, `${oldFeatureId}::feat`);
   // Check against the character as they will be after the swap: the old option no longer counts as held.
   const afterRemoval: Entity = { ...withoutOld, choices: withoutOld.choices.map(c => c.id === choiceId ? { ...c, selections: c.selections.filter(id => id !== oldOptionId) } : c) };
   const check = checkPrerequisites(afterRemoval, newOpt.requires, { classId: classContext });

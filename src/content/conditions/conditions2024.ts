@@ -16,7 +16,7 @@
 //     Advantage, Resistance to all damage, and the incapacitating conditions blocking actions.
 // Exhaustion has its own rules (conditionMonitor and engine/exhaustion.ts), so it is not a record here.
 // ============================================================================
-import type { Condition, Effect, RulesetId } from '../../engine/types';
+import type { Condition, Effect, Feature, RulesetId } from '../../engine/types';
 import { ALL_CONDITIONS } from './index';
 import { GLOSSARY_2024 } from '../rules/rulesReference2024Data';
 
@@ -35,9 +35,23 @@ const poisonImmunity = {
   actions: [], choices: [], passive: true,
 };
 
+// 2024 Incapacitated (and so Paralyzed, Petrified, Stunned, Unconscious): Disadvantage on Initiative rolls. The loss of Concentration is
+// done by applyCondition (engine/conditions.ts).
+const initiativeDisadvantage = (id: string): Feature => ({
+  id: `${id}_initiative_disadvantage`, name: 'Incapacitated', description: 'You have Disadvantage on Initiative rolls.',
+  source: { kind: 'condition' as const, refId: id }, level: null,
+  effects: [{ type: 'stat_modifier', target: 'initiative', operation: 'disadvantage', value: null, condition: null } as Effect],
+  actions: [], choices: [], passive: true,
+});
+const INCAPACITATING = new Set(['incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious']);
+
 export const CONDITIONS_2024: Condition[] = ALL_CONDITIONS.map(c => ({
   ...c,
   rulesetId: R2024,
   description: textOf(c.name),
-  features: c.id === 'petrified' ? [...c.features, poisonImmunity] : c.features,
+  features: [
+    ...c.features,
+    ...(c.id === 'petrified' ? [poisonImmunity] : []),
+    ...(INCAPACITATING.has(c.id) ? [initiativeDisadvantage(c.id)] : []),
+  ],
 }));

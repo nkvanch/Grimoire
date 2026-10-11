@@ -10,7 +10,7 @@
 // everything from this file.
 import {
   Ability, SkillName, SenseType, Feature, FeatureSource, Effect, ResourceGrant,
-  DraftTrait, Race, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation,
+  DraftTrait, Race, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation, AbilityEffect, Rider,
 } from '../engine/types';
 
 export const ABILITIES: Ability[] = ['str','dex','con','int','wis','cha'];
@@ -46,12 +46,15 @@ export const RECHARGE_TYPES = [
   { key: 'long_rest' as const, label: 'Long Rest' },
   // Renews when the player presses the sheet's ☀ Dawn button (see engine/rest.ts takeDawn) — not on a rest.
   { key: 'dawn' as const, label: 'Dawn' },
+  // Calendar abilities are table-tracked: the app keeps no calendar, so these only label the pool and the player resets it by hand.
+  { key: 'monthly' as const, label: 'Once a month (reset by hand)' },
+  { key: 'yearly' as const, label: 'Once a year (reset by hand)' },
   // Any other trigger the app cannot detect: shown as text, restored by hand with + on the sheet.
   { key: 'other' as const, label: 'Other (manual)' },
 ];
 
 /** The stored recharge string for an authored trait. Typing "Dawn" under Other means the same as the Dawn chip. */
-export function resolveRecharge(recharge: 'short_rest' | 'long_rest' | 'dawn' | 'other', rechargeOther: string): string {
+export function resolveRecharge(recharge: 'short_rest' | 'long_rest' | 'dawn' | 'monthly' | 'yearly' | 'other', rechargeOther: string): string {
   if (recharge !== 'other') return recharge;
   const text = rechargeOther.trim();
   return text.toLowerCase() === 'dawn' ? 'dawn' : (text || 'other');
@@ -451,7 +454,7 @@ function buildTraitFeatureCore(
  * wiring internally (double-wrapping would create a redundant, orphaned
  * second resource pool).
  */
-export function buildTraitFeature(
+function buildTraitFeatureBase(
   t: DraftTrait,
   opts: { idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null; usedIds?: Set<string> },
 ): { feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[] } {
@@ -480,6 +483,141 @@ export function buildTraitFeature(
     },
     resource,
   };
+}
+
+
+// ── Advanced fields: riders, timing, per-target effects, auras, derived-stat rules ─────────────────────────────────
+type BuiltTrait = { feature: Feature; resource: ResourceGrant | null; extraFeatures?: Feature[]; extraResources?: ResourceGrant[] };
+
+/** True when the trait sets anything in the advanced section. */
+export function hasAdvancedFields(t: DraftTrait): boolean {
+  return !!((t.riders?.length) || t.suspendDamageType?.trim() || t.alsoCosts || t.tempHpDice?.trim() || t.healFromDamageFraction?.trim()
+    || t.trackEffectName?.trim() || t.auraEnabled || t.armorDexCap || t.critImmune || t.critRange?.trim() || t.appliesInBeastForm
+    || (t.substituteFrom && t.substituteTo && t.substituteFrom !== t.substituteTo && t.substituteFor?.length)
+    || (t.grantSpeedType && parseInt(t.grantSpeedAmount ?? '', 10) > 0)
+    || (t.outcomeOn && t.outcomeOn !== 'none' && parseInt(t.outcomeRegain ?? '', 10) > 0)
+    || parseInt(t.infusionBonus ?? '', 10) > 0);
+}
+
+function auraEffectsFor(t: DraftTrait): Effect[] {
+  const amount = parseInt(t.auraAmount ?? '', 10);
+  const addAbilityModifier = t.auraAddAbility ? { addAbilityModifier: t.auraAddAbility as Ability } : {};
+  const flat = Number.isFinite(amount) ? amount : 0;
+  const stat = (target: string): Effect => ({ type: 'stat_modifier', target, operation: 'add', value: flat, condition: null, ...addAbilityModifier });
+  switch (t.auraStat ?? 'ac') {
+    case 'saves':      return ABILITIES.map(a => stat(`savingThrows.${a}`));
+    case 'speed':      return [stat('speed')];
+    case 'initiative': return [stat('initiative')];
+    case 'resistance': {
+      const type = (t.auraResistType ?? '').trim().toLowerCase();
+      return type ? [{ type: 'grant_resistance', target: type, operation: 'resistance', value: null, condition: null }] : [];
+    }
+    default:           return [stat('ac')];
+  }
+}
+
+function layerAdvanced(r: BuiltTrait, t: DraftTrait): BuiltTrait {
+  if (!hasAdvancedFields(t)) return r;
+  const f: Feature = { ...r.feature };
+  let effects = [...f.effects];
+
+  // derived-stat rules
+  if (t.armorDexCap) effects.push({ type: 'stat_modifier', target: 'armor_dex_cap', operation: 'set', value: 99, condition: null });
+  if (t.critImmune) effects.push({ type: 'grant_immunity', target: 'critical_hits_against', operation: 'immunity', value: null, condition: null });
+  const range = parseInt(t.critRange ?? '', 10);
+  if (Number.isFinite(range) && range >= 2 && range <= 19) effects.push({ type: 'stat_modifier', target: 'crit_range', operation: 'set', value: range, condition: null });
+  if (t.substituteFrom && t.substituteTo && t.substituteFrom !== t.substituteTo && t.substituteFor?.length) {
+    effects.push({ type: 'ability_substitute', target: '', operation: 'set', value: null, condition: null,
+      substituteFrom: t.substituteFrom as Ability, substituteTo: t.substituteTo as Ability, substituteFor: [...t.substituteFor] });
+  }
+  const infusion = parseInt(t.infusionBonus ?? '', 10);
+  if (Number.isFinite(infusion) && infusion > 0) effects.push({ type: 'stat_modifier', target: 'infusion_capacity', operation: 'add', value: infusion, condition: null });
+  if (t.appliesInBeastForm) {
+    effects = effects.map(e => (e.type === 'stat_modifier' && (e.target === 'ac' || e.target === 'speed') && e.operation === 'add' ? { ...e, appliesInBeastForm: true } : e));
+  }
+  f.effects = effects;
+
+  // timing
+  const dmg = (t.suspendDamageType ?? '').trim().toLowerCase();
+  if (dmg) f.suspendOn = { damageType: dmg, until: t.suspendUntil ?? 'end_of_next_turn' };
+
+  // card effects, and what they need to be usable
+  const fx: AbilityEffect[] = [...(f.abilityEffects ?? [])];
+  if (t.tempHpDice?.trim()) fx.push({ type: 'temp_hp', dice: t.tempHpDice.trim() });
+  const frac = parseFloat(t.healFromDamageFraction ?? '');
+  if (Number.isFinite(frac) && frac > 0) fx.push({ type: 'heal_from_damage_taken', fraction: frac, turnsBack: Math.max(0, parseInt(t.healFromDamageTurnsBack ?? '1', 10) || 0) });
+  if (t.trackEffectName?.trim()) {
+    fx.push({
+      type: 'track_effect', name: t.trackEffectName.trim(), visibility: 'party',
+      ...(t.trackRecords ? { records: true } : {}),
+      ...(t.trackUntil && t.trackUntil !== 'none' ? { until: t.trackUntil } : {}),
+      ...(t.trackRecords && t.trackRecordUntil && t.trackRecordUntil !== 'none' ? { recordUntil: t.trackRecordUntil } : {}),
+    });
+  }
+  const speed = parseInt(t.grantSpeedAmount ?? '', 10);
+  if (t.grantSpeedType && Number.isFinite(speed) && speed > 0) {
+    fx.push({
+      type: 'grant_speed', speedType: t.grantSpeedType, amount: speed,
+      duration: { unit: t.grantSpeedUnit ?? 'rounds', remaining: Math.max(1, parseInt(t.grantSpeedFor ?? '1', 10) || 1) },
+    });
+  }
+  const addedCard = fx.length > (f.abilityEffects?.length ?? 0);
+  if (addedCard || t.alsoCosts) {
+    f.passive = false;
+    f.abilityEffects = fx;
+    if (!f.activation) {
+      const at = t.actionType === 'other' ? 'free' : t.actionType;
+      f.activation = {
+        actionType: at, resourceCost: r.resource ? { resourceId: r.resource.resourceId, quantity: 1 } : null,
+        range: 'self', target: 'self', requiresSave: null,
+      };
+    }
+    if (t.alsoCosts) f.activation = { ...f.activation, alsoCosts: t.alsoCosts };
+  }
+
+  // an outcome the table confirms after use: the trait's own pool regains uses (needs a limited-use pool to refill)
+  const regain = parseInt(t.outcomeRegain ?? '', 10);
+  if (t.outcomeOn && t.outcomeOn !== 'none' && Number.isFinite(regain) && regain > 0 && r.resource && f.activation) {
+    f.outcomes = {
+      ...(f.outcomes ?? {}),
+      [t.outcomeOn]: { description: `Regain ${regain} use${regain === 1 ? '' : 's'}.`, effects: [{ type: 'restore_resource', resourceId: r.resource.resourceId, amount: regain }] },
+    };
+  }
+
+  // riders
+  const riders: Rider[] = [];
+  (t.riders ?? []).forEach((d, i) => {
+    if (!d.name.trim()) return;
+    const dice = d.dice.trim();
+    riders.push({
+      id: `${toId(d.name)}_${i}`, name: d.name.trim(), on: d.on,
+      ...(dice ? { damage: { dice, damageType: (d.damageType || 'untyped').trim().toLowerCase() } } : {}),
+      ...(d.note.trim() ? { note: d.note.trim() } : {}),
+      limit: d.limit,
+      ...(d.requires.trim() ? { requires: d.requires.trim() } : {}),
+      ...(d.clears.trim() ? { clears: d.clears.trim() } : {}),
+      ...(d.usesPool && r.resource ? { cost: { resourceId: r.resource.resourceId, quantity: 1 } } : {}),
+    });
+  });
+  if (riders.length) f.riders = riders;
+
+  // aura
+  if (t.auraEnabled) {
+    const aura = auraEffectsFor(t);
+    if (aura.length) f.aura = { label: t.auraLabel?.trim() || t.name, range: t.auraRange?.trim() || undefined, affects: t.auraAffects ?? 'allies', effects: aura };
+  }
+  return { ...r, feature: f };
+}
+
+/**
+ * Compiles one DraftTrait into a Feature (+ resource), with the advanced fields (riders, timing, per-target effects, auras,
+ * derived-stat rules) layered on top of whichever effect kind and limited-use setting produced the base.
+ */
+export function buildTraitFeature(
+  t: DraftTrait,
+  opts: { idPrefix: string; sourceKind: FeatureSource['kind']; sourceRefId: string; level: number | null; usedIds?: Set<string> },
+): BuiltTrait {
+  return layerAdvanced(buildTraitFeatureBase(t, opts), t);
 }
 
 // ── Draft subrace model ───────────────────────────────────────────────────────

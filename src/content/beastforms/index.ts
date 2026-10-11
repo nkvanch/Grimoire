@@ -8,64 +8,25 @@
 // are fair game to reproduce under CC-BY-4.0, with attribution on the About
 // screen — see ROADMAP_1.0.md Step 1.5).
 //
-// IMPORTANT: the exact numbers below (hp/ac/attack dice) were written from
-// memory during drafting, not cross-checked against a live copy of the SRD
-// 5.1 monster appendix. Verify every stat block against the actual SRD text
-// before shipping — treat this file as a structural draft, not a final
-// source of truth, same as the "NEEDS VERIFICATION" spell tags.
+// The beasts are generated from the SRD 5.1 text (scripts/gen-beastforms-2014.js). The four elementals below are still hand-written
+// and are marked as such.
 // ============================================================================
 import { BeastForm } from '../../engine/types';
 import { BEAST_FORMS_2024 } from './beastforms2024Data';
+import { BEAST_FORMS_2014 } from './beastforms2014Data';
 
-export const formWolf: BeastForm = {
-  id: 'wolf', name: 'Wolf', challengeRating: 0.25, size: 'Medium',
-  stats: { str: 12, dex: 15, con: 12, int: 3, wis: 12, cha: 6 },
-  ac: 13, hp: 11, speed: 40,
-  // No special senses in the SRD stat block — normal vision only.
-  attacks: [
-    { name: 'Bite', effect: { type: 'damage', dice: '2d4+2', damageType: 'piercing' } },
-  ],
-  traits: [
-    'Keen Hearing and Smell',
-    'Pack Tactics — advantage on attack rolls against a creature if at least one of the wolf\u2019s allies is within 5 feet of the creature and the ally isn\u2019t incapacitated',
-  ],
-};
+// The 2014 Beast forms are generated from the SRD 5.1 stat blocks (beastforms2014Data.ts). These three keep their names for the
+// code and tests that referred to them when they were the only hand-written forms.
+const byId = (id: string): BeastForm => BEAST_FORMS_2014.find(f => f.id === id)!;
+export const formWolf: BeastForm = byId('wolf');
+export const formGiantSpider: BeastForm = byId('giant_spider');
+export const formBrownBear: BeastForm = byId('brown_bear');
 
-export const formGiantSpider: BeastForm = {
-  id: 'giant_spider', name: 'Giant Spider', challengeRating: 1, size: 'Large',
-  stats: { str: 14, dex: 16, con: 12, int: 2, wis: 11, cha: 4 },
-  ac: 14, hp: 26, speed: 30, climbSpeed: 30,
-  senses: [{ type: 'blindsight', range: 10 }, { type: 'darkvision', range: 60 }],
-  attacks: [
-    { name: 'Bite', effect: { type: 'damage', dice: '1d8+3', damageType: 'piercing' } },
-  ],
-  traits: [
-    'Spider Climb — can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check',
-    'Web Sense — while in contact with a web, knows the exact location of any other creature in contact with the same web',
-    'Web Walker — ignores movement restrictions caused by webbing',
-  ],
-};
-
-export const formBrownBear: BeastForm = {
-  id: 'brown_bear', name: 'Brown Bear', challengeRating: 1, size: 'Large',
-  stats: { str: 19, dex: 10, con: 16, int: 2, wis: 13, cha: 7 },
-  ac: 11, hp: 34, speed: 40, swimSpeed: 30,
-  attacks: [
-    { name: 'Bite', effect: { type: 'damage', dice: '1d8+4', damageType: 'piercing' } },
-    { name: 'Claws', effect: { type: 'damage', dice: '2d6+4', damageType: 'slashing' } },
-  ],
-  traits: [
-    'Keen Smell',
-    'Multiattack — bite + claws. Shown as two separate action cards in v1; ' +
-      'no automated multiattack sequencing, consistent with the app having no ' +
-      'attack-roll automation anywhere else yet.',
-  ],
-};
-
+// Elemental forms, for the features that let a Druid take one (Elemental Wild Shape).
 // Same "written from memory, verify before shipping" caveat as the rest of
 // this file — CR 5 SRD elementals, not cross-checked against the live text.
 export const formAirElemental: BeastForm = {
-  id: 'air_elemental', name: 'Air Elemental', challengeRating: 5, size: 'Large',
+  id: 'air_elemental', name: 'Air Elemental', challengeRating: 5, creatureType: 'elemental', size: 'Large',
   stats: { str: 14, dex: 20, con: 14, int: 6, wis: 10, cha: 6 },
   ac: 15, hp: 90, speed: 0, flySpeed: 90,
   traits: [
@@ -96,7 +57,7 @@ export const formAirElemental: BeastForm = {
 };
 
 export const formEarthElemental: BeastForm = {
-  id: 'earth_elemental', name: 'Earth Elemental', challengeRating: 5, size: 'Large',
+  id: 'earth_elemental', name: 'Earth Elemental', challengeRating: 5, creatureType: 'elemental', size: 'Large',
   stats: { str: 20, dex: 8, con: 20, int: 5, wis: 10, cha: 5 },
   ac: 17, hp: 126, speed: 30,
   traits: [
@@ -118,7 +79,7 @@ export const formEarthElemental: BeastForm = {
 };
 
 export const formFireElemental: BeastForm = {
-  id: 'fire_elemental', name: 'Fire Elemental', challengeRating: 5, size: 'Large',
+  id: 'fire_elemental', name: 'Fire Elemental', challengeRating: 5, creatureType: 'elemental', size: 'Large',
   stats: { str: 10, dex: 17, con: 16, int: 6, wis: 10, cha: 7 },
   ac: 13, hp: 102, speed: 50,
   traits: [
@@ -141,7 +102,7 @@ export const formFireElemental: BeastForm = {
 };
 
 export const formWaterElemental: BeastForm = {
-  id: 'water_elemental', name: 'Water Elemental', challengeRating: 5, size: 'Large',
+  id: 'water_elemental', name: 'Water Elemental', challengeRating: 5, creatureType: 'elemental', size: 'Large',
   stats: { str: 18, dex: 14, con: 18, int: 5, wis: 10, cha: 8 },
   ac: 14, hp: 114, speed: 30, swimSpeed: 90,
   traits: [
@@ -162,9 +123,8 @@ export const formWaterElemental: BeastForm = {
 };
 
 export const ALL_BEAST_FORMS: BeastForm[] = [
-  formWolf,
-  formGiantSpider,
-  formBrownBear,
+  // Every SRD 5.1 Beast of Challenge Rating 6 or lower (swarms excluded), for the 2014 Druid's Wild Shape picker.
+  ...BEAST_FORMS_2014,
   formAirElemental,
   formEarthElemental,
   formFireElemental,

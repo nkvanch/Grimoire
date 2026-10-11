@@ -5,6 +5,7 @@
 // characters saved before this field existed, and for monster/companion/npc
 // entities that never populate it) lives in exactly one place.
 import { Entity, ClassLevelEntry, CharClass, asClassId, asSubclassId, EntitlementRecord, SkillName } from './types';
+import { WILD_SHAPE_2014, WILD_SHAPE_2014_ID, WILD_SHAPE_2014_LEGACY_IDS } from '../content/beastforms/wildShape2014';
 
 /**
  * Returns this entity's classes, oldest-first (index 0 = "primary"/first
@@ -125,7 +126,18 @@ export function migrateEntity(raw: Entity): Entity {
       },
     };
   }
-  return migrateEntitlements(entity);
+  return migrateWildShape(migrateEntitlements(entity));
+}
+
+/**
+ * A 2014 Druid saved before Wild Shape became one picker feature has three single-form features (Wolf, Giant Spider, Brown Bear).
+ * They are replaced by the picker, which offers those forms and every other the level allows; nothing else on the character changes.
+ */
+function migrateWildShape(entity: Entity): Entity {
+  if (!entity.features.some(f => WILD_SHAPE_2014_LEGACY_IDS.includes(f.id))) return entity;
+  const features = entity.features.filter(f => !WILD_SHAPE_2014_LEGACY_IDS.includes(f.id));
+  if (!features.some(f => f.id === WILD_SHAPE_2014_ID)) features.push({ ...WILD_SHAPE_2014, isActive: true });
+  return { ...entity, features };
 }
 
 /**

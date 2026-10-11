@@ -18,18 +18,86 @@ describe('player.report_character with vitals', () => {
     expect(dm.peer.view!.characters.alice.vitals).toMatchObject({ speed: 25, conditions: ['poisoned'] });
   });
 
-  it('vitals are never sent to a peer player, even redacted', async () => {
+  it('a peer sees an ally\'s visible status (conditions, concentration, dying) but never the rest of the vitals', async () => {
     const rig = await newRig();
     const alice = await addPlayer(rig, 'alice');
     const bob = await addPlayer(rig, 'bob');
     alice.character!.conditions = ['poisoned'];
+    alice.character!.concentrating = 'bless';
+    alice.character!.speed = 25;
+    alice.character!.resources = [{ id: 'secret_pool', name: 'Secret Pool', current: 1, maximum: 3 }];
     alice.character!.revision += 1;
     alice.peer.reportCharacter();
     await rig.settle();
     const seenByBob = bob.peer.partyView().find(c => c.participantId === 'alice')!;
     expect(seenByBob).not.toHaveProperty('vitals');
+    expect(seenByBob.status).toEqual({ conditions: ['poisoned'], concentrating: true, dying: null });
     const bobWire = rig.net.receivedBy('bob').join('\n');
-    expect(bobWire).not.toContain('poisoned');
+    expect(bobWire).not.toContain('Secret Pool');
+    expect(bobWire).not.toContain('secret_pool');
+    expect(bobWire).not.toContain('"speed":25');
+  });
+
+  it('a character at 0 HP shows as dying, stable or dead to the table', async () => {
+    const rig = await newRig();
+    const alice = await addPlayer(rig, 'alice');
+    const bob = await addPlayer(rig, 'bob');
+    const seen = () => bob.peer.partyView().find(c => c.participantId === 'alice')!.status!.dying;
+    alice.character!.hp = 0;
+    alice.character!.revision += 1; alice.peer.reportCharacter(); await rig.settle();
+    expect(seen()).toBe('dying');
+    alice.character!.deathSaves = { successes: 3, failures: 1, stable: true };
+    alice.character!.revision += 1; alice.peer.reportCharacter(); await rig.settle();
+    expect(seen()).toBe('stable');
+    alice.character!.deathSaves = { successes: 0, failures: 3, stable: false };
+    alice.character!.revision += 1; alice.peer.reportCharacter(); await rig.settle();
+    expect(seen()).toBe('dead');
+  });
+
+  it('a Public Persona hides the status from peers', async () => {
+    const rig = await newRig();
+    const alice = await addPlayer(rig, 'alice');
+    const bob = await addPlayer(rig, 'bob');
+    alice.peer.setPersona({ enabled: true, name: 'Stranger', hp: 10, maxHp: 10, ac: 12 });
+    await rig.settle();
+    const before = rig.net.receivedBy('bob').length;
+    alice.character!.conditions = ['poisoned'];
+    alice.character!.revision += 1;
+    alice.peer.reportCharacter();
+    await rig.settle();
+    const seenByBob = bob.peer.partyView().find(c => c.participantId === 'alice')!;
+    expect(seenByBob).not.toHaveProperty('status');
+    expect(rig.net.receivedBy('bob').slice(before).join('\n')).not.toContain('poisoned');
+  });
+
+  it('the DM also gets passive scores, defenses and running effects when the adapter reports them', async () => {
+    const rig = await newRig();
+    const dm = await addDm(rig);
+    const alice = await addPlayer(rig, 'alice');
+    const base = alice.character!.vitals.bind(alice.character!);
+    alice.character!.vitals = () => ({
+      ...base(),
+      passives: { perception: 14, investigation: 11, insight: 13 },
+      defenses: { resistances: ['fire'], immunities: [], vulnerabilities: ['radiant'], conditionImmunities: [], critsNegated: false },
+      effects: ['rage'],
+    });
+    alice.character!.revision += 1;
+    alice.peer.reportCharacter();
+    await rig.settle();
+    expect(dm.peer.view!.characters.alice.vitals).toMatchObject({
+      passives: { perception: 14, insight: 13 }, defenses: { resistances: ['fire'], vulnerabilities: ['radiant'] }, effects: ['rage'],
+    });
+  });
+
+  it('malformed Live Play fields are rejected', async () => {
+    const rig = await newRig();
+    const alice = await addPlayer(rig, 'alice');
+    const base = alice.character!.vitals.bind(alice.character!);
+    alice.character!.vitals = () => ({ ...base(), passives: { perception: 'x' } as never });
+    alice.character!.revision += 1;
+    const opId = alice.peer.reportCharacter()!;
+    await rig.settle();
+    expect(alice.peer.resultOf(opId)?.status).toBe('rejected');
   });
 
   it('a Host-only participant sees no character vitals (characters is empty for that level)', async () => {

@@ -1347,12 +1347,13 @@ describe('applyAbilityEffects — apply_condition / remove_condition (ARCH-2)', 
     expect(after.derived.speed).toBeGreaterThan(0);
   });
 
-  it('grant_speed still has no effect (explicitly deferred, not silently claimed as done)', () => {
+  it('grant_speed gives the movement speed for its duration (see grantSpeed.test.ts for the lifecycle)', () => {
     const entity = testEntity();
     const after = applyAbilityEffects(entity, [
       { type: 'grant_speed', speedType: 'fly', amount: 30, duration: { unit: 'rounds', remaining: 1 } },
     ]);
-    expect(after.derived.movement?.fly ?? 0).toBe(entity.derived.movement?.fly ?? 0);
+    expect(entity.derived.movement?.fly ?? 0).toBe(0);
+    expect(after.derived.movement?.fly).toBe(30);
   });
 
   // Table-first correction, on top of ARCH-2 above: apply_condition/

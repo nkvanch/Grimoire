@@ -11,6 +11,7 @@
 // ============================================================================
 
 import { findBeastForm } from '../content/runtimeRules';
+import { isFeatureSuspended } from './suspension';
 import { exhaustionSpeedPenalty } from './exhaustion';
 import {
   Entity, CampaignRules, DerivedStats, ActiveEffect,
@@ -59,13 +60,19 @@ export function selectBestAcFormula(
 ): AcFormulaCandidate | null {
   const formulaEffects = allEffects.filter(ae => ae.effect.type === 'base_ac_formula');
   if (formulaEffects.length === 0) return null;
+  // "You may add your full Dexterity modifier to your AC while wearing medium armor": a `set` on armor_dex_cap raises the +2
+  // limit a medium armor formula carries (a higher cap wins; armor with no Dex cap is unaffected).
+  const dexCapRaise = allEffects
+    .filter(ae => ae.effect.target === 'armor_dex_cap' && ae.effect.operation === 'set' && typeof ae.effect.value === 'number')
+    .reduce((m, ae) => Math.max(m, ae.effect.value as number), -Infinity);
   const candidates = formulaEffects.map((ae): AcFormulaCandidate => {
     const baseValue = ae.effect.value as number;
     const abilities = (ae.effect.formulaAbilities ?? []) as Ability[];
     const abilityBonus = abilities.reduce((sum, ab) => {
       const rawMod = modifier(effectiveStats[ab]);
       // formulaAbilityCap: e.g. { dex: 2 } for medium armor (PHB p.144)
-      const cap = ae.effect.formulaAbilityCap?.[ab];
+      const printedCap = ae.effect.formulaAbilityCap?.[ab];
+      const cap = printedCap !== undefined && ab === 'dex' && dexCapRaise > printedCap ? dexCapRaise : printedCap;
       return sum + (cap !== undefined ? Math.min(rawMod, cap) : rawMod);
     }, 0);
     return {
@@ -358,9 +365,10 @@ export function recomputeDerived(
 
   // Beast form AC is a flat total (no magic armor while transformed) — skip
   // the shield/magic-bonus stacking that normally applies on top.
-  const acBonus = beastForm ? 0 : (resolveEffectsForTarget(
+  // An effect marked appliesInBeastForm ("also in your wild shapes") still adds on top of the form's flat AC.
+  const acBonus = (resolveEffectsForTarget(
     'ac',
-    allEffects.filter(ae => ae.effect.type !== 'base_ac_formula'),
+    allEffects.filter(ae => ae.effect.type !== 'base_ac_formula' && (!beastForm || ae.effect.appliesInBeastForm)),
     rules,
   ) as number);
 
@@ -390,8 +398,11 @@ export function recomputeDerived(
   // must still apply. Compute the ordinary-or-transformed CALCULATED speed
   // first, then apply the restriction on top unconditionally, exactly like
   // the non-transformed path always has.
+  const beastSpeedBonus = beastForm
+    ? (resolveEffectsForTarget('speed', allEffects.filter(ae => ae.effect.appliesInBeastForm && ae.effect.operation === 'add'), rules) as number)
+    : 0;
   const calculatedSpeed = beastForm
-    ? beastForm.speed
+    ? beastForm.speed + beastSpeedBonus
     : hasSetSpeed
       ? speedResolved
       : entity.resources.speed + speedResolved;
@@ -460,21 +471,25 @@ export function recomputeDerived(
                         resolveScaleFactor(allEffects.filter(ae => ae.effect.target === 'initiative')),
                       ),
     speed:            finalSpeed,
+    critsNegated:     allEffects.some(ae => ae.effect.target === 'critical_hits_against' && ae.effect.operation === 'immunity'),
+    critRange:        allEffects
+      .filter(ae => ae.effect.target === 'crit_range' && ae.effect.operation === 'set' && typeof ae.effect.value === 'number')
+      .reduce((lowest, ae) => Math.min(lowest, Math.max(2, ae.effect.value as number)), 20),
     // Bug fix (architecture review U7): a passive-score-targeted
     // stat_modifier effect (e.g. Observant's +5 to passive Perception and
     // passive Investigation) used to be silently ignored here — unlike
     // every other derived stat below, which folds in its own
     // resolveEffectsForTarget term on top of the base formula.
-    passivePerception:    10 + resolveSkill(entity, effectiveStats, 'perception', allEffects, profBonus)
+    passivePerception:    10 + resolveSkill(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'ability_checks'), 'perception', allEffects, profBonus)
                             + (resolveEffectsForTarget('passivePerception', allEffects, rules) as number),
-    passiveInvestigation: 10 + resolveSkill(entity, effectiveStats, 'investigation', allEffects, profBonus)
+    passiveInvestigation: 10 + resolveSkill(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'ability_checks'), 'investigation', allEffects, profBonus)
                             + (resolveEffectsForTarget('passiveInvestigation', allEffects, rules) as number),
-    passiveInsight:       10 + resolveSkill(entity, effectiveStats, 'insight', allEffects, profBonus)
+    passiveInsight:       10 + resolveSkill(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'ability_checks'), 'insight', allEffects, profBonus)
                             + (resolveEffectsForTarget('passiveInsight', allEffects, rules) as number),
     senses,
     movement,
-    savingThrows:     resolveSavingThrows(effectiveStats, entity.proficiencies.savingThrows, profBonus, allEffects, rules),
-    attackBonuses:    computeWeaponAttackBonuses(entity, effectiveStats, profBonus, content.items),
+    savingThrows:     resolveSavingThrows(applyAbilitySubstitutions(effectiveStats, allEffects, 'saving_throws'), entity.proficiencies.savingThrows, profBonus, allEffects, rules),
+    attackBonuses:    computeWeaponAttackBonuses(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'weapon_attacks'), profBonus, content.items),
     advantageStates,
     spellSaveDC:  entity.spellcasting
       ? abilityDC(profBonus, modifier(effectiveStats[entity.spellcasting.ability]))
@@ -602,6 +617,7 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
   // 1. Features from race, class, background, feats, spells, etc.
   for (const fi of entity.features) {
     if (!fi.isActive) continue;
+    if (isFeatureSuspended(entity, fi.id)) continue;   // switched off for a time (engine/suspension.ts)
     // A RACIAL trait with an authored unlock level (Draconic Flight at 5, Large Form at 5) does nothing
     // until the character reaches it — the same gate action-card generation already applies. Limited to
     // race-sourced features on purpose: class/feat/background features are stamped with the level they
@@ -638,6 +654,14 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
         appliedAt:  fi.level ?? 0,
         sourceKind: fi.source.kind,
       });
+    }
+  }
+
+  // 1b. Auras of other party members this character has marked itself as being inside (engine/auras.ts).
+  for (const a of entity.receivedAuras ?? []) {
+    for (const effect of a.effects) {
+      if (effect.condition !== null && effect.condition !== undefined && !effectConditionActive(effect.condition, activeFlags, activeConditionIds, entity, worn)) continue;
+      effects.push({ effect, sourceName: `${a.label} (${a.sourceName})`, sourceId: `${a.sourceEntityId}:${a.featureId}`, appliedAt: 0, sourceKind: 'feature' as never });
     }
   }
 
@@ -914,6 +938,25 @@ function resolveSkill(
     .reduce((sum, ae) => sum + (ae.effect.value as number), 0);
 
   return baseScore + skillBonus;
+}
+
+/**
+ * Ability substitution ("use Constitution instead of Strength for ..."): the scores a roll of this kind reads. Where an active
+ * `ability_substitute` effect replaces ability A with B for the kind, A reads as B's score when that is higher. Pure; the input
+ * scores are the character's effective scores and are not changed.
+ */
+export function applyAbilitySubstitutions(
+  stats:   Entity['stats'],
+  effects: ActiveEffect[],
+  kind:    import('./types').AbilityUseKind,
+): Entity['stats'] {
+  let out = stats;
+  for (const ae of effects) {
+    const fx = ae.effect;
+    if (fx.type !== 'ability_substitute' || !fx.substituteFrom || !fx.substituteTo || !(fx.substituteFor ?? []).includes(kind)) continue;
+    if (stats[fx.substituteTo] > out[fx.substituteFrom]) out = { ...out, [fx.substituteFrom]: stats[fx.substituteTo] };
+  }
+  return out;
 }
 
 /** Computes saving throw bonus for all six abilities. */

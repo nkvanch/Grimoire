@@ -7,8 +7,7 @@
 import {
   Capability, ParticipantId, LiveState, LiveEvent, ViewState, AuditEntry,
   EffectApplication, LiveEffect, PublicParticipant, LiveCombatant, LiveEncounter,
-  ReportedCharacter, CharacterSummary, Reward,
-} from './types';
+  ReportedCharacter, CharacterSummary, Reward, PublicStatus } from './types';
 
 // ── Viewers ──────────────────────────────────────────────────────────────────
 
@@ -301,7 +300,24 @@ function publicSummaryOf(rc: ReportedCharacter): CharacterSummary {
 /** The shape sent to a PEER player — summary only, never the raw persona config (nothing for
  *  them to reverse-engineer the real values from; see publicSummaryOf). */
 function publicCharacterOf(rc: ReportedCharacter): ReportedCharacter {
-  return { participantId: rc.participantId, characterId: rc.characterId, revision: rc.revision, summary: publicSummaryOf(rc) };
+  const status = publicStatusOf(rc);
+  return {
+    participantId: rc.participantId, characterId: rc.characterId, revision: rc.revision, summary: publicSummaryOf(rc),
+    ...(status ? { status } : {}),
+  };
+}
+
+/** Allies' visible state for peers: conditions, concentration and the dying state, never the rest of the vitals. A persona hides it. */
+function publicStatusOf(rc: ReportedCharacter): PublicStatus | null {
+  if (rc.persona?.enabled || !rc.vitals) return null;
+  const v = rc.vitals;
+  const down = rc.summary.hp <= 0;
+  const dying: PublicStatus['dying'] = !down ? null : v.deathSaves.failures >= 3 ? 'dead' : v.deathSaves.stable ? 'stable' : 'dying';
+  return {
+    conditions: [...v.conditions, ...(v.exhaustion > 0 ? [`exhaustion ${v.exhaustion}`] : [])],
+    concentrating: v.concentration !== null,
+    dying,
+  };
 }
 
 /** The complete state a viewer is entitled to see. */

@@ -27,6 +27,7 @@ import { disambiguateId } from '../../src/content/traitCompiler';
 import { FULL_SPELL_LIBRARY } from '../../src/content/spells/index';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { tiersFromDraft, draftFromTiers, CantripTierDraft } from '../../src/engine/cantripScaling';
 
 const LEVELS  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const SCHOOLS = ['Abjuration','Conjuration','Divination','Enchantment','Evocation','Illusion','Necromancy','Transmutation'];
@@ -77,6 +78,8 @@ export default function SpellBuilderScreen() {
   const [duration,    setDuration]    = useState('Instantaneous');
   const [description, setDescription] = useState('');
   const [upcast,      setUpcast]      = useState('');
+  // A cantrip's upgrades by character level: at any level, the dice it becomes and/or how many beams (empty = the printed text decides).
+  const [tiers, setTiers] = useState<CantripTierDraft[]>([]);
   const [ritual,      setRitual]      = useState(false);
   const [concentration, setConcentration] = useState(false);
   const [spellTypes,  setSpellTypes]  = useState<string[]>([]);
@@ -97,6 +100,7 @@ export default function SpellBuilderScreen() {
     setDuration(editing.duration);
     setDescription(editing.description);
     setUpcast(editing.upcast ?? '');
+    setTiers(draftFromTiers(editing.cantripScaling));
     setRitual(editing.ritual);
     setConcentration(editing.concentration);
     setSpellTypes(editing.spellType ?? []);
@@ -131,6 +135,7 @@ export default function SpellBuilderScreen() {
       duration:      duration.trim(),
       description:   description.trim(),
       upcast:        upcast.trim() || null,
+      cantripScaling: level === 0 && tiersFromDraft(tiers).length > 0 ? tiersFromDraft(tiers) : undefined,
       ritual,
       concentration,
       spellType:     spellTypes.length > 0 ? spellTypes : undefined,
@@ -300,6 +305,28 @@ export default function SpellBuilderScreen() {
           />
         </Field>
 
+        {level === 0 && (
+          <Field label="Upgrades by character level (optional)">
+            {tiers.map((row, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                <TextInput style={[styles.input, { width: 70 }]} value={row.level} keyboardType="number-pad" placeholder="Level"
+                  onChangeText={v => setTiers(ts => ts.map((x, j) => (j === i ? { ...x, level: v.replace(/[^0-9]/g, '') } : x)))} placeholderTextColor={Colors.textDim} />
+                <TextInput style={[styles.input, { flex: 1 }]} value={row.dice} autoCapitalize="none" placeholder="Dice, e.g. 3d6+2"
+                  onChangeText={v => setTiers(ts => ts.map((x, j) => (j === i ? { ...x, dice: v } : x)))} placeholderTextColor={Colors.textDim} />
+                <TextInput style={[styles.input, { width: 70 }]} value={row.count} keyboardType="number-pad" placeholder="Beams"
+                  onChangeText={v => setTiers(ts => ts.map((x, j) => (j === i ? { ...x, count: v.replace(/[^0-9]/g, '') } : x)))} placeholderTextColor={Colors.textDim} />
+                <Pressable style={styles.removeBtn} onPress={() => setTiers(ts => ts.filter((_, j) => j !== i))} accessibilityLabel="Remove this upgrade" accessibilityRole="button">
+                  <Text style={styles.removeBtnTxt}>✕</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Pressable style={styles.addBtn} onPress={() => setTiers(ts => [...ts, { level: '', dice: '', count: '' }])} accessibilityLabel="Add an upgrade" accessibilityRole="button">
+              <Text style={styles.addBtnTxt}>+ Add an upgrade</Text>
+            </Pressable>
+            <Text style={styles.hintNote}>Each row is a character level (any, from 1 to 20) and what the cantrip becomes from there: its dice (a modifier such as 3d6+2 is fine), how many beams or attacks, or both. Leave the list empty and the card reads the usual "increases by 1d10 at 5th level (2d10), 11th level (3d10), and 17th level (4d10)" sentence in the description.</Text>
+          </Field>
+        )}
+
         <Field label="At Higher Levels (optional)">
           <TextInput
             style={[styles.input, styles.textArea]}
@@ -367,6 +394,12 @@ const styles = StyleSheet.create({
   chipTxt:   { fontSize: FontSize.xs, color: Colors.textSecondary },
   chipTxtActive: { color: Colors.gold, fontWeight: FontWeight.bold },
   warnNote: { fontSize: FontSize.xs, color: Colors.gold, lineHeight: 16, marginTop: 4 },
+  // The upgrade list: a real button, clearly apart from the explanatory text below it.
+  addBtn:    { marginTop: Spacing.sm, minHeight: 44, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gold, backgroundColor: Colors.gold + '22', alignItems: 'center', justifyContent: 'center' },
+  addBtnTxt: { fontSize: FontSize.md, color: Colors.gold, fontWeight: FontWeight.bold },
+  removeBtn: { width: 44, minHeight: 44, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  removeBtnTxt: { fontSize: FontSize.md, color: Colors.textSecondary },
+  hintNote:  { marginTop: Spacing.md, fontSize: FontSize.xs, color: Colors.textDim, lineHeight: 16 },
   toggleRow: { flexDirection: 'row', gap: Spacing.sm },
   toggle:    { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   toggleActive: { borderColor: Colors.gold, backgroundColor: Colors.gold + '22' },

@@ -176,12 +176,13 @@ export const HOUSE_RULES: HouseRuleDef[] = [
     key: 'dmFullStatVisibility', label: 'DM sees full character stats', kind: 'boolean',
     section: 'DM Visibility',
     description:
-      'Book: the DM dashboard shows only what a DM could reasonably observe at ' +
-      'a glance — passive stats (Perception/Investigation), HP, movement speed, ' +
-      'and AC. Enabling this reveals full stat blocks (all six abilities, ' +
-      'skills, saving throws, inventory) on the dashboard AND enables DM ' +
-      'Override there — overriding a stat the DM can\'t normally see doesn\'t ' +
-      'make sense, so the two are gated together.',
+      'The DM dashboard always shows what the DM needs to run encounters safely: ' +
+      'passive Perception, Investigation and Insight, HP and temp HP, AC, speed, ' +
+      'conditions, concentration, exhaustion, resources, spell slots and defenses. ' +
+      'Enabling this also reveals full stat blocks (all six abilities, skills, ' +
+      'saving throws, inventory) in the character view AND enables DM Override ' +
+      'there — overriding a stat the DM can\'t normally see doesn\'t make sense, ' +
+      'so the two are gated together.',
     bookDefault: false,
     bookLabel: 'Passive stats only (book)', homebrewLabel: 'Full visibility + override',
   },

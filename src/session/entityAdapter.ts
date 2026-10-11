@@ -11,6 +11,7 @@ import { Entity } from '../engine/types';
 import { recomputeDerived } from '../engine/pipeline';
 import { applyCondition, removeCondition } from '../engine/conditions';
 import { gainHeroicInspiration } from '../engine/heroicInspiration';
+import { defenseSummary } from '../engine/defenses';
 import { useCharacterStore } from '../store/characterStore';
 import { useHomebrewStore } from '../store/homebrewStore';
 import { CharacterAdapter, CharacterChange, CharacterSummary, CharacterVitals } from './types';
@@ -116,6 +117,16 @@ export class EntityAdapter implements CharacterAdapter {
       deathSaves: { ...e.resources.deathSaves },
       resources: e.resources.custom.map(r => ({ id: r.id, name: r.name, current: r.current, maximum: r.maximum })),
       spellSlots: e.spellcasting ? Object.fromEntries(Object.entries(e.spellcasting.slots).filter(([, s]) => s.total > 0)) : null,
+      passives: { perception: e.derived.passivePerception, investigation: e.derived.passiveInvestigation, insight: e.derived.passiveInsight },
+      defenses: (() => {
+        const d = defenseSummary(e);
+        return { resistances: d.resistances, immunities: d.immunities, vulnerabilities: d.vulnerabilities, conditionImmunities: d.conditionImmunities, critsNegated: d.critsNegated };
+      })(),
+      effects: [
+        ...Object.entries(e.conditionMonitor.flags).filter(([k, v]) => v === true && k !== 'concentrating').map(([k]) => k.replace(/_active$/, '').replace(/_/g, ' ')),
+        ...(e.trackedEffects ?? []).map(x => `${x.name}${x.targetName ? ` on ${x.targetName}` : ''}`),
+        ...(e.receivedAuras ?? []).map(a => a.label),
+      ],
     };
   }
 

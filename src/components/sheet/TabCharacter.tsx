@@ -16,6 +16,7 @@ import { Entity, CampaignRules, CharClass, ActionCard, asClassId, DurationTracke
 import { useCharacterStore } from '../../store/characterStore';
 import { hasActiveOverride } from '../../engine/dmOverride';
 import { toggleActionEconomy, parseRechargeThreshold, rollRecharge, concentrationLinkedEffectNames } from '../../engine/combat';
+import { isResetByHand, rechargeLabel } from '../../engine/recharge';
 import { confirmEndConcentration } from './spellTabUi';
 import { recomputeDerived, modifier, effectiveAbilityScores } from '../../engine/pipeline';
 import { rollDie } from '../../engine/leveling';
@@ -36,6 +37,7 @@ import { AsiFeatPicker } from '../AsiFeatPicker';
 import { AuditModal } from './AuditModal';
 import { HpModal } from './HpModal';
 import { HeroicInspirationPanel } from './HeroicInspirationPanel';
+import { CombatStatePanel } from './CombatStatePanel';
 import { ConcentrationModal } from './ConcentrationModal';
 import { CompanionSection } from './CompanionSection';
 import { ActionCardRow, UseModal, applyActionCardUse, toggleFavoriteTag, isFavoriteCard, actionCardIdentity, ActivationOptionModal, useCardContent } from './TabActions';
@@ -1318,6 +1320,7 @@ function TabCharacterInner({
       )}
 
       <HeroicInspirationPanel entity={entity} onEntityUpdate={onEntityUpdate} />
+      <CombatStatePanel entity={entity} onEntityUpdate={onEntityUpdate} />
 
       {/* Stat Row */}
       <View style={styles.statRow}>
@@ -1713,7 +1716,7 @@ function TabCharacterInner({
             <View key={r.id} style={styles.resourceRow}>
               <View style={styles.resourceInfo}>
                 <Text style={styles.resourceName}>{r.name}</Text>
-                <Text style={styles.resourceRecharge}>{r.recharge.replace('_', ' ')}</Text>
+                <Text style={styles.resourceRecharge}>{rechargeLabel(r.recharge)}</Text>
               </View>
               <View style={styles.resourceControls}>
                 <Pressable style={styles.resBtn} onPress={() => onResourceChange(r.id, -1)} disabled={r.current <= 0}>
@@ -1725,6 +1728,12 @@ function TabCharacterInner({
                 <Pressable style={styles.resBtn} onPress={() => onResourceChange(r.id, 1)} disabled={r.current >= r.maximum}>
                   <Text style={[styles.resBtnTxt, r.current >= r.maximum && styles.disabled]}>+</Text>
                 </Pressable>
+                {isResetByHand(r.recharge) && r.current < r.maximum && (
+                  <Pressable style={styles.rechargeBtn} onPress={() => onResourceChange(r.id, r.maximum - r.current)}
+                    accessibilityLabel={`Reset ${r.name}`}>
+                    <Text style={styles.rechargeBtnTxt}>Reset</Text>
+                  </Pressable>
+                )}
                 {rechargeThreshold !== null && r.current < r.maximum && (
                   <Pressable
                     style={styles.rechargeBtn}

@@ -135,7 +135,7 @@ export function applyCondition(
     isActive: true,
   }));
 
-  const updated = {
+  let updated: Entity = {
     ...entity,
     conditions: [...entity.conditions, newCondition],
     conditionMonitor: {
@@ -145,8 +145,22 @@ export function applyCondition(
     features: [...entity.features, ...newFeatures],
   };
 
+  // 2024 rules: becoming Incapacitated (which Paralyzed, Petrified, Stunned and Unconscious include) ends Concentration.
+  if (entity.rulesetId === 'dnd5e-2024' && INCAPACITATING_2024.has(conditionId) && updated.spellcasting?.concentrating) {
+    const droppedId = updated.spellcasting.concentrating;
+    updated = {
+      ...updated,
+      features: updated.features.filter(f => !(f.source.kind === 'spell' && f.source.refId === droppedId)),
+      spellcasting: { ...updated.spellcasting, concentrating: null, concentratingDuration: undefined },
+      conditionMonitor: { ...updated.conditionMonitor, flags: { ...updated.conditionMonitor.flags, concentrating: false } },
+    };
+  }
+
   return recomputeDerived(updated, rules);
 }
+
+/** The 2024 conditions that include Incapacitated (SRD 5.2.1 glossary). */
+export const INCAPACITATING_2024: ReadonlySet<string> = new Set(['incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious']);
 
 // ── Remove condition ──────────────────────────────────────────────────────────
 

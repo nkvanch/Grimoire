@@ -12,12 +12,13 @@
 //  • Fly/swim/climb come from derived.movement (grant_movement effects). Empty
 //    until a race/item/spell grants them.
 import { findBeastForm } from '../../content/runtimeRules';
-import { useState, memo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
 import {
   Entity, Ability, SkillName, CampaignRules, SenseType, Sense, ItemInstance, Spell, DurationTracker,
 } from '../../engine/types';
 import { modifier, collectAllEffects, applyStatModifiers, recomputeDerived } from '../../engine/pipeline';
+import { skillCheck } from '../../engine/skillCheck';
 import { AsiFeatPicker } from '../AsiFeatPicker';
 import { HpModal } from './HpModal';
 import { ConcentrationModal } from './ConcentrationModal';
@@ -226,14 +227,21 @@ function TabExplorationInner({
   const { resources, derived, skills, proficiencies, inventory, conditions, conditionMonitor, features } = entity;
   const effectiveStats = applyStatModifiers(entity.stats, collectAllEffects(entity));
 
+  // The bonus, the advantage state and the dice are the engine's (engine/skillCheck.ts); this screen shows and rolls them. One
+  // answer per skill per character state, so the list does not recompute all of an entity's effects for every row.
+  const skillChecks = useMemo(() => new Map<SkillName, ReturnType<typeof skillCheck>>(), [entity]);
+  function checkFor(name: SkillName, ability: Ability) {
+    let c = skillChecks.get(name);
+    if (!c) { c = skillCheck(entity, name, ability); skillChecks.set(name, c); }
+    return c;
+  }
   function skillBonus(name: SkillName, ability: Ability): number {
-    const entry = skills.skills[name];
-    const profMult = entry?.expertise ? 2 : entry?.trained ? 1 : 0;
-    return modifier(effectiveStats[ability]) + derived.proficiencyBonus * profMult + (entry?.bonus ?? 0);
+    return checkFor(name, ability).bonus;
   }
   function rollSkill(name: SkillName, label: string, ability: Ability) {
-    const b = skillBonus(name, ability);
-    rollAndLog(`1d20${b >= 0 ? '+' : ''}${b}`, `${label} check`);
+    const c = checkFor(name, ability);
+    const note = c.state === 'advantage' ? ' (advantage)' : c.state === 'disadvantage' ? ' (disadvantage)' : '';
+    rollAndLog(c.expression, `${label} check${note}`);
   }
 
   function itemName(inst: ItemInstance): string {
@@ -317,13 +325,15 @@ function TabExplorationInner({
       {/* Skills — tap to roll */}
       <Section title="SKILLS  ·  tap to roll">
         {SKILLS.map(({ name, label, ability }) => {
-          const b = skillBonus(name, ability);
+          const check = checkFor(name, ability);
+          const b = check.bonus;
           const entry = skills.skills[name];
           return (
-            <Pressable key={name} style={styles.skillRow} onPress={() => rollSkill(name, label, ability)}>
+            <Pressable key={name} style={styles.skillRow} onPress={() => rollSkill(name, label, ability)}
+              accessibilityLabel={check.state === 'straight' ? undefined : `${label}, ${check.state}`}>
               <View style={[styles.profDot, entry?.trained && styles.profDotActive, entry?.expertise && styles.profDotExpertise]} />
               <Text style={styles.skillLabel}>{label}</Text>
-              <Text style={styles.skillAbility}>{ability.toUpperCase()}</Text>
+              <Text style={styles.skillAbility}>{ability.toUpperCase()}{check.state === 'advantage' ? '  ADV' : check.state === 'disadvantage' ? '  DIS' : ''}</Text>
               <Text style={styles.skillVal}>{b >= 0 ? `+${b}` : b}</Text>
             </Pressable>
           );

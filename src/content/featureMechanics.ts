@@ -47,7 +47,16 @@ export function describeFeatureMechanics(features: readonly Feature[], resources
     if (f.activation) {
       const cost = f.activation.resourceCost ? ', uses a resource' : '';
       out.push(`${f.activation.actionType.replace('_', ' ')} ability${cost}`);
+      if (f.activation.alsoCosts) out.push(`also uses your ${f.activation.alsoCosts.replace('_', ' ')}`);
     }
+    for (const a of f.abilityEffects ?? []) {
+      if (a.type === 'temp_hp') out.push(`temp HP ${a.dice}`);
+      else if (a.type === 'heal_from_damage_taken') out.push('heals from damage taken');
+      else if (a.type === 'track_effect') out.push(`puts ${a.name} on a target`);
+    }
+    if (f.riders?.length) out.push(`riders: ${f.riders.map(r => r.name).join(', ')}`);
+    if (f.suspendOn) out.push(`switches off on ${f.suspendOn.damageType} damage`);
+    if (f.aura) out.push(`aura: ${f.aura.label ?? f.name}`);
   }
   for (const r of resources) out.push(`${r.name}: ${r.maximum}/${String(r.recharge).replace('_', ' ')}`);
   return out;

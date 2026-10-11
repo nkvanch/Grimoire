@@ -10,6 +10,8 @@ import { useCharacterStore } from '../../src/store/characterStore';
 import { useCombatStore }    from '../../src/store/combatStore';
 import { Entity } from '../../src/engine/types';
 import { dmFullStatVisibility } from '../../src/engine/houseRules';
+import { defenseSummary } from '../../src/engine/defenses';
+import { HiddenCheckPanel } from '../../src/components/dm/HiddenCheckPanel';
 import { activeSession, startSession, endSession } from '../../src/engine/session';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
@@ -31,7 +33,16 @@ function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; show
   const hpColor = hpPct > 0.5 ? Colors.green : hpPct > 0.25 ? Colors.gold : Colors.red;
 
   const concentrating = spellcasting?.concentrating ?? null;
-  const keyResources  = resources.custom.slice(0, 3); // show first 3 resources as pips
+  // Every limited-use pool the character has, not a sample: the point of the card is that the DM does not miss one.
+  const keyResources  = resources.custom.filter(r => r.maximum > 0 && r.maximum <= 12);
+  const defenses = defenseSummary(entity);
+  const hasDefenses = defenses.resistances.length + defenses.immunities.length + defenses.vulnerabilities.length + defenses.conditionImmunities.length > 0 || defenses.critsNegated;
+  // Running effects (a Rage, a mark placed on this character) the DM should not forget are on.
+  const activeEffects = [
+    ...Object.entries(conditionMonitor.flags).filter(([k, v]) => v === true && k !== 'concentrating').map(([k]) => k.replace(/_active$/, '').replace(/_/g, ' ')),
+    ...(entity.trackedEffects ?? []).map(x => `${x.name}${x.targetName ? ` on ${x.targetName}` : ''}`),
+    ...(entity.receivedAuras ?? []).map(a => a.label),
+  ];
   const spellTiers = spellcasting
     ? (Object.keys(spellcasting.slots) as (keyof typeof spellcasting.slots)[])
         .filter(t => spellcasting.slots[t].total > 0)
@@ -89,6 +100,12 @@ function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; show
             <Text style={styles.badgeLbl}>PP</Text>
             <Text style={styles.badgeVal}>{derived.passivePerception}</Text>
           </View>
+          {derived.passiveInsight !== undefined && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeLbl}>INS</Text>
+              <Text style={styles.badgeVal}>{derived.passiveInsight}</Text>
+            </View>
+          )}
           {derived.passiveInvestigation !== undefined && (
             <View style={styles.badge}>
               <Text style={styles.badgeLbl}>PI</Text>
@@ -112,12 +129,12 @@ function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; show
             backgroundColor: hpColor,
           }]} />
         </View>
-        <Text style={styles.hpTxt}>{hpCurrent}/{hpMax}</Text>
+        <Text style={styles.hpTxt}>{hpCurrent}/{hpMax}{resources.hp.temp > 0 ? ` +${resources.hp.temp} temp` : ''}</Text>
       </View>
 
       {/* Everything below is more than a DM could observe at a glance —
           gated behind the dmFullStatVisibility house rule (book default: off). */}
-      {showFull && (
+      {(
         <>
           {/* Conditions + Concentration + Exhaustion */}
           <View style={styles.condRow}>
@@ -140,6 +157,21 @@ function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; show
               <Text style={styles.noCondTxt}>No conditions</Text>
             )}
           </View>
+
+          {hasDefenses && (
+            <View style={styles.condRow} accessibilityLabel="Defenses">
+              {defenses.resistances.length > 0 && <View style={styles.condPill}><Text style={styles.condTxt}>Resists {defenses.resistances.join(', ')}</Text></View>}
+              {defenses.immunities.length > 0 && <View style={styles.condPill}><Text style={styles.condTxt}>Immune {defenses.immunities.join(', ')}</Text></View>}
+              {defenses.vulnerabilities.length > 0 && <View style={[styles.condPill, styles.exhaustionPill]}><Text style={styles.condTxt}>Vulnerable {defenses.vulnerabilities.join(', ')}</Text></View>}
+              {defenses.conditionImmunities.length > 0 && <View style={styles.condPill}><Text style={styles.condTxt}>Cannot be {defenses.conditionImmunities.join(', ')}</Text></View>}
+              {defenses.critsNegated && <View style={styles.condPill}><Text style={styles.condTxt}>Crits are normal hits</Text></View>}
+            </View>
+          )}
+          {activeEffects.length > 0 && (
+            <View style={styles.condRow} accessibilityLabel="Running effects">
+              {activeEffects.map((x, i) => <View key={`${x}_${i}`} style={[styles.condPill, styles.concPill]}><Text style={styles.condTxt}>{x}</Text></View>)}
+            </View>
+          )}
 
           {/* Spell slots — compact per-tier pips, same visual language as the
               resource pips below. Only tiers the entity actually has (total
@@ -402,9 +434,11 @@ export default function DmDashboard() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={styles.sectionLabel}>PARTY ({partyChars.length})</Text>
           {!showFull && (
-            <Text style={styles.restrictedNote}>Passive view — see Campaign Settings</Text>
+            <Text style={styles.restrictedNote}>Full stat blocks off — see Campaign Settings</Text>
           )}
         </View>
+
+        {partyChars.length > 0 && <HiddenCheckPanel party={partyChars} />}
 
         {partyChars.length === 0 ? (
           <View style={styles.emptyCard}>

@@ -8,6 +8,7 @@
 // spell text, and are not included. The six spells new in 2024 live in classes2024/spells2024.ts instead.
 // ============================================================================
 import type { Spell } from '../../engine/types';
+import { withStatBlock } from './spellStatBlocks2024';
 
 export type SpellVersion = Pick<Spell, 'name' | 'level' | 'school' | 'castingTime' | 'range' | 'components' | 'duration' | 'description' | 'upcast' | 'ritual' | 'concentration'> & {
   /** The material component's description, e.g. "a bell and silver wire". */
@@ -349,3 +350,9 @@ export const SPELL_VERSIONS_2024: Record<string, SpellVersion> = {
   "word_of_recall": {"name": "Word of Recall", "level": 6, "school": "Conjuration", "castingTime": "Action", "range": "5 feet", "components": ["V"], "duration": "Instantaneous", "description": "You and up to five willing creatures within 5 feet of you instantly teleport to a previously designated sanctuary. You and any creatures that teleport with you appear in the nearest unoccupied space to the spot you designated when you prepared your sanctuary (see below). If you cast this spell without first preparing a sanctuary, the spell has no effect.\n\nYou must designate a location, such as a temple, as a sanctuary by casting this spell there.", "upcast": null, "ritual": false, "concentration": false},
   "zone_of_truth": {"name": "Zone of Truth", "level": 2, "school": "Enchantment", "castingTime": "Action", "range": "60 feet", "components": ["V", "S"], "duration": "10 minutes", "description": "You create a magical zone that guards against deception in a 15-foot-radius Sphere centered on a point within range. Until the spell ends, a creature that enters the spell's area for the first time on a turn or starts its turn there makes a Charisma saving throw. On a failed save, a creature can't speak a deliberate lie while in the radius. You know whether a creature succeeds or fails on this save.\n\nAn affected creature is aware of the spell and can avoid answering questions to which it would normally respond with a lie. Such a creature can be evasive yet must be truthful.", "upcast": null, "ritual": false, "concentration": false}
 };
+
+// The stat blocks these spells name are part of the spell's text for the person casting it (SRD 5.2.1).
+for (const id of ['animate_objects', 'find_steed', 'giant_insect']) {
+  const v = SPELL_VERSIONS_2024[id];
+  if (v) SPELL_VERSIONS_2024[id] = { ...v, description: withStatBlock(id, v.description) };
+}

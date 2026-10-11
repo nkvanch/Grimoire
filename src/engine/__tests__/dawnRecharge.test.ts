@@ -54,7 +54,7 @@ describe('what each event refills', () => {
 
 describe('authoring: the recharge the editor stores', () => {
   it('offers Dawn as its own option and labels Other as manual', () => {
-    expect(RECHARGE_TYPES.map(r => r.key)).toEqual(['short_rest', 'long_rest', 'dawn', 'other']);
+    expect(RECHARGE_TYPES.map(r => r.key)).toEqual(['short_rest', 'long_rest', 'dawn', 'monthly', 'yearly', 'other']);
     expect(RECHARGE_TYPES.find(r => r.key === 'other')!.label).toBe('Other (manual)');
   });
 

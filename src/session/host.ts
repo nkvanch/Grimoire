@@ -100,6 +100,17 @@ function validVitals(x: unknown): x is CharacterVitals {
     if (!isObj(x.spellSlots)) return false;
     if (!Object.values(x.spellSlots).every(s => isObj(s) && typeof s.total === 'number' && typeof s.used === 'number')) return false;
   }
+  // Live Play additions are optional, but when present they must be well formed.
+  const strs = (v: unknown) => Array.isArray(v) && v.length <= 64 && v.every(i => typeof i === 'string' && i.length <= 80);
+  if (x.passives !== undefined) {
+    const p = x.passives;
+    if (!isObj(p) || typeof p.perception !== 'number' || typeof p.investigation !== 'number' || typeof p.insight !== 'number') return false;
+  }
+  if (x.defenses !== undefined) {
+    const d = x.defenses;
+    if (!isObj(d) || !strs(d.resistances) || !strs(d.immunities) || !strs(d.vulnerabilities) || !strs(d.conditionImmunities) || typeof d.critsNegated !== 'boolean') return false;
+  }
+  if (x.effects !== undefined && !strs(x.effects)) return false;
   return true;
 }
 

@@ -29,6 +29,7 @@ import type { MoveType, DraftSubrace } from '../../content/traitCompiler';
 import { mergeSpellIndex } from '../../content/contentResolution';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { SafeBottomView } from '../SafeBottomView';
+import { TraitAdvancedEditor } from './TraitAdvancedEditor';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 export {
@@ -123,8 +124,9 @@ function SaveDcEditor({ trait, set }: { trait: DraftTrait; set: (patch: Partial<
 }
 
 /** One line under the recharge chips saying what the app will and won't do for the chosen trigger. */
-function RechargeHint({ recharge }: { recharge: 'short_rest' | 'long_rest' | 'dawn' | 'other' }) {
+function RechargeHint({ recharge }: { recharge: 'short_rest' | 'long_rest' | 'dawn' | 'monthly' | 'yearly' | 'other' }) {
   if (recharge === 'dawn') return <Text style={styles.chipTxt}>Restored by the sheet's ☀ Dawn button, not by a rest.</Text>;
+  if (recharge === 'monthly' || recharge === 'yearly') return <Text style={styles.chipTxt}>The app keeps no calendar: reset it by hand with + on the sheet when the time comes.</Text>;
   if (recharge === 'other') return <Text style={styles.chipTxt}>Not restored automatically: tap + on the sheet when it recharges.</Text>;
   return null;
 }
@@ -467,11 +469,30 @@ export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, e
                   onChangeText={v => set({ advTarget: v })}
                   placeholder="e.g. Wisdom saving throws against being frightened"
                   placeholderTextColor={Colors.textDim} />
+                <Text style={styles.inlineLabel}>Or pick what it rolls for</Text>
+                <View style={styles.chipWrap}>
+                  {(['str', 'dex', 'con', 'int', 'wis', 'cha'] as const).map(ab => (
+                    <Pressable key={ab} style={[styles.chip, trait.advTarget === `ability_check:${ab}` && styles.chipActive]}
+                      onPress={() => set({ advTarget: `ability_check:${ab}` })}>
+                      <Text style={[styles.chipTxt, trait.advTarget === `ability_check:${ab}` && styles.chipTxtActive]}>{ab.toUpperCase()} checks</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.chipWrap}>
+                  {['athletics', 'acrobatics', 'sleight_of_hand', 'stealth', 'arcana', 'history', 'investigation', 'nature', 'religion', 'animal_handling', 'insight', 'medicine', 'perception', 'survival', 'deception', 'intimidation', 'performance', 'persuasion'].map(sk => (
+                    <Pressable key={sk} style={[styles.chip, trait.advTarget === `skill:${sk}` && styles.chipActive]}
+                      onPress={() => set({ advTarget: `skill:${sk}` })}>
+                      <Text style={[styles.chipTxt, trait.advTarget === `skill:${sk}` && styles.chipTxtActive]}>{sk.replace(/_/g, ' ')}</Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <Text style={styles.effectNote}>
                   Shown to the player as a reminder wherever the character's saves/checks
                   appear — like every other roll in this app, dice aren't auto-rolled, so
                   this doesn't change the roll button itself, just makes sure you don't
                   forget to roll 2d20 and take the {trait.advDirection === 'advantage' ? 'higher' : 'lower'}.
+                  Two exact forms are rolled for you on the Exploration skill list: skill:perception
+                  (one skill) and ability_check:str (every check using that ability).
                 </Text>
               </View>
             )}
@@ -812,6 +833,8 @@ export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, e
                 )}
               </View>
             )}
+
+            <TraitAdvancedEditor trait={trait} set={set} />
 
             <SafeBottomView>
               <View style={styles.traitModalBtnRow}>

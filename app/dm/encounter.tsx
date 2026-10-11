@@ -16,6 +16,8 @@ import { useSessionStore }   from '../../src/store/sessionStore';
 import { useEncounterStore } from '../../src/store/encounterStore';
 import { useHomebrewStore }  from '../../src/store/homebrewStore';
 import { applyDamage, applyHealing, applyWildShapeDamage, endWildShape } from '../../src/engine/combat';
+import { recordDamageOnTarget } from '../../src/engine/trackedEffects';
+import { damagePreview } from '../../src/engine/defenses';
 import { applyCondition, removeCondition } from '../../src/engine/conditions';
 import { generateActionCard } from '../../src/engine/actionCards';
 import { applyActionCardUse } from '../../src/engine/actionUse';
@@ -367,6 +369,18 @@ function QuickPanel({ entity, rules, onUpdate, onRuling, onClose }: QuickPanelPr
           </Pressable>
         </View>
       )}
+
+      {mode === 'damage' && validNum && (() => {
+        const p = damagePreview(entity, amount, damageType.trim() || undefined);
+        return (
+          <Text
+            style={[styles.previewLine, p.state === 'dead' || p.state === 'dead_risk' ? { color: Colors.red } : p.state === 'down' ? { color: Colors.gold } : null]}
+            accessibilityLabel={`Preview: ${p.line}`}
+          >
+            {p.line}
+          </Text>
+        );
+      })()}
 
       {mode === 'damage' && (
         <View style={styles.dmgTypeWrap}>
@@ -875,6 +889,19 @@ export default function EncounterScreen() {
     updated = recomputeDerived(updated, rules, {
       classDefs: content.classes, homebrewSpells: content.spells, races: content.races, items: content.items,
     });
+    // Damage this action dealt is added to any effect that records damage on that target (a mark that remembers what the target
+    // takes). The table named the target; the app only adds up what landed.
+    if (before) {
+      const prior = new Set(before.damageLog ?? []);
+      const landed = (updated.damageLog ?? []).filter(x => !prior.has(x)).reduce((sum, x) => sum + x.amount, 0);
+      if (landed > 0) {
+        for (const c of useCharacterStore.getState().characters) {
+          if (!c.trackedEffects?.some(x => x.records)) continue;
+          const next = recordDamageOnTarget(c, { id: updated.id, name: updated.identity.name }, landed);
+          if (next !== c) updateCharacter(c.id, () => next, `${c.identity.name}: ${landed} recorded on ${updated.identity.name}`, 'combat');
+        }
+      }
+    }
     // If it's a player character, persist to characterStore too — the REAL
     // synced source of truth, not just this DM device's own combatStore
     // copy of it.
@@ -1542,6 +1569,7 @@ const styles = StyleSheet.create({
   rulingBtnTxt: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.bold },
 
   inputRow:      { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
+  previewLine: { color: Colors.textPrimary, fontSize: FontSize.sm, marginTop: Spacing.xs, fontWeight: FontWeight.bold },
   dmgTypeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: Spacing.xs },
   dmgTypeChip: {
     backgroundColor: Colors.surface, borderRadius: Radius.sm,

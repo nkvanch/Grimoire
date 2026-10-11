@@ -2,9 +2,14 @@
 // FILE: src/content/subclasses/druid.ts
 // Stars, Wildfire, the Shepherd, plus Circle of the Primeval — a deferred
 // ============================================================================
-import { ClassProgression, } from '../../engine/types';
+import { ClassProgression, Grant } from '../../engine/types';
 
 export type SubclassProgression = ClassProgression & { name: string };
+
+// Same mechanism as Cleric's domainSpells() — always-prepared circle spells.
+function circleSpells(spellIds: string[]): Grant {
+  return { kind: 'known_spells', value: { spellIds } };
+}
 
 export const circleOfTheLandProgression: SubclassProgression = {
   classId: 'druid', name: 'Circle of the Land', srd: true,

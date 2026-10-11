@@ -83,6 +83,23 @@ export type CharacterVitals = {
   resources:     { id: string; name: string; current: number; maximum: number }[];
   /** null = this character has no spellcasting at all (not "caster with zero slots"). */
   spellSlots:    Record<string, { total: number; used: number }> | null;
+  /** Live Play: the passive scores the DM compares a hidden check against, so nobody has to be asked. */
+  passives?:     { perception: number; investigation: number; insight: number };
+  /** Live Play: what the character is currently resistant, immune or vulnerable to, so the DM sees it before damage lands. */
+  defenses?:     { resistances: string[]; immunities: string[]; vulnerabilities: string[]; conditionImmunities: string[]; critsNegated: boolean };
+  /** Live Play: running effects (a Rage, a mark placed on them, an aura they are in) the DM should not forget are on. */
+  effects?:      string[];
+};
+
+/**
+ * What the rest of the table is told about a character's state during play (Live Play: allies' visible conditions, concentration and
+ * dying / stable / dead). Derived on the Host from the character's reported vitals, shown to peers only while no Public Persona is
+ * enabled: a persona is how a player takes control of what others see. Never carries resources, slots, speed or defenses.
+ */
+export type PublicStatus = {
+  conditions:    string[];
+  concentrating: boolean;
+  dying:         'dying' | 'stable' | 'dead' | null;
 };
 
 /** What the player's device exposes so the session layer can apply accepted
@@ -426,6 +443,8 @@ export type ReportedCharacter = {
   persona?:      PublicPersona;
   /** See CharacterVitals's own doc comment — DM-dashboard-only, never sent to a peer player. */
   vitals?:       CharacterVitals;
+  /** What a PEER sees about this character's state (PublicStatus). Present only on the projected copy a peer receives. */
+  status?:       PublicStatus;
 };
 
 // CampaignPolicy (what a linked campaign publishes to the room — see its own doc comment) lives

@@ -66,6 +66,6 @@ describe('2024 conditions', () => {
     expect(db(R2024)).toHaveLength(14);
     expect(db(R2024).every(c => c.rulesetId === R2024)).toBe(true);
     expect(db(R2014).every(c => !c.rulesetId)).toBe(true);
-    expect(lookupConditionFor('petrified', R2024)!.features.length).toBe(3);
+    expect(lookupConditionFor('petrified', R2024)!.features.length).toBe(4);
   });
 });

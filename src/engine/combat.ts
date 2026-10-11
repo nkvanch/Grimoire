@@ -3,8 +3,17 @@
 // PROJECT: Initiative Tracker, Concentration Gate & Combat Clock
 // ============================================================================
 import { findBeastForm } from '../content/runtimeRules';
+import { logDamage, damageTakenSince } from './damageLog';
+import { suspendForDamage, pruneSuspensions } from './suspension';
+import { addTrackedEffect } from './trackedEffects';
+
+/** The suspensions that survive into the creature's next turn. */
+function pruneAfterAdvance(e: Entity) {
+  const next = pruneSuspensions({ ...e, turnCounter: (e.turnCounter ?? 0) + 1 });
+  return next.suspensions;
+}
 import { lookupConditionFor } from '../content/conditions/lookup';
-import { Entity, CampaignRules, Spell, FeatureInstance, AbilityEffect, DurationTracker, FeatureActivation, CustomResource } from './types';
+import { Entity, CampaignRules, Spell, Feature, FeatureInstance, AbilityEffect, DurationTracker, FeatureActivation, CustomResource } from './types';
 import { recomputeDerived, collectAllEffects } from './pipeline';
 import { resolveResistance } from './resolver';
 import { tickDurations, applyCondition, removeCondition } from './conditions';
@@ -145,11 +154,14 @@ export function startEncounter(
  *  event. First (and currently only) consumer: a monster's Legendary
  *  Actions pool, which refreshes at the start of its own turn rather than
  *  on any rest. */
-export function startTurn(entity: Entity): Entity {
+export function startTurn(entity: Entity, rules: CampaignRules = DEFAULT_RULES): Entity {
   const hasStartOfTurn = entity.resources.custom.some(r => r.recharge === 'start_of_turn');
-  return {
+  const suspensionsEnded = (entity.suspensions?.length ?? 0) !== (pruneAfterAdvance(entity)?.length ?? 0);
+  const next: Entity = {
     ...entity,
     turnState: { actionUsed: false, bonusActionUsed: false, reactionUsed: false },
+    turnCounter: (entity.turnCounter ?? 0) + 1,
+    suspensions: pruneAfterAdvance(entity),
     // Extra Attack sequence closure: a fresh turn always closes out any
     // leftover in-progress Attack-action sequence from before — a new turn
     // means a new Action to spend, never a continuation of an old one.
@@ -158,6 +170,8 @@ export function startTurn(entity: Entity): Entity {
       ? { ...entity.resources, custom: entity.resources.custom.map(r => r.recharge === 'start_of_turn' ? { ...r, current: r.maximum } : r) }
       : entity.resources,
   };
+  // A feature coming back on changes derived numbers, so they are recomputed at that moment.
+  return suspensionsEnded ? recomputeDerived(next, rules) : next;
 }
 
 /**
@@ -637,7 +651,7 @@ export function applyDamage(
     };
   }
 
-  const updated = {
+  const updated = logDamage({
     ...entity,
     resources: {
       ...entity.resources,
@@ -648,11 +662,12 @@ export function applyDamage(
       },
       deathSaves,
     },
-  };
+  }, resolvedDamage, damageType);
+  const suspended = resolvedDamage > 0 ? suspendForDamage(updated, damageType) : updated;
 
   // Concentration check is the player's responsibility via the UI modal.
   // Do NOT call concentrationCheck here — it would run twice alongside the UI roll.
-  return recomputeDerived(updated, rules);
+  return recomputeDerived(suspended, rules);
 }
 
 /** Heals an entity, capped at maximum HP. Any healing above 0 HP clears death saves. */
@@ -869,6 +884,8 @@ export function applyAbilityEffects(
       };
     } else if (effect.type === 'transform') {
       updated = startWildShape(updated, effect.formId, rules);
+    } else if (effect.type === 'grant_speed' && isSelfAndUnconditional) {
+      updated = grantTemporarySpeed(updated, effect, rules);
     } else if (effect.type === 'restore_resource') {
       updated = restoreResource(updated, effect.resourceId, effect.amount);
     } else if (effect.type === 'apply_condition' && isSelfAndUnconditional) {
@@ -876,6 +893,11 @@ export function applyAbilityEffects(
       updated = applyCondition(updated, effect.conditionId, 'ability', rules, features, effect.duration);
     } else if (effect.type === 'remove_condition' && isSelfAndUnconditional) {
       updated = removeCondition(updated, effect.conditionId, rules);
+    } else if (effect.type === 'track_effect') {
+      updated = addTrackedEffect(updated, { name: effect.name, until: effect.until, records: effect.records, recordUntil: effect.recordUntil, visibility: effect.visibility, note: effect.note });
+    } else if (effect.type === 'heal_from_damage_taken') {
+      // Deterministic: no roll is involved, so it is applied on use.
+      updated = applyHealing(updated, Math.floor(damageTakenSince(updated, effect.turnsBack) * effect.fraction), rules);
     }
     // 'damage' / 'heal': intentionally left to the manual roll+HP-modal flow.
     // 'grant_speed' / 'spend_resource': not yet wired — see the doc comment above.
@@ -885,6 +907,28 @@ export function applyAbilityEffects(
   }
 
   return recomputeDerived(updated, rules);
+}
+
+/**
+ * A speed an ability grants for a while (Wings of the Raven: a fly speed for a minute). It is carried by a self-owned timed entry
+ * with the same lifecycle as a condition: a 'rounds' duration ticks down on End Turn, 'until_rest' ends at the next long rest, and
+ * 'minutes' / 'hours' stay on the sheet until the player takes them off (the app has no clock to tick them). `walk` adds to the
+ * walking Speed; fly / swim / climb give that movement type at the stated range.
+ */
+function grantTemporarySpeed(
+  entity: Entity,
+  effect: Extract<AbilityEffect, { type: 'grant_speed' }>,
+  rules: CampaignRules,
+): Entity {
+  const label = `${effect.speedType[0].toUpperCase()}${effect.speedType.slice(1)} speed ${effect.amount} ft`;
+  const carrier: Feature = {
+    id: `granted_speed_${effect.speedType}`, name: label, description: `A ${effect.speedType} speed of ${effect.amount} feet from an ability, for as long as it lasts.`,
+    source: { kind: 'condition', refId: label }, level: null, passive: true, actions: [], choices: [],
+    effects: [effect.speedType === 'walk'
+      ? { type: 'stat_modifier', target: 'speed', operation: 'add', value: effect.amount, condition: null }
+      : { type: 'grant_movement', target: 'movement', operation: 'add', value: null, condition: null, movementType: effect.speedType, movementRange: effect.amount }],
+  };
+  return applyCondition(entity, label, 'ability', rules, [carrier], effect.duration);
 }
 
 /**
@@ -946,7 +990,8 @@ export function startWildShape(
 
   // Duration: half druid level in hours, minimum 1 (book rule). Falls back to
   // character level if this isn't (yet) tracked as a separate class level.
-  const hours = Math.max(1, Math.floor(entity.identity.level / 2));
+  const druidLevel = (entity.identity.classes ?? []).find(c => String(c.classId) === 'druid' || String(c.classId) === 'druid_2024')?.level;
+  const hours = Math.max(1, Math.floor((druidLevel ?? entity.identity.level) / 2));
 
   const updated: Entity = {
     ...entity,
@@ -1062,11 +1107,13 @@ export function applyWildShapeDamage(
   const { hp } = entity.resources;
   const tempAbsorbed = Math.min(hp.temp, resolvedDamage);
   const hpDamage      = resolvedDamage - tempAbsorbed;
+  const beastHp = entity.wildShapeState!.beastHp;
+  // What the form and the temporary HP took is logged here; the overflow that reverts the form is logged by applyDamage below.
+  const logged = hpDamage < beastHp ? resolvedDamage : tempAbsorbed + beastHp;
+  const loggedEntity = logDamage(entity, logged, damageType);
   const withTempSpent: Entity = tempAbsorbed > 0
-    ? { ...entity, resources: { ...entity.resources, hp: { ...hp, temp: hp.temp - tempAbsorbed } } }
-    : entity;
-
-  const beastHp = withTempSpent.wildShapeState!.beastHp;
+    ? { ...loggedEntity, resources: { ...loggedEntity.resources, hp: { ...hp, temp: hp.temp - tempAbsorbed } } }
+    : loggedEntity;
 
   if (hpDamage < beastHp) {
     // Remains transformed — the beast form absorbs the already-resolved

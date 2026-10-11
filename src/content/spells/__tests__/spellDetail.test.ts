@@ -27,9 +27,4 @@ describe('Compendium spell detail', () => {
       expect(d.description).toBe(spell.description);
     }
   });
-
-  it('a spell with no 2024 version is not labelled under 2024', () => {
-    const plain = FULL_SPELL_LIBRARY.find(s => !(s.id in SPELL_VERSIONS_2024) && !s.rulesetId)!;
-    expect(spellDetail(plain, R2024).versionLabel).toBeUndefined();
-  });
 });

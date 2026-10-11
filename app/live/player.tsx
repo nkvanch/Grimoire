@@ -181,11 +181,18 @@ export default function PlayerScreen() {
       </Section>
 
       {party.length > 0 && (
-        <Section title="Party">
+        <Section title="Allies">
           {party.map(c => (
             <Card key={c.participantId} testID={`player-party-${c.summary.name}`}>
-              <Body bold>{c.summary.name}</Body>
+              <Row wrap>
+                <Body bold>{c.summary.name}</Body>
+                {c.status?.dying === 'dying' && <Badge label="Dying" tone="bad" />}
+                {c.status?.dying === 'stable' && <Badge label="Stable" tone="warn" />}
+                {c.status?.dying === 'dead' && <Badge label="Dead" tone="bad" />}
+                {c.status?.concentrating && <Badge label="Concentrating" />}
+              </Row>
               <Muted>HP {c.summary.hp}/{c.summary.maxHp} · AC {c.summary.ac}</Muted>
+              {!!c.status?.conditions.length && <Muted>{c.status.conditions.map(formatContentId).join(', ')}</Muted>}
             </Card>
           ))}
         </Section>
@@ -197,13 +204,24 @@ export default function PlayerScreen() {
         return (
           <Card key={e.id} tone={myTurn ? 'warn' : 'default'} testID={`player-encounter-${e.name}`}>
             <Body bold>⚔ {e.name}</Body>
-            <Muted>{e.combatants.map(c => {
-              const hp = c.hpState && c.hpState !== 'healthy' ? ` (${c.hpState})` : '';
-              const ac = c.ac !== undefined ? ` AC ${c.ac}` : '';
-              const exact = c.exactHp ? ` ${c.exactHp.current}/${c.exactHp.max} HP` : '';
-              const conditions = c.conditions && c.conditions.length > 0 ? ` [${c.conditions.map(formatContentId).join(', ')}]` : '';
-              return `${c.name}${hp}${ac}${exact}${conditions}`;
-            }).join(', ')}</Muted>
+            <Muted>Enemies</Muted>
+            {e.combatants.length === 0 && <Muted>None you can see yet.</Muted>}
+            {e.combatants.map(c => {
+              const isCurrent = e.currentTurnIndex !== null && e.turnOrder[e.currentTurnIndex] === c.id;
+              const hp = c.hpState ? c.hpState : null;
+              const ac = c.ac !== undefined ? `AC ${c.ac}` : null;
+              const exact = c.exactHp ? `${c.exactHp.current}/${c.exactHp.max} HP` : null;
+              const conditions = c.conditions && c.conditions.length > 0 ? c.conditions.map(formatContentId).join(', ') : null;
+              return (
+                <Row key={c.id} wrap>
+                  <Body bold>{isCurrent ? '▶ ' : ''}{c.name}</Body>
+                  {hp && <Badge label={hp} tone={hp === 'down' ? 'bad' : hp === 'bloodied' ? 'warn' : 'default'} />}
+                  {exact && <Muted>{exact}</Muted>}
+                  {ac && <Muted>{ac}</Muted>}
+                  {conditions && <Muted>[{conditions}]</Muted>}
+                </Row>
+              );
+            })}
             {e.currentTurnIndex !== null && (
               <Row wrap>
                 <Badge label={`Round ${e.round}`} />

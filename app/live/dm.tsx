@@ -19,6 +19,7 @@ import { addNote, describeDuration, describeEffectComponent, describeNoteCategor
 import { describeChanges, describeRewardKind, describeSessionLogKind, formatContentId } from '../../src/session/roles';
 import { CharacterChange, LiveEffect, LiveEncounter, PublicParticipant, EffectComponent, EffectDuration, MonsterVisibility, RewardKind, SessionLogKind, MONSTER_VISIBILITY_PRESETS, ViewState } from '../../src/session/types';
 import { projectState } from '../../src/session/state';
+import { vitalsPreview, hiddenCheckFromVitals, hiddenCheckLine, PassiveKind } from '../../src/session/liveAwareness';
 import { SessionPeer } from '../../src/session/peer';
 import { LiveScreen, Section, Card, Btn, Chip, Field, Row, Badge, Muted, Body, NotCapable } from '../../src/components/live/LiveUi';
 import { RoomCodeCard } from '../../src/components/live/RoomCodeCard';
@@ -53,6 +54,9 @@ export default function DmLiveScreen() {
   const [expandedChar, setExpandedChar] = useState<string | null>(null);
   const [fastAction, setFastAction] = useState<FastAction | null>(null);
   const [fastAmount, setFastAmount] = useState('');
+  const [fastType, setFastType] = useState('');
+  const [checkKind, setCheckKind] = useState<PassiveKind>('perception');
+  const [checkValue, setCheckValue] = useState('');
   const [noteText, setNoteText] = useState('');
   const [quickOverrideOpen, setQuickOverrideOpen] = useState(false);
   const [modifyingSuggestion, setModifyingSuggestion] = useState<string | null>(null);
@@ -148,13 +152,22 @@ export default function DmLiveScreen() {
     let change: CharacterChange;
     let label: string;
     switch (fastAction.kind) {
-      case 'hp_damage': change = { kind: 'hp', delta: -Math.abs(n) }; label = `${Math.abs(n)} damage`; break;
+      case 'hp_damage': {
+        const who = view?.characters[target];
+        const type = fastType.trim().toLowerCase();
+        const pv = who ? vitalsPreview(who.summary, who.vitals, Math.abs(n), type || undefined) : null;
+        const dealt = pv ? pv.dealt : Math.abs(n);
+        if (dealt <= 0) { Alert.alert('No damage', `${pv?.note ?? 'Defenses'} means this hit does nothing.`); return; }
+        change = { kind: 'hp', delta: -dealt };
+        label = `${Math.abs(n)}${type ? ` ${type}` : ''} damage${dealt !== Math.abs(n) ? ` (${dealt} after defenses)` : ''}`;
+        break;
+      }
       case 'hp_heal':   change = { kind: 'hp', delta: Math.abs(n) };  label = `Heal ${Math.abs(n)}`; break;
       case 'temp_hp':   change = { kind: 'temp_hp', amount: Math.abs(n) }; label = `${Math.abs(n)} temp HP`; break;
       case 'max_hp':    change = { kind: 'max_hp', delta: n }; label = `Max HP ${n > 0 ? '+' : ''}${n}`; break;
     }
     run(() => dmPeer.requestChange(target, label, [change]));
-    setFastAction(null); setFastAmount('');
+    setFastAction(null); setFastAmount(''); setFastType('');
   };
   const quickKill = (participantId: string) => {
     const current = view?.characters[participantId]?.summary.hp ?? null;
@@ -316,6 +329,21 @@ export default function DmLiveScreen() {
                       {(c.vitals.deathSaves.successes > 0 || c.vitals.deathSaves.failures > 0 || c.vitals.deathSaves.stable) && (
                         <Muted>Death saves: {c.vitals.deathSaves.successes}✓ {c.vitals.deathSaves.failures}✗{c.vitals.deathSaves.stable ? ' (stable)' : ''}</Muted>
                       )}
+                      {c.vitals.passives && (
+                        <Muted>Passive: Perception {c.vitals.passives.perception} · Investigation {c.vitals.passives.investigation} · Insight {c.vitals.passives.insight}</Muted>
+                      )}
+                      {c.vitals.defenses && (c.vitals.defenses.resistances.length + c.vitals.defenses.immunities.length + c.vitals.defenses.vulnerabilities.length + c.vitals.defenses.conditionImmunities.length > 0 || c.vitals.defenses.critsNegated) && (
+                        <Muted>
+                          {[
+                            c.vitals.defenses.resistances.length ? `Resists ${c.vitals.defenses.resistances.join(', ')}` : '',
+                            c.vitals.defenses.immunities.length ? `Immune ${c.vitals.defenses.immunities.join(', ')}` : '',
+                            c.vitals.defenses.vulnerabilities.length ? `Vulnerable ${c.vitals.defenses.vulnerabilities.join(', ')}` : '',
+                            c.vitals.defenses.conditionImmunities.length ? `Cannot be ${c.vitals.defenses.conditionImmunities.join(', ')}` : '',
+                            c.vitals.defenses.critsNegated ? 'Crits are normal hits' : '',
+                          ].filter(Boolean).join(' · ')}
+                        </Muted>
+                      )}
+                      {!!c.vitals.effects?.length && <Muted>Running: {c.vitals.effects.join(' · ')}</Muted>}
                       {c.vitals.resources.length > 0 && (
                         <Muted>{c.vitals.resources.map(r => `${r.name} ${r.current}/${r.maximum}`).join(' · ')}</Muted>
                       )}
@@ -342,6 +370,15 @@ export default function DmLiveScreen() {
 
                   {fastAction?.participantId === c.participantId ? (
                     <Row wrap>
+                      {fastAction.kind === 'hp_damage' && (
+                        <Field label="Damage type (optional)" value={fastType} onChangeText={setFastType} testID={`dm-fast-type-${c.summary.name}`} />
+                      )}
+                      {fastAction.kind === 'hp_damage' && (() => {
+                        const n = parseSignedInt(fastAmount);
+                        if (n === null || n === 0) return null;
+                        const pv = vitalsPreview(c.summary, c.vitals, Math.abs(n), fastType.trim() || undefined);
+                        return <Muted>{pv.line}</Muted>;
+                      })()}
                       <Field label="Amount" value={fastAmount} onChangeText={setFastAmount} keyboardType="numbers-and-punctuation" testID={`dm-fast-amount-${c.summary.name}`} />
                       <Btn small label="Send" disabled={offline} onPress={submitFastAction} testID={`dm-fast-submit-${c.summary.name}`} />
                       <Btn small kind="ghost" label="Cancel" onPress={() => setFastAction(null)} />
@@ -390,6 +427,28 @@ export default function DmLiveScreen() {
               );
             })}
             {Object.keys(view?.characters ?? {}).length === 0 && <Muted>No character has reported in yet.</Muted>}
+          </Section>
+
+          <Section title="Hidden check" hint="Compare a Stealth total or a DC against the party's passive scores without asking the table. Only you see this.">
+            <Row wrap>
+              {(['perception', 'investigation', 'insight'] as PassiveKind[]).map(k => (
+                <Chip key={k} label={k[0].toUpperCase() + k.slice(1)} active={checkKind === k} onPress={() => setCheckKind(k)} testID={`dm-check-${k}`} />
+              ))}
+            </Row>
+            <Field label="Stealth total or DC" value={checkValue} onChangeText={t => setCheckValue(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" testID="dm-check-value" />
+            {(() => {
+              const v = parseInt(checkValue, 10);
+              if (!Number.isFinite(v)) return null;
+              const rows = hiddenCheckFromVitals(Object.values(view?.characters ?? {}), checkKind, v);
+              return (
+                <>
+                  <Body bold>{hiddenCheckLine(rows, checkKind, v)}</Body>
+                  {rows.map(r => (
+                    <Muted key={r.participantId}>{r.name}: {r.passive === null ? 'not reported' : `${r.passive} (${(r.margin ?? 0) >= 0 ? '+' : ''}${r.margin})`}</Muted>
+                  ))}
+                </>
+              );
+            })()}
           </Section>
 
           <Section title="Preview as Player" hint="DM_SCREEN_SPEC.md item 17 — not impersonation or a control, just showing exactly what this Player's device currently has: their own authorized projection, recomputed locally from the same canonical state the DM already sees.">

@@ -130,6 +130,9 @@ export type SkillName =
   | 'deception' | 'intimidation' | 'performance' | 'persuasion';
 
 export type AdvantageState   = 'straight' | 'advantage' | 'disadvantage';
+
+/** What an ability substitution applies to: attack and damage rolls with weapons, ability checks (skills included), saving throws. */
+export type AbilityUseKind = 'weapon_attacks' | 'ability_checks' | 'saving_throws';
 export type ResistanceState  = 'none' | 'resistance' | 'immunity' | 'vulnerability';
 export type StrategyKind     = 'stat_modifier' | 'named_bonus' | 'advantage_track' | 'temp_hp' | 'base_ac_formula';
 
@@ -853,6 +856,10 @@ export type DerivedStats = {
    * etc.). Separate from spellSaveDC because Monk isn't a spellcaster. Null
    * for anyone without Martial Arts. */
   kiSaveDC:          number | null;
+  /** True when an effect turns critical hits against this creature into normal hits ("critical hits made against you become normal hits"). */
+  critsNegated?:     boolean;
+  /** The lowest d20 result that is a critical hit on this creature's own attacks: 20 normally, 19 for an extended range. */
+  critRange?:        number;
   /**
    * 8 + proficiency + [ability] mod, precomputed for all six abilities —
    * generic version of kiSaveDC for every OTHER non-caster class feature
@@ -1426,6 +1433,11 @@ export type Spell = {
   upcast:                   string | null;
   ritual:                   boolean;
   concentration:            boolean;
+  /**
+   * A cantrip's growth with the CHARACTER level: from each tier's level the card shows that dice expression (or beam count) in place
+   * of the base. Absent means the spell prints its ladder in its text and engine/cantripScaling.ts derives the tiers from it.
+   */
+  cantripScaling?:          CantripScalingTier[];
   /** Class IDs that can cast this spell (lowercased, e.g. 'wizard'). Drives class-filtered spell lists. */
   classes?:                 string[];
   /**
@@ -1474,12 +1486,17 @@ export type Currency     = { pp: number; gp: number; ep: number; sp: number; cp:
  * low/mid-CR beasts, not a builder. See docs/ROADMAP_1.0.md "FEATURE DESIGN:
  * Wild Shape" for the full design and scope cut.
  */
+/** One step of a cantrip's level ladder: `dice` replaces the base damage dice, `count` is how many beams or attacks (Eldritch Blast). */
+export type CantripScalingTier = { level: number; dice?: string; count?: number };
+
 export type BeastForm = {
   id:              string;
   name:            string;
   /** CR gate for player-facing pickers (e.g. "only CR ≤ 1/4 beasts at level 2"). */
   challengeRating: number;
-  size:            'Tiny' | 'Small' | 'Medium' | 'Large';
+  /** 'elemental' for the elemental forms some features grant, which are not offered by the beast picker. Absent means a beast. */
+  creatureType?:   'beast' | 'elemental';
+  size:            'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge';
   stats:           AbilityScores;       // the beast's own STR/DEX/CON/INT/WIS/CHA
   ac:              number;
   hp:              number;              // flat HP pool for the beast form
@@ -1489,7 +1506,7 @@ export type BeastForm = {
   climbSpeed?:     number;
   senses?:         Sense[];
   /** Simple attacks, shown as ActionCards while transformed — same as any other AbilityEffect-driven attack in the app. */
-  attacks:         { name: string; effect: AbilityEffect }[];
+  attacks:         { name: string; effect: AbilityEffect; /** The stat block's printed to-hit bonus. Absent: the card uses the form's best of Strength and Dexterity plus the character's proficiency bonus. */ attackBonus?: number }[];
   /** Free-text trait summaries (e.g. "Keen Smell", "Pack Tactics") — display-only in v1, not mechanically enforced. */
   traits?:         string[];
   /**
@@ -1682,7 +1699,9 @@ export type Effect = {
            | 'grant_sense'
            // Grants a non-walking movement speed (fly/swim/climb/burrow).
            // Aggregated into derived.movement; same type keeps the largest value.
-           | 'grant_movement';
+           | 'grant_movement'
+           // "Use your Charisma modifier instead of Strength for ...": see AbilityUseKind and applyAbilitySubstitutions (pipeline.ts).
+           | 'ability_substitute';
   target:    string;
   operation: 'add' | 'multiply' | 'set' | 'advantage' | 'disadvantage'
            | 'resistance' | 'immunity' | 'vulnerability' | 'suppress'
@@ -1740,6 +1759,11 @@ export type Effect = {
   addProficiencyBonus?: boolean;
   /** The effect does nothing until the character reaches this level (Nature's Ward's resistance at 10). Works on any feature's effect. */
   minLevel?: number;
+  /**
+   * While in a Wild Shape form the beast's own AC and speed replace yours, and ordinary bonuses stop. An effect with this set still applies
+   * on top of the form ("these benefits apply to your normal form and your wild shapes"). Only AC and speed bonuses are read.
+   */
+  appliesInBeastForm?: boolean;
   /** "...and again whenever you gain a level": this many points per CHARACTER level are added to `value` (Dwarven Toughness: 1). */
   addPerLevel?: number;
   /**
@@ -1747,6 +1771,11 @@ export type Effect = {
    * after every other effect, so it can raise the score but never lower a higher one.
    */
   atLeast?: boolean;
+  // ── ability_substitute-specific fields ────────────────────────────────────────
+  /** The ability whose modifier is replaced, the one used in its place, and which rolls it applies to. The better of the two scores is used (nobody chooses the worse). */
+  substituteFrom?: Ability;
+  substituteTo?:   Ability;
+  substituteFor?:  AbilityUseKind[];
   /**
    * Per-ability cap applied AFTER the modifier is computed, for medium armor.
    * e.g. { dex: 2 } means "add DEX modifier but cap it at +2".
@@ -1832,6 +1861,19 @@ export type Feature = {
    */
   resources?: ResourceGrant[];
   /**
+   * This feature switches off when the creature takes damage of this type, until the end of this turn or of its next turn
+   * (Tree Biology: "if you suffer fire damage, you lose your ability from this feature until the end of your next turn").
+   */
+  suspendOn?: { damageType: string; until: 'end_of_this_turn' | 'end_of_next_turn' };
+  /** Bonus effects this feature adds to attacks and spells ("when you hit, also..."). See engine/riders.ts. */
+  riders?: Rider[];
+  /**
+   * An aura: effects that benefit others. Who is inside it is the table's call (no range is modelled); a player marks themselves as
+   * inside and the effects apply to them. See engine/auras.ts. Effects may use addAbilityModifier or addProficiencyBonus, which are
+   * worked out from the SOURCE character when the aura is offered.
+   */
+  aura?: { label?: string; range?: string; affects: 'allies' | 'allies_and_self' | 'enemies'; effects: Effect[] };
+  /**
    * Marks this feature as one tier of an upgradeable reward (a DM-granted mid-campaign feature):
    * granting a higher tier of the same `trackId` REPLACES every lower-tier feature of that track
    * instead of stacking with it. See engine/rewardTracks.ts.
@@ -1881,6 +1923,23 @@ export type TraitEffectKind =
 export type StatBonusTarget =
   | 'speed' | 'initiative' | 'extra_attack' | 'spell_save_dc' | 'spell_attack_bonus'
   | 'passive_perception' | 'passive_investigation' | 'passive_insight' | 'saving_throw';
+
+/** A bonus effect a trait attaches to the character's attacks or spells, as authored in a builder. Compiles to a Rider. */
+export type DraftRider = {
+  localId:   string;
+  name:      string;
+  on:        'weapon_attack' | 'cantrip' | 'spell' | 'spell_attack' | 'any_damage';
+  /** Extra damage dice ("1d6"), blank for none. */
+  dice:      string;
+  damageType: string;
+  note:      string;
+  limit:     'once_per_turn' | 'none';
+  /** A flag another ability sets that must be on, and one this clears. */
+  requires:  string;
+  clears:    string;
+  /** Spend one use of this trait's own limited-use pool. */
+  usesPool:  boolean;
+};
 
 export type DraftTrait = {
   localId:     string;
@@ -1940,7 +1999,7 @@ export type DraftTrait = {
     actionType:   'action' | 'bonus_action' | 'reaction';
     unlockLevel:  string;
     mode:         'resource' | 'slot';
-    recharge:     'short_rest' | 'long_rest' | 'dawn' | 'other';
+    recharge:     'short_rest' | 'long_rest' | 'dawn' | 'monthly' | 'yearly' | 'other';
     rechargeOther: string;
     uses:         string;
     minSlotLevel: string;
@@ -1948,7 +2007,7 @@ export type DraftTrait = {
   // resource_ability (e.g. Chi Pulse: bonus action, 1/rest, heal)
   actionType:      'action' | 'bonus_action' | 'reaction' | 'other';
   actionTypeOther: string;
-  recharge:        'short_rest' | 'long_rest' | 'dawn' | 'other';
+  recharge:        'short_rest' | 'long_rest' | 'dawn' | 'monthly' | 'yearly' | 'other';
   rechargeOther:   string;
   uses:            string;
   healDice:        string;
@@ -1981,6 +2040,53 @@ export type DraftTrait = {
   saveDcMode?:      'ability' | 'spell' | 'fixed';
   saveDcAbility?:   Ability;
   saveDcFixed?:     string;
+  // ── Advanced: timing, riders, per-target effects, auras (all optional; absent = none) ───────────────────────────
+  /** Bonus effects attached to attacks and spells. */
+  riders?:            DraftRider[];
+  /** Switch this trait off when the character takes this damage type, until the end of this or the next turn. */
+  suspendDamageType?: string;
+  suspendUntil?:      'end_of_this_turn' | 'end_of_next_turn';
+  /** The ability also uses up this other action-economy slot. */
+  alsoCosts?:         'bonus_action' | 'action';
+  /** Card effect: temporary hit points, dice may use PB ("PBd6"). */
+  tempHpDice?:        string;
+  /** Card effect: heal this fraction (0.5, 1) of the damage taken since the start of the turn `healFromDamageTurnsBack` turns ago. */
+  healFromDamageFraction?:  string;
+  healFromDamageTurnsBack?: string;
+  /** Card effect: put a named effect on a target (a mark, a challenge). */
+  trackEffectName?:   string;
+  trackRecords?:      boolean;
+  trackUntil?:        'none' | 'end_of_this_turn' | 'end_of_next_turn';
+  /** When the damage it adds up stops being counted, if earlier than it ends (Death Mark counts to the start of the next turn). */
+  trackRecordUntil?:  'none' | 'end_of_this_turn' | 'end_of_next_turn';
+  /** Aura: a benefit others get while inside it (the table decides who is). */
+  auraEnabled?:       boolean;
+  auraLabel?:         string;
+  auraRange?:         string;
+  auraAffects?:       'allies' | 'allies_and_self' | 'enemies';
+  auraStat?:          'ac' | 'saves' | 'speed' | 'initiative' | 'resistance';
+  auraAmount?:        string;
+  auraAddAbility?:    Ability | '';
+  auraResistType?:    string;
+  /** Derived-stat rules. */
+  armorDexCap?:       boolean;
+  critImmune?:        boolean;
+  critRange?:         string;
+  /** AC and speed bonuses this trait gives still apply in a Wild Shape form. */
+  appliesInBeastForm?: boolean;
+  /** "Use Charisma instead of Strength for ...": the ability replaced, the one used, and which rolls. */
+  substituteFrom?:    Ability | '';
+  substituteTo?:      Ability | '';
+  substituteFor?:     AbilityUseKind[];
+  /** Card effect: a movement speed for a while (a fly speed for a minute). */
+  grantSpeedType?:    'fly' | 'swim' | 'climb' | 'walk' | '';
+  grantSpeedAmount?:  string;
+  grantSpeedUnit?:    'rounds' | 'minutes' | 'hours' | 'until_rest';
+  grantSpeedFor?:     string;
+  /** What the table confirms after using it: on this outcome the trait's own pool regains uses. */
+  outcomeOn?:         'none' | 'hit' | 'miss' | 'success' | 'failure';
+  outcomeRegain?:     string;
+  infusionBonus?:     string;
   /**
    * Set ONLY when a builder hydrates a saved/imported (already-compiled) feature it cannot turn back into an
    * editable effect kind: a one-line summary of the mechanics the compiled feature really carries (see
@@ -2021,6 +2127,51 @@ export type WildShapeState = {
  * real rule) — that already falls out correctly here: nothing resets it
  * except this entity's own next startTurn() call.
  */
+/**
+ * An effect this character put on another creature: a mark, an accepted challenge, a curse. Per-target state, not a map: the target is
+ * a name the table typed (and a combatant id when it is in an encounter). It is never ended by the app on its own; when its turn
+ * mark passes it only shows as due, and a human ends it.
+ */
+export type TrackedEffect = {
+  id:          string;
+  name:        string;
+  targetName:  string;
+  targetId?:   string;
+  featureId?:  string;
+  /** `owner` only the player, `party` everyone, `dm` the DM and the owner. */
+  visibility:  'owner' | 'party' | 'dm';
+  /** The owner's turn counter value at which it is due to end. Absent: until ended by hand. */
+  dueTurn?:    number;
+  /** Whether damage the target takes is added to `recordedDamage` (Death Mark). */
+  records?:    boolean;
+  recordedDamage?: number;
+  /** The owner's turn counter value at which recording closes; damage after it is not added. Absent: records until the effect ends. The effect can be due later than this (Death Mark records to the start of the next turn and resolves at its end). */
+  recordsUntilTurn?: number;
+  note?:       string;
+};
+
+/** An aura of another character that this one is inside: the effects it gives, with the source's numbers already worked out. */
+export type ReceivedAura = {
+  sourceEntityId: string;
+  sourceName:     string;
+  featureId:      string;
+  label:          string;
+  effects:        Effect[];
+};
+
+/** A feature that is off until the creature's turn counter reaches `until`. */
+export type FeatureSuspension = { featureId: string; until: number; reason?: string };
+
+/** One hit this creature took: what actually landed after resistance, and on which of its own turns. */
+export type DamageLogEntry = {
+  /** The creature's own turn counter when it happened. */
+  turn:    number;
+  /** Damage dealt to it after resistance, vulnerability and flat reduction, including what temporary HP absorbed. */
+  amount:  number;
+  type?:   string;
+  source?: string;
+};
+
 export type TurnState = {
   actionUsed:      boolean;
   bonusActionUsed: boolean;
@@ -2196,6 +2347,20 @@ export type Entity = {
   weaponMastery?: { picks: string[] };
   /** Heroic Inspiration (2024): whether the character holds it. Never more than one; see engine/heroicInspiration.ts. */
   heroicInspiration?: boolean;
+  /** Damage this creature took recently, oldest first and bounded. Answers "half the damage you took since your last turn". See engine/damageLog.ts. */
+  damageLog?: DamageLogEntry[];
+  /** How many of this creature's own turns have started (advanced by startTurn). Stamps the damage log. Absent = 0. */
+  turnCounter?: number;
+  /** Features switched off for a time ("if you suffer fire damage, you lose this until the end of your next turn"). See engine/suspension.ts. */
+  suspensions?: FeatureSuspension[];
+  /** The creature's turn counter when each rider was last used, for once-per-turn limits. */
+  riderUse?: Record<string, number>;
+  /** Effects this creature has put on other creatures (marks, accepted challenges). See engine/trackedEffects.ts. */
+  trackedEffects?: TrackedEffect[];
+  /** Features used whose outcome effects wait for the table to say what happened (engine/outcomes.ts). One entry per feature; a rest clears them. */
+  pendingOutcomes?: PendingOutcome[];
+  /** Auras of other party members this character has marked itself as being inside. See engine/auras.ts. */
+  receivedAuras?: ReceivedAura[];
   /**
    * The content packs (ids and minimum versions) this character's class, species, background, feats, spells and items come from,
    * recorded when it is saved. Only ever added to, so removing a pack does not forget what the character was built from.
@@ -2569,7 +2734,14 @@ export type FeatureActivation = {
    * needing its own bespoke DerivedStats field like kiSaveDC got first.
    */
   requiresSave: { ability: Ability; dc: 'spell_save_dc' | 'ki_save_dc' | { ability: Ability } | number } | null;
+  /** The ability also uses up this other slot ("by using both your action and bonus action"). Both must be free to use it. */
+  alsoCosts?: 'action' | 'bonus_action';
   options?: ActivationOption[];
+  /**
+   * The 2014 Druid's Wild Shape: the use-picker lists the Beast forms this character's Druid level (and Circle) allows, built when
+   * the card is shown (engine/wildShapeForms.ts), so there is one card instead of one per beast.
+   */
+  beastFormPicker?: boolean;
 };
 
 /**
@@ -2599,6 +2771,8 @@ export type ActivationOption = {
   label:         string;         // e.g. "2nd-level slot"
   resourceCost?: ResourceCost;
   description?:  string;         // e.g. "+3d8 radiant damage"
+  /** Choosing this option transforms into this Beast form (Wild Shape), revalidated against the character when it is used. */
+  transformFormId?: string;
 };
 
 /** Describes what resource(s) an ability consumes when used. */
@@ -2634,6 +2808,12 @@ export type AbilityEffect =
   | { type: 'set_flag';         flag: string; value: boolean }
   | { type: 'spend_resource';   resourceId: string; amount: number }
   | { type: 'restore_resource'; resourceId: string; amount: number | 'full' }
+  /** Temporary hit points the ability grants. `dice` may use PB for the proficiency bonus ("PBd6", "PB"). Shown on the card; the player rolls and enters the result (rolls are optional, never mandatory). */
+  | { type: 'temp_hp'; dice: string }
+  /** Healing equal to a fraction of the damage this creature took since the start of its turn `turnsBack` turns ago (Reformation: 0.5, 1). Deterministic, so it is applied when the card is used. */
+  | { type: 'heal_from_damage_taken'; fraction: number; turnsBack: number }
+  /** Starts a tracked effect on a target the player names afterwards (a mark, a challenge). */
+  | { type: 'track_effect'; name: string; until?: 'end_of_this_turn' | 'end_of_next_turn'; records?: boolean; recordUntil?: 'end_of_this_turn' | 'end_of_next_turn'; visibility?: 'owner' | 'party' | 'dm'; note?: string }
   /** Casts a known spell by id, spending whatever this Feature's own
    * activation.resourceCost specifies (a dedicated pool OR a real spell
    * slot) — NOT entity.spellcasting.known's normal slot-consumption path.
@@ -2814,6 +2994,45 @@ export type ActionCard = {
    * misclassified or forged `true` here still can't bypass action economy.
    */
   isWeaponAttack?: boolean;
+  /** Riders from the character's features that can ride this attack or spell (engine/riders.ts). Absent when none apply. */
+  riders?: RiderOffer[];
+};
+
+/**
+ * A bonus effect that attaches to something else the character does: "when you hit with a weapon attack, also deal 1d6 fire damage",
+ * "once per turn, add 1d8 psychic damage to a cantrip or weapon hit". It names what it rides, any extra damage, a note for
+ * consequences the app does not apply, how often it may be used, what it costs and the flag that must be on.
+ */
+export type Rider = {
+  id:       string;
+  name:     string;
+  /** What it can ride. */
+  on:       'weapon_attack' | 'cantrip' | 'spell' | 'spell_attack' | 'any_damage';
+  damage?:  { dice: string; damageType: string };
+  /** Everything else it does, in words (a speed penalty, a push). Table-resolved. */
+  note?:    string;
+  /** `once_per_turn` is counted on the creature's own turn counter. */
+  limit?:   'once_per_turn' | 'none';
+  cost?:    ResourceCost;
+  /** A flag (set by another ability) that has to be on, for example the empowerment a reaction gave you. */
+  requires?: string;
+  /** A flag turned off when the rider is used. */
+  clears?:  string;
+};
+
+/** A used feature whose `outcomes` carry effects, waiting to be confirmed or dismissed. */
+export type PendingOutcome = { featureId: string; keys: OutcomeKey[] };
+
+/** One button on a used card: press it if that outcome happened. */
+export type OutcomeOffer = { featureId: string; key: OutcomeKey; label: string; effects: string };
+
+export type RiderOffer = {
+  riderId: string; featureId: string; name: string;
+  damage?: { dice: string; damageType: string };
+  note?: string;
+  cost?: ResourceCost;
+  available: boolean;
+  reason: string | null;
 };
 
 // ── 11. Sync & campaign system ───────────────────────────────────────────────
