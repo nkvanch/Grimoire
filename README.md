@@ -8,9 +8,9 @@ Website: https://nkvanch.github.io/Grimoire/ (documentation, changelog, privacy,
 
 ## Download
 
-**Android alpha:** [Download Grimoire-alpha-0.2.2.apk](https://github.com/nkvanch/Grimoire/releases/download/v0.2.2-alpha/Grimoire-alpha-0.2.2.apk) (about 60 MB), or open the [latest release](https://github.com/nkvanch/Grimoire/releases/latest) for the checksum, the sample packs and what changed. Install steps are in the [documentation](https://nkvanch.github.io/Grimoire/documentation.html#install). It is a sideloaded alpha, not on the Play Store.
+**Android alpha:** [Download Grimoire-alpha-0.2.3.apk](https://github.com/nkvanch/Grimoire/releases/download/v0.2.3-alpha/Grimoire-alpha-0.2.3.apk) (about 60 MB), or open the [latest release](https://github.com/nkvanch/Grimoire/releases/latest) for the checksum, the sample packs and what changed. Install steps are in the [documentation](https://nkvanch.github.io/Grimoire/documentation.html#install). It is a sideloaded alpha, not on the Play Store.
 
-Coming from 0.1.0? It was signed with a different key, so export your characters, uninstall it, then install this one. From 0.2.0 or 0.2.1 it is a normal update.
+Coming from 0.1.0? It was signed with a different key, so export your characters, uninstall it, then install this one. From 0.2.0, 0.2.1 or 0.2.2 it is a normal update.
 
 ## What this repository is
 
