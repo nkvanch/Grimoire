@@ -5,6 +5,8 @@
 
 # dependencies
 node_modules/
+# the hosted web build keeps its assets (icons and the SQLite wasm) in a folder that is named node_modules
+!docs/app/assets/node_modules/
 
 # Expo
 .expo/
