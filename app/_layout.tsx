@@ -9,12 +9,12 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform, Pressable } from 'react-native';
 import { useLayout } from '../src/platform/layout';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
-import { initDb } from '../src/db/db';
+import { initDb, isStorageLockError } from '../src/db/db';
 import { initContentDb } from '../src/db/contentDb';
 import { spellRepo } from '../src/content/spellRepo';
 import { itemRepo } from '../src/content/itemRepo';
@@ -31,6 +31,21 @@ import { useCombatTurnStore } from '../src/store/combatTurnStore';
 import { hydrateCombatStateOnBoot } from '../src/store/combatStore';
 import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
 import { loadDraftState } from '../src/db/draftRepo';
+
+/** Shown on the web when the database file stays locked: Grimoire is open in another tab or window. */
+function StorageBlockedScreen() {
+  return (
+    <View style={styles.boot}>
+      <Text style={styles.blockedTitle}>Grimoire is open somewhere else</Text>
+      <Text style={styles.bootTxt}>
+        Its storage can only be used by one tab or window at a time. Close the other Grimoire tab or window, then reload this page.
+      </Text>
+      <Pressable style={styles.blockedBtn} onPress={() => { if (typeof window !== 'undefined') window.location.reload(); }}>
+        <Text style={styles.blockedBtnTxt}>Reload</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function BootScreen() {
   return (
@@ -51,6 +66,7 @@ export default function RootLayout() {
   useKeepAwake();
 
   const [dbReady, setDbReady] = useState(false);
+  const [storageBlocked, setStorageBlocked] = useState(false);
   const router = useRouter();
 
   const loadCharacters = useCharacterStore(s => s.loadCharacters);
@@ -75,6 +91,8 @@ export default function RootLayout() {
           await initDb();
         } catch (e) {
           console.error('[_layout] initDb failed — character storage unavailable this session:', e);
+          // On the web the file stays locked while another tab or window has the app open: say so instead of running on a dead store.
+          if (Platform.OS === 'web' && isStorageLockError(e)) setStorageBlocked(true);
         }
 
         // 2. Open the static-content DB (spells + items, seeded from a
@@ -304,6 +322,7 @@ export default function RootLayout() {
     return () => { cancelled = true; };
   }, [dbReady]);
 
+  if (storageBlocked) return <StorageBlockedScreen />;
   if (!dbReady) return <BootScreen />;
 
   return (
@@ -377,5 +396,8 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: Colors.bg,
     alignItems: 'center', justifyContent: 'center', gap: 12,
   },
-  bootTxt: { color: Colors.textSecondary, fontSize: 14 },
+  bootTxt: { color: Colors.textSecondary, fontSize: 14, textAlign: 'center', maxWidth: 420, paddingHorizontal: 24 },
+  blockedTitle: { color: Colors.gold, fontSize: 18, fontWeight: '700' },
+  blockedBtn: { backgroundColor: Colors.gold, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10, marginTop: 8 },
+  blockedBtnTxt: { color: Colors.bg, fontWeight: '700' },
 });

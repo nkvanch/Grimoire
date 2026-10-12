@@ -307,7 +307,7 @@ export default function HomeScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
         <View style={isWide ? styles.wideRow : undefined}>
-        <View style={isWide ? styles.wideMain : undefined}>
+        <View style={isWide ? styles.wideMain : styles.column}>
 
         {/* Continue Last Character */}
         <Text style={styles.sectionLabel}>Continue Last Character</Text>
@@ -334,7 +334,7 @@ export default function HomeScreen() {
         )}
 
         </View>
-        <View style={isWide ? styles.wideSide : undefined}>
+        <View style={isWide ? styles.wideSide : styles.column}>
 
         {/* Quick Actions */}
         <Text style={styles.sectionLabel}>Quick Actions</Text>
@@ -393,6 +393,8 @@ const styles = StyleSheet.create({
   scroll:   { flex: 1 },
   content:  { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xl },
   contentWide: { maxWidth: 1280, width: '100%', alignSelf: 'center' },
+  // The sections sit in wrapper views (so the wide layout can put them in columns); the gap that used to come from `content` has to be here.
+  column: { gap: Spacing.md },
   wideRow: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   wideMain: { flex: 3, gap: Spacing.md },
   wideSide: { flex: 2, gap: Spacing.md },

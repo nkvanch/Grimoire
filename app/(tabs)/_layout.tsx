@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
 // Bottom tab navigator — 5 sections: Home, Campaigns, Characters, Homebrew, Compendium.
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize } from '../../src/theme';
 import { useLayout, SIDEBAR_WIDTH } from '../../src/platform/layout';
@@ -15,6 +15,9 @@ function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isWide } = useLayout();
+  // Five labelled tabs on a narrow browser window: smaller labels, so "Compendium" is not cut off and neighbours do not touch.
+  const { width } = useWindowDimensions();
+  const narrowWeb = Platform.OS === 'web' && !isWide && width < 420;
   return (
     <Tabs
       screenOptions={{
@@ -34,7 +37,7 @@ export default function TabLayout() {
         tabBarInactiveBackgroundColor: isWide ? 'transparent' : undefined,
         tabBarActiveTintColor:   Colors.gold,
         tabBarInactiveTintColor: Colors.textDim,
-        tabBarLabelStyle:     isWide ? styles.sidebarLabel : styles.label,
+        tabBarLabelStyle:     isWide ? styles.sidebarLabel : narrowWeb ? (width < 340 ? styles.labelNarrower : styles.labelNarrow) : styles.label,
       }}
     >
       <Tabs.Screen
@@ -92,6 +95,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize:   FontSize.xs,
     fontWeight: '600',
+  },
+  labelNarrower: {
+    fontSize:   9,
+    fontWeight: '600',
+    marginHorizontal: -3,
+  },
+  labelNarrow: {
+    fontSize:   10,
+    fontWeight: '600',
+    marginHorizontal: -2,
   },
   sidebar: {
     width:             SIDEBAR_WIDTH,

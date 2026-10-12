@@ -9,8 +9,12 @@
 <link rel="stylesheet" href="/Grimoire/style.css">
 <script src="/Grimoire/theme.js" defer></script>
 <script>
-  // The browser version is a single page; a refresh on one of its inner paths lands here, so send it to the app's start.
-  if (location.pathname.indexOf('/Grimoire/app/') === 0) location.replace('/Grimoire/app/');
+  // The browser version is a single page; a first visit to one of its inner paths lands here, so remember the path and send the
+  // browser to the app's start (scripts/web/coi-bootstrap.js puts the path back; after that the service worker answers refreshes).
+  if (location.pathname.indexOf('/Grimoire/app/') === 0) {
+    try { sessionStorage.setItem('grimoire-deeplink', location.pathname + location.search + location.hash); } catch (e) { /* none */ }
+    location.replace('/Grimoire/app/');
+  }
 </script>
 </head>
 <body>

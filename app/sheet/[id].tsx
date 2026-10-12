@@ -1052,6 +1052,7 @@ const styles = StyleSheet.create({
   tabBtn: {
     flex: 1,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,   // neighbouring labels ("Abilities" / "Features") never touch on a narrow phone
     alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   tabBtnActive:  { borderBottomColor: Colors.gold },

@@ -1,0 +1,104 @@
+diff --git a/node_modules/expo-sqlite/web/wa-sqlite/AccessHandlePoolVFS.js b/node_modules/expo-sqlite/web/wa-sqlite/AccessHandlePoolVFS.js
+index 046fe6f..20d4dd3 100644
+--- a/node_modules/expo-sqlite/web/wa-sqlite/AccessHandlePoolVFS.js
++++ b/node_modules/expo-sqlite/web/wa-sqlite/AccessHandlePoolVFS.js
+@@ -53,7 +53,13 @@ export class AccessHandlePoolVFS extends FacadeVFS {
+ 
+   static async create(name, module) {
+     const vfs = new AccessHandlePoolVFS(name, module);
+-    await vfs.isReady();
++    try {
++      await vfs.isReady();
++    } catch (e) {
++      // Grimoire patch: give back any handle already taken so a later attempt can have them
++      await vfs.close();
++      throw e;
++    }
+     return vfs;
+   }
+ 
+diff --git a/node_modules/expo-sqlite/web/worker.ts b/node_modules/expo-sqlite/web/worker.ts
+index deaf721..2c8d852 100644
+--- a/node_modules/expo-sqlite/web/worker.ts
++++ b/node_modules/expo-sqlite/web/worker.ts
+@@ -772,37 +772,56 @@ async function maybeFinalizeAllStatements(nativeDatabaseId: number) {
+   if (error) throw error;
+ }
+ 
++let _initPromise: Promise<void> | null = null;
++
++// Grimoire patch: the module-level state is only set once every step has succeeded, and a failed attempt (the file still
++// held by another page) is not remembered, so the caller can try again. Before this, one refused attempt left `_sqlite3` set
++// with no VFS and every later call failed with "Invalid VFS state".
++async function initWaSqliteAsync(): Promise<void> {
++  const module = await WaSQLiteFactory({
++    locateFile: () => wasmModule,
++  });
++  const sqlite3 = SQLite.Factory(module) as SQLiteAPI;
++  if (!sqlite3) {
++    throw new Error('Failed to initialize wa-sqlite');
++  }
++
++  const vfs = await AccessHandlePoolVFS.create(VFS_NAME_PERSISTENT, module);
++  if (vfs == null) {
++    throw new Error('Failed to initialize AccessHandlePoolVFS');
++  }
++  try {
++    sqlite3.vfs_register(vfs, true);
++
++    const vfsMemory = await MemoryVFS.create(VFS_NAME_MEMORY, module);
++    if (vfsMemory == null) {
++      throw new Error('Failed to initialize MemoryVFS');
++    }
++    sqlite3.vfs_register(vfsMemory, false);
++
++    _sqlite3 = sqlite3;
++    _vfs = vfs;
++    _vfsMemory = vfsMemory;
++  } catch (e) {
++    await vfs.close();
++    throw e;
++  }
++}
++
+ async function maybeInitAsync(): Promise<{
+   sqlite3: SQLiteAPI;
+   vfs: AccessHandlePoolVFS;
+   vfsMemory: MemoryVFS;
+ }> {
+-  if (!_sqlite3) {
+-    const module = await WaSQLiteFactory({
+-      locateFile: () => wasmModule,
+-    });
+-    _sqlite3 = SQLite.Factory(module) as SQLiteAPI;
+-    if (!_sqlite3) {
+-      throw new Error('Failed to initialize wa-sqlite');
+-    }
+-
+-    if (_vfs == null) {
+-      _vfs = await AccessHandlePoolVFS.create(VFS_NAME_PERSISTENT, module);
+-      if (_vfs == null) {
+-        throw new Error('Failed to initialize AccessHandlePoolVFS');
+-      }
+-    }
+-    _sqlite3.vfs_register(_vfs, true);
+-
+-    if (_vfsMemory == null) {
+-      _vfsMemory = await MemoryVFS.create(VFS_NAME_MEMORY, module);
+-      if (_vfsMemory == null) {
+-        throw new Error('Failed to initialize MemoryVFS');
+-      }
++  if (!_sqlite3 || _vfs == null || _vfsMemory == null) {
++    if (!_initPromise) {
++      _initPromise = initWaSqliteAsync().finally(() => {
++        _initPromise = null;
++      });
+     }
+-    _sqlite3.vfs_register(_vfsMemory, false);
++    await _initPromise;
+   }
+-  if (_vfs == null || _vfsMemory == null) {
++  if (!_sqlite3 || _vfs == null || _vfsMemory == null) {
+     throw new Error('Invalid VFS state');
+   }
+   return { sqlite3: _sqlite3, vfs: _vfs, vfsMemory: _vfsMemory };

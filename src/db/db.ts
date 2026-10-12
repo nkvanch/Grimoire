@@ -11,6 +11,33 @@ import { ALL_TABLES } from './schema';
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
+/** True for the error the browser raises when the database file is still held by another page (a second tab, or the page being reloaded). */
+export function isStorageLockError(e: unknown): boolean {
+  const text = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+  return /NoModificationAllowedError|Access Handles? cannot be created|another open Access Handle/i.test(text);
+}
+
+/**
+ * Opens the database. On the web (the browser app and the desktop app) the file is locked by whichever page holds it, and a page
+ * that is reloading or being replaced releases it a moment late, so a held lock is retried for about twelve seconds before giving
+ * up. Anywhere else a single attempt is made, as before.
+ */
+async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (Platform.OS !== 'web') return SQLite.openDatabaseAsync('dndapp.db');
+  const waits = [0, 250, 500, 750, 1000, 1500, 2000, 2000, 2000, 2500];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    try {
+      return await SQLite.openDatabaseAsync('dndapp.db');
+    } catch (e) {
+      last = e;
+      if (!isStorageLockError(e)) throw e;
+    }
+  }
+  throw last;
+}
+
 /**
  * Opens (or returns the cached) database and creates all tables.
  * Safe to call multiple times — idempotent due to IF NOT EXISTS.
@@ -20,7 +47,7 @@ export async function initDb(): Promise<SQLite.SQLiteDatabase | null> {
 
   if (_db) return _db;
 
-  _db = await SQLite.openDatabaseAsync('dndapp.db');
+  _db = await openDatabase();
 
   // Create all tables in a single transaction for atomicity
   await _db.withTransactionAsync(async () => {

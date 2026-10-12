@@ -2048,7 +2048,8 @@ const styles = StyleSheet.create({
 
   // HP utility row
   hpUtilRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    // wraps: on a 320dp phone (or with a large system font) the temp-HP controls drop to their own line instead of leaving the screen
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: Spacing.xs,
     backgroundColor: Colors.surface, borderRadius: Radius.lg,
     borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm,
   },
