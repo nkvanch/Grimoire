@@ -6,7 +6,7 @@ import { bootOfficialPacks, installedOfficialPacks } from '../src/content/offici
 import { ContentPacksPrompt } from '../src/components/ContentPacksPrompt';
 import { sqlitePackStore } from '../src/content/officialPackStore';
 import { useEffect, useState } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, ThemeProvider, DarkTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
 import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform, Pressable } from 'react-native';
@@ -46,6 +46,13 @@ function StorageBlockedScreen() {
     </View>
   );
 }
+
+// The navigator paints its own background behind the screens (a light grey by default). On a wide window, where the screens are a
+// centred column, that showed as pale bars on either side of the app.
+const NAV_THEME = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: Colors.bg, card: Colors.surfaceHigh, primary: Colors.gold, text: Colors.textPrimary, border: Colors.border },
+};
 
 function BootScreen() {
   return (
@@ -330,6 +337,7 @@ export default function RootLayout() {
     <ErrorBoundary>
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ThemeProvider value={NAV_THEME}>
       <Stack
         screenOptions={{
           headerStyle:      { backgroundColor: Colors.surfaceHigh },
@@ -378,6 +386,7 @@ export default function RootLayout() {
         <Stack.Screen name="backup"                        options={{ headerShown: false }} />
         <Stack.Screen name="onboarding"                    options={{ headerShown: false }} />
       </Stack>
+      </ThemeProvider>
       <ContentPacksPrompt
         visible={packsPromptOpen}
         onClose={() => { setPacksPromptOpen(false); void setMeta('content_packs_prompt_seen', '1').catch(() => undefined); }}

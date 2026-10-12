@@ -132,6 +132,8 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1, backgroundColor: Colors.bg,
+    // a wide window keeps the three panels a readable width instead of stretching the button across the screen
+    width: '100%', maxWidth: 560, alignSelf: 'center',
     paddingHorizontal: Spacing.lg, paddingTop: Spacing.xl + 8, paddingBottom: Spacing.xl,
     justifyContent: 'space-between',
   },
