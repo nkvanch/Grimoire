@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize } from '../../src/theme';
+import { useLayout, SIDEBAR_WIDTH } from '../../src/platform/layout';
 
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
   return (
@@ -13,18 +14,27 @@ function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { isWide } = useLayout();
   return (
     <Tabs
       screenOptions={{
         headerShown:          false,
-        tabBarStyle:          {
-          ...styles.bar,
-          paddingBottom: insets.bottom || 8,
-          height:        60 + (insets.bottom || 0),
-        },
+        // A wide window gets a navigation bar down the left side; a phone keeps the bar along the bottom.
+        tabBarPosition:       isWide ? 'left' : 'bottom',
+        tabBarLabelPosition:  isWide ? 'beside-icon' : undefined,
+        tabBarStyle:          isWide
+          ? styles.sidebar
+          : {
+              ...styles.bar,
+              paddingBottom: insets.bottom || 8,
+              height:        60 + (insets.bottom || 0),
+            },
+        tabBarItemStyle:      isWide ? styles.sidebarItem : undefined,
+        tabBarActiveBackgroundColor:   isWide ? Colors.gold + '22' : undefined,
+        tabBarInactiveBackgroundColor: isWide ? 'transparent' : undefined,
         tabBarActiveTintColor:   Colors.gold,
         tabBarInactiveTintColor: Colors.textDim,
-        tabBarLabelStyle:     styles.label,
+        tabBarLabelStyle:     isWide ? styles.sidebarLabel : styles.label,
       }}
     >
       <Tabs.Screen
@@ -82,6 +92,31 @@ const styles = StyleSheet.create({
   label: {
     fontSize:   FontSize.xs,
     fontWeight: '600',
+  },
+  sidebar: {
+    width:             SIDEBAR_WIDTH,
+    // the navigation library sets a minimum that grows with the window; pin both so the bar stays a bar
+    minWidth:          SIDEBAR_WIDTH,
+    maxWidth:          SIDEBAR_WIDTH,
+    backgroundColor:   Colors.surfaceHigh,
+    borderColor:       Colors.border,
+    borderRightColor:  Colors.border,
+    borderRightWidth:  1,
+    borderTopWidth:    0,
+    paddingTop:        16,
+    paddingHorizontal: 8,
+  },
+  sidebarItem: {
+    borderRadius:      10,
+    paddingVertical:   10,
+    paddingHorizontal: 12,
+    marginBottom:      4,
+    justifyContent:    'flex-start',
+  },
+  sidebarLabel: {
+    fontSize:   FontSize.md,
+    fontWeight: '600',
+    marginLeft: 10,
   },
   icon: {
     fontSize:   22,

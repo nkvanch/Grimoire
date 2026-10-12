@@ -4,6 +4,7 @@
 // file-system/sharing pattern (same expo-file-system/legacy subpath — SDK 56's
 // default expo-file-system API is a different class-based shape that doesn't
 // have writeAsStringAsync).
+import { desktopBridge, isDesktopApp } from '../platform/desktop';
 import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
 import { withRequiredPacks } from '../content/requiredPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
@@ -104,7 +105,7 @@ async function ensureNamesLoaded(spellIds: string[], itemIds: string[]): Promise
 }
 
 /** True on any platform expo-print actually implements — not web. */
-export const PDF_EXPORT_AVAILABLE = Platform.OS !== 'web';
+export const PDF_EXPORT_AVAILABLE = Platform.OS !== 'web' || isDesktopApp();
 
 async function shareUri(uri: string, mimeType: string, dialogTitle: string): Promise<void> {
   const canShare = await Sharing.isAvailableAsync();
@@ -142,6 +143,12 @@ export async function shareText(content: string, filename: string, format: 'txt'
 
 export async function sharePdfHtml(html: string, dialogTitle: string, action: ExportAction = 'share'): Promise<void> {
   const filename = `${sanitize(dialogTitle)}.pdf`;
+  const desktop = desktopBridge();
+  if (desktop) {
+    // The desktop app prints the page to a PDF and asks where to save it.
+    await withTimeout(desktop.pdf.fromHtml(html, filename), 120000, 'Creating the PDF');
+    return;
+  }
   const wantsSaf = action === 'save' && Platform.OS === 'android';
   const result = await withTimeout(Print.printToFileAsync({ html, base64: wantsSaf }), 30000, 'Generating the PDF');
 

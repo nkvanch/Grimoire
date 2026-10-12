@@ -31,18 +31,9 @@ function generateDeviceId(): string {
  * Returns the existing DeviceSession, or creates a new one on first install.
  * deviceId is fetched from SecureStore first — if missing, one is generated,
  * stored in SecureStore, then persisted to SQLite.
- * On web, returns a transient in-memory session (no persistence).
+ * On web (the browser build and the desktop app) there is no SecureStore, so the id lives in the database only.
  */
 export async function getOrCreateSession(): Promise<DeviceSession> {
-  if (Platform.OS === 'web') {
-    return {
-      deviceId:   generateDeviceId(),
-      nickname:   '',
-      role:       'player',
-      campaignId: null,
-    };
-  }
-
   const db = getDb();
 
   // Check SQLite first (fast path after first boot)
@@ -61,10 +52,11 @@ export async function getOrCreateSession(): Promise<DeviceSession> {
 
   // First install: look for a deviceId already in SecureStore
   // (handles reinstall scenarios where SQLite is wiped but SecureStore survives)
-  let deviceId = await SecureStore.getItemAsync(SECURE_STORE_KEY);
+  const useSecureStore = Platform.OS !== 'web';
+  let deviceId = useSecureStore ? await SecureStore.getItemAsync(SECURE_STORE_KEY) : null;
   if (!deviceId) {
     deviceId = generateDeviceId();
-    await SecureStore.setItemAsync(SECURE_STORE_KEY, deviceId);
+    if (useSecureStore) await SecureStore.setItemAsync(SECURE_STORE_KEY, deviceId);
   }
 
   const session: DeviceSession = {
@@ -99,7 +91,8 @@ export async function updateSession(
   if ('campaignId' in updates)          { fields.push('campaignId = ?'); values.push(updates.campaignId ?? null); }
 
   if (fields.length === 0) return;
-  values.push(1); // WHERE id = 1
+  // `WHERE id = 1` is a literal in the statement: binding an extra value for it is an out-of-range bind that wa-sqlite (web and the
+  // desktop app) rejects, though the native module tolerates it.
 
   await db.runAsync(
     `UPDATE device_session SET ${fields.join(', ')} WHERE id = 1`,

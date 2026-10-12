@@ -5,7 +5,7 @@
 // legacy server so a device can keep using either.
 // ============================================================================
 import TcpSocket from 'react-native-tcp-socket';
-import { NativeModules } from 'react-native';
+import { tcpAvailable } from '../platform/tcp';
 import type Socket from 'react-native-tcp-socket/lib/types/Socket';
 import type Server from 'react-native-tcp-socket/lib/types/Server';
 import { ClientTransport, Connection, ServerTransport } from './transport';
@@ -15,7 +15,7 @@ import { SocketConnection } from './socketConnection';
 export const SESSION_PORT = 7743;
 
 function nativeReady(): boolean {
-  return !!NativeModules.TcpSockets;
+  return tcpAvailable();
 }
 
 const NO_NATIVE = 'The networking module isn’t available in this build.';

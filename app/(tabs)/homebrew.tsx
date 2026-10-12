@@ -4,6 +4,7 @@
 // existing content) and the INSTALLED PACKAGES list moved to
 // Compendium → Homebrew / Compendium → Packages; this screen keeps small
 // shortcuts to them and redirects the old `?view=library|packages` links.
+import { useListColumns } from '../../src/platform/layout';
 import { useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,6 +16,7 @@ import { compendiumHref, legacyHomebrewViewRedirect, CompendiumMode } from '../.
 // ── Create Panel ──────────────────────────────────────────────────────────────
 
 function CreatePanel() {
+  const columns = useListColumns(300, 64, 3);
   const router = useRouter();
   const allRuleProfiles = useCustomRuleProfileStore(s => s.profiles);
   // Built-in presets (5e / 5.5e) are read-only; only the player's own profiles are listed for editing.
@@ -40,11 +42,11 @@ function CreatePanel() {
     <View style={styles.panel}>
       <Text style={styles.panelTitle}>🛠 Create</Text>
       <Text style={styles.panelSub}>Build custom races, classes, spells, and features with the guided editors.</Text>
-      <View style={styles.createGrid}>
+      <View style={[styles.createGrid, columns > 1 && styles.createGridWide]}>
         {ITEMS.map(item => (
           <Pressable
             key={item.route + item.label}
-            style={styles.createBtn}
+            style={[styles.createBtn, columns > 1 && { flexGrow: 0, width: columns >= 3 ? '31.8%' : '48.8%' }]}
             onPress={() => router.push(item.route as any)}
           >
             <Text style={styles.createBtnTxt}>{item.label}</Text>
@@ -133,6 +135,7 @@ const styles = StyleSheet.create({
   panelSub:   { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },
 
   createGrid: { gap: Spacing.xs },
+  createGridWide: { flexDirection: 'row', flexWrap: 'wrap' },
   createBtn: {
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
     padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,

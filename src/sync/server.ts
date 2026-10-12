@@ -7,7 +7,7 @@
 // connected client so every device sees the same entity state.
 // ============================================================================
 import TcpSocket from 'react-native-tcp-socket';
-import { NativeModules } from 'react-native';
+import { tcpAvailable } from '../platform/tcp';
 import type Server from 'react-native-tcp-socket/lib/types/Server';
 import type Socket from 'react-native-tcp-socket/lib/types/Socket';
 
@@ -25,7 +25,7 @@ import { SYNC_PORT } from './discovery';
  * clear, actionable message instead of a mystifying null TypeError.
  */
 export function isTcpNativeAvailable(): boolean {
-  return !!NativeModules.TcpSockets;
+  return tcpAvailable();
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export class SyncServer {
       // The native module must be linked. If it isn't (stale build, failed
       // autolink), createServer() returns a JS object whose listen() dereferences
       // a null native module. Detect that up front with a clear message.
-      if (!NativeModules.TcpSockets) {
+      if (!tcpAvailable()) {
         reject(new Error(
           'The networking module isn\u2019t available in this build. This usually means ' +
           'the app needs a fresh native rebuild (npx expo run:android). ' +

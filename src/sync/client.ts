@@ -16,7 +16,7 @@
 // session is actually live.
 // ============================================================================
 import TcpSocket from 'react-native-tcp-socket';
-import { NativeModules } from 'react-native';
+import { tcpAvailable } from '../platform/tcp';
 import type Socket from 'react-native-tcp-socket/lib/types/Socket';
 
 import { Entity, SyncEvent, Campaign } from '../engine/types';
@@ -130,7 +130,7 @@ export class SyncClient {
     // The native module must be linked. If it isn't, createConnection() returns
     // a JS object whose native calls dereference a null module, crashing. Fail
     // with a clear message routed through onError instead.
-    if (!NativeModules.TcpSockets) {
+    if (!tcpAvailable()) {
       const reason =
         'The networking module isn\u2019t available in this build. Rebuild the app ' +
         '(npx expo run:android) to join campaigns.';

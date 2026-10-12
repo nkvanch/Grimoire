@@ -1,5 +1,6 @@
 // app/(tabs)/index.tsx
 // Home dashboard: last character, active campaign section, quick actions, dice roller.
+import { useLayout } from '../../src/platform/layout';
 import { LAN_SESSIONS_AVAILABLE } from '../../src/platform/features';
 import { useState, useCallback, useEffect } from 'react';
 import {
@@ -253,6 +254,7 @@ function LastCharacterCard({ character, onPress }: { character: Entity; onPress:
 // ── Home Screen ───────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  const { isWide } = useLayout();
   const router     = useRouter();
   const characters = useCharacterStore(s => s.characters);
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
@@ -303,7 +305,9 @@ export default function HomeScreen() {
         <Text style={styles.appTitle}>Grimoire</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
+        <View style={isWide ? styles.wideRow : undefined}>
+        <View style={isWide ? styles.wideMain : undefined}>
 
         {/* Continue Last Character */}
         <Text style={styles.sectionLabel}>Continue Last Character</Text>
@@ -328,6 +332,9 @@ export default function HomeScreen() {
             <Text style={styles.stubSub}>Join a campaign from the Campaigns tab</Text>
           </View>
         )}
+
+        </View>
+        <View style={isWide ? styles.wideSide : undefined}>
 
         {/* Quick Actions */}
         <Text style={styles.sectionLabel}>Quick Actions</Text>
@@ -361,6 +368,8 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        </View>
+        </View>
       </ScrollView>
 
       <DiceRollerModal visible={diceOpen} onClose={() => setDiceOpen(false)} />
@@ -383,6 +392,10 @@ const styles = StyleSheet.create({
 
   scroll:   { flex: 1 },
   content:  { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xl },
+  contentWide: { maxWidth: 1280, width: '100%', alignSelf: 'center' },
+  wideRow: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  wideMain: { flex: 3, gap: Spacing.md },
+  wideSide: { flex: 2, gap: Spacing.md },
 
   sectionLabel: {
     fontSize:   FontSize.sm,

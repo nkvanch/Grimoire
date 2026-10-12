@@ -1,6 +1,7 @@
 // app/sheet/[id].tsx
 // Character sheet — 6-tab sheet with persistent rest bar.
 // All values read from entity.derived — never computed in components.
+import { useLayout } from '../../src/platform/layout';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Dimensions, Modal } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -68,6 +69,7 @@ const BASE_TABS: { id: TabId; label: string }[] = [
 const SPELLS_TAB: { id: TabId; label: string } = { id: 'spells', label: 'Spells' };
 
 export default function CharacterSheetScreen() {
+  const { isWide } = useLayout();
   const { id }   = useLocalSearchParams<{ id: string }>();
   // Individual selectors — never object literals, which create a new reference every render
   // and trigger React's useSyncExternalStore infinite-loop guard.
@@ -173,7 +175,8 @@ export default function CharacterSheetScreen() {
     : BASE_TABS;
 
   // Tab min-width: fills screen for 6 tabs, scrollable for 7.
-  const TAB_MIN_W = Math.floor(Dimensions.get('window').width / 6);
+  // A phone fits about six tabs across the window; in the wide layout the tabs share the right-hand pane, so they are narrower.
+  const TAB_MIN_W = isWide ? 104 : Math.floor(Dimensions.get('window').width / 6);
 
   // Rules-engine blocker RE-AUDIT closure (1D/1E/1F): the ONE explicit
   // merged content snapshot every ordinary player mutation recomputes
@@ -589,6 +592,157 @@ export default function CharacterSheetScreen() {
   const hpPct   = headerHpMax > 0 ? headerHpCurrent / headerHpMax : 0;
   const hpColor = hpPct > 0.5 ? Colors.green : hpPct > 0.25 ? Colors.gold : Colors.red;
 
+  // The tab bar and the tab bodies are built by functions so the phone layout (one tab at a time) and the wide layout (Combat beside
+  // the other tabs) show exactly the same things.
+  const rightTab: TabId = activeTab === 'character' ? 'actions' : activeTab;
+  const renderTabBar = (tabsToShow: { id: TabId; label: string }[]) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabBarScroll}
+          contentContainerStyle={styles.tabBarContent}
+        >
+          {tabsToShow.map(t => {
+            // Pending Choices (skill picks, ASI/feat, subclass, etc.) only ever
+            // resolve from the Features tab — a badge here is the "notice this
+            // from any tab" signal for a choice that just unlocked (e.g. right
+            // after a level-up), since the Combat tab's Level Up button gives no
+            // other indication one is waiting.
+            const pendingCount = t.id === 'features'
+              ? (entity?.choices.filter(c => !c.resolved).length ?? 0)
+              : 0;
+            return (
+              <Pressable
+                key={t.id}
+                style={[styles.tabBtn, { minWidth: TAB_MIN_W }, activeTab === t.id && styles.tabBtnActive]}
+                onPress={() => setActiveTab(t.id)}
+              >
+                <View style={styles.tabLabelRow}>
+                  <Text style={[styles.tabTxt, activeTab === t.id && styles.tabTxtActive]}>
+                    {t.label}
+                  </Text>
+                  {pendingCount > 0 && (
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeTxt}>{pendingCount}</Text>
+                    </View>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+  );
+  const renderTab = (tabId: TabId) => (
+    <>
+          {tabId === 'character' && (
+            <View style={{ flex: 1 }}>
+              {/* Combat / Exploration mode switch */}
+              <View style={styles.modeSwitch}>
+                {(['combat', 'exploration'] as const).map(m => (
+                  <Pressable
+                    key={m}
+                    style={[styles.modeBtn, sheetMode === m && styles.modeBtnActive]}
+                    onPress={() => setSheetMode(m)}
+                  >
+                    <Text style={[styles.modeTxt, sheetMode === m && styles.modeTxtActive]}>
+                      {m === 'combat' ? '⚔️  Combat' : '🧭  Exploration'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+  
+              {sheetMode === 'combat' ? (
+                <TabCharacter
+                  entity={entity}
+                  rules={rules}
+                  isDm={isDm}
+                  campaignId={campaignId}
+                  deviceId={deviceId}
+                  onDamage={handleDamage}
+                  onHeal={handleHeal}
+                  onAddCondition={handleAddCondition}
+                  onRemoveCondition={handleRemoveCondition}
+                  onResourceChange={handleResourceChange}
+                  onSpendSlot={handleSpendSlot}
+                  onRestoreSlot={handleRestoreSlot}
+                  onEndConcentration={handleEndConcentration}
+                  onEntityUpdate={onCombatEntityUpdate}
+                  onEndTurn={handleEndTurn}
+                />
+              ) : (
+                <TabExploration
+                  entity={entity}
+                  rules={rules}
+                  onEntityUpdate={onExplorationEntityUpdate}
+                  onDamage={handleDamage}
+                  onHeal={handleHeal}
+                  onAddCondition={handleAddCondition}
+                  onRemoveCondition={handleRemoveCondition}
+                  onSaveExplorationNotes={handleSaveExplorationNotes}
+                />
+              )}
+            </View>
+          )}
+          {tabId === 'actions' && (
+            <TabActions
+              entity={entity}
+              rules={rules}
+              onEntityUpdate={onActionsEntityUpdate}
+              onEndTurn={handleEndTurn}
+            />
+          )}
+          {tabId === 'spells' && (
+            <TabSpells
+              entity={entity}
+              rules={rules}
+              onEntityUpdate={onSpellsEntityUpdate}
+              onEndTurn={handleEndTurn}
+              onRestoreSlot={handleRestoreSlot}
+              onEndConcentration={handleEndConcentration}
+            />
+          )}
+          {tabId === 'abilities' && (
+            <TabAbilities
+              entity={entity}
+              rules={rules}
+              isDm={isDm}
+              campaignId={campaignId}
+              deviceId={deviceId}
+              onEntityUpdate={onAbilitiesEntityUpdate}
+            />
+          )}
+          {tabId === 'features' && (
+            <TabFeatures
+              entity={entity}
+              rules={rules}
+              onEntityUpdate={onFeaturesEntityUpdate}
+            />
+          )}
+          {tabId === 'inventory' && (
+            <TabInventory
+              entity={entity}
+              rules={rules}
+              onEquip={(...args) => { void handleEquip(...args); }}
+              onUnequip={(...args) => { void handleUnequip(...args); }}
+              onAddItem={(...args) => { void handleAddItem(...args); }}
+              onRemoveItem={handleRemoveItem}
+              onUpdateQuantity={handleUpdateQuantity}
+              onSetQuantity={handleSetQuantity}
+              onUpdateCurrency={handleUpdateCurrency}
+              onApplyInfusion={handleApplyInfusion}
+              onRemoveInfusion={handleRemoveInfusion}
+              onToggleAttune={handleToggleAttune}
+              onSaveLoadout={handleSaveLoadout}
+              onApplyLoadout={(...args) => { void handleApplyLoadout(...args); }}
+              onDeleteLoadout={handleDeleteLoadout}
+            />
+          )}
+          {tabId === 'notes' && (
+            <TabNotes notes={entity.notes} onSave={handleSaveNotes} />
+          )}
+    </>
+  );
+
   return (
     <View style={styles.screen}>
 
@@ -674,43 +828,6 @@ export default function CharacterSheetScreen() {
         </View>
       )}
 
-      {/* Tab Bar — horizontal ScrollView so spellcasters' 7 tabs can scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabBarScroll}
-        contentContainerStyle={styles.tabBarContent}
-      >
-        {TABS.map(t => {
-          // Pending Choices (skill picks, ASI/feat, subclass, etc.) only ever
-          // resolve from the Features tab — a badge here is the "notice this
-          // from any tab" signal for a choice that just unlocked (e.g. right
-          // after a level-up), since the Combat tab's Level Up button gives no
-          // other indication one is waiting.
-          const pendingCount = t.id === 'features'
-            ? (entity?.choices.filter(c => !c.resolved).length ?? 0)
-            : 0;
-          return (
-            <Pressable
-              key={t.id}
-              style={[styles.tabBtn, { minWidth: TAB_MIN_W }, activeTab === t.id && styles.tabBtnActive]}
-              onPress={() => setActiveTab(t.id)}
-            >
-              <View style={styles.tabLabelRow}>
-                <Text style={[styles.tabTxt, activeTab === t.id && styles.tabTxtActive]}>
-                  {t.label}
-                </Text>
-                {pendingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeTxt}>{pendingCount}</Text>
-                  </View>
-                )}
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
       {/* Tab Content — wrapped in its own ErrorBoundary (architecture review
           C8, defense in depth): a structurally malformed character (e.g.
           imported from a corrupted/hand-edited pack) can throw while
@@ -720,116 +837,28 @@ export default function CharacterSheetScreen() {
           different character or switching tabs always gets a fresh
           boundary — a crash on one tab doesn't leave every other tab (or
           every other character) stuck showing the same stale fallback. */}
-      <ErrorBoundary key={`${entity.id}_${activeTab}`}>
-      <View style={styles.tabContent}>
-        {activeTab === 'character' && (
-          <View style={{ flex: 1 }}>
-            {/* Combat / Exploration mode switch */}
-            <View style={styles.modeSwitch}>
-              {(['combat', 'exploration'] as const).map(m => (
-                <Pressable
-                  key={m}
-                  style={[styles.modeBtn, sheetMode === m && styles.modeBtnActive]}
-                  onPress={() => setSheetMode(m)}
-                >
-                  <Text style={[styles.modeTxt, sheetMode === m && styles.modeTxtActive]}>
-                    {m === 'combat' ? '⚔️  Combat' : '🧭  Exploration'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {sheetMode === 'combat' ? (
-              <TabCharacter
-                entity={entity}
-                rules={rules}
-                isDm={isDm}
-                campaignId={campaignId}
-                deviceId={deviceId}
-                onDamage={handleDamage}
-                onHeal={handleHeal}
-                onAddCondition={handleAddCondition}
-                onRemoveCondition={handleRemoveCondition}
-                onResourceChange={handleResourceChange}
-                onSpendSlot={handleSpendSlot}
-                onRestoreSlot={handleRestoreSlot}
-                onEndConcentration={handleEndConcentration}
-                onEntityUpdate={onCombatEntityUpdate}
-                onEndTurn={handleEndTurn}
-              />
-            ) : (
-              <TabExploration
-                entity={entity}
-                rules={rules}
-                onEntityUpdate={onExplorationEntityUpdate}
-                onDamage={handleDamage}
-                onHeal={handleHeal}
-                onAddCondition={handleAddCondition}
-                onRemoveCondition={handleRemoveCondition}
-                onSaveExplorationNotes={handleSaveExplorationNotes}
-              />
-            )}
+      {isWide ? (
+        <View style={styles.widePanes}>
+          <View style={styles.widePaneLeft}>
+            <ErrorBoundary key={`${entity.id}_character`}>
+              <View style={styles.tabContent}>{renderTab('character')}</View>
+            </ErrorBoundary>
           </View>
-        )}
-        {activeTab === 'actions' && (
-          <TabActions
-            entity={entity}
-            rules={rules}
-            onEntityUpdate={onActionsEntityUpdate}
-            onEndTurn={handleEndTurn}
-          />
-        )}
-        {activeTab === 'spells' && (
-          <TabSpells
-            entity={entity}
-            rules={rules}
-            onEntityUpdate={onSpellsEntityUpdate}
-            onEndTurn={handleEndTurn}
-            onRestoreSlot={handleRestoreSlot}
-            onEndConcentration={handleEndConcentration}
-          />
-        )}
-        {activeTab === 'abilities' && (
-          <TabAbilities
-            entity={entity}
-            rules={rules}
-            isDm={isDm}
-            campaignId={campaignId}
-            deviceId={deviceId}
-            onEntityUpdate={onAbilitiesEntityUpdate}
-          />
-        )}
-        {activeTab === 'features' && (
-          <TabFeatures
-            entity={entity}
-            rules={rules}
-            onEntityUpdate={onFeaturesEntityUpdate}
-          />
-        )}
-        {activeTab === 'inventory' && (
-          <TabInventory
-            entity={entity}
-            rules={rules}
-            onEquip={(...args) => { void handleEquip(...args); }}
-            onUnequip={(...args) => { void handleUnequip(...args); }}
-            onAddItem={(...args) => { void handleAddItem(...args); }}
-            onRemoveItem={handleRemoveItem}
-            onUpdateQuantity={handleUpdateQuantity}
-            onSetQuantity={handleSetQuantity}
-            onUpdateCurrency={handleUpdateCurrency}
-            onApplyInfusion={handleApplyInfusion}
-            onRemoveInfusion={handleRemoveInfusion}
-            onToggleAttune={handleToggleAttune}
-            onSaveLoadout={handleSaveLoadout}
-            onApplyLoadout={(...args) => { void handleApplyLoadout(...args); }}
-            onDeleteLoadout={handleDeleteLoadout}
-          />
-        )}
-        {activeTab === 'notes' && (
-          <TabNotes notes={entity.notes} onSave={handleSaveNotes} />
-        )}
-      </View>
-      </ErrorBoundary>
+          <View style={styles.widePaneRight}>
+            {renderTabBar(TABS.filter(t => t.id !== 'character'))}
+            <ErrorBoundary key={`${entity.id}_${rightTab}`}>
+              <View style={styles.tabContent}>{renderTab(rightTab)}</View>
+            </ErrorBoundary>
+          </View>
+        </View>
+      ) : (
+        <>
+          {renderTabBar(TABS)}
+          <ErrorBoundary key={`${entity.id}_${activeTab}`}>
+            <View style={styles.tabContent}>{renderTab(activeTab)}</View>
+          </ErrorBoundary>
+        </>
+      )}
 
       {/* Persistent Rest Bar — wrapped so it stays above the Android nav bar */}
       <SafeBottomView>
@@ -1036,6 +1065,9 @@ const styles = StyleSheet.create({
   tabBadgeTxt: { fontSize: 10, fontWeight: FontWeight.bold, color: Colors.bg },
 
   tabContent: { flex: 1 },
+  widePanes: { flex: 1, flexDirection: 'row' },
+  widePaneLeft: { flex: 5, borderRightWidth: 1, borderRightColor: Colors.border },
+  widePaneRight: { flex: 7 },
 
   modeSwitch: {
     flexDirection: 'row', gap: Spacing.xs,

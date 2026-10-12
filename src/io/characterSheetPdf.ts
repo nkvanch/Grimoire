@@ -23,6 +23,7 @@
 // directly). Ability scores, saves, and skills below all need the EFFECTIVE
 // values or the PDF prints pre-racial-bonus numbers.
 
+import { desktopBridge } from '../platform/desktop';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Entity } from '../engine/types';
@@ -239,6 +240,11 @@ export async function exportCharacterSheetPdf(
   resolveName: (kind: 'spell' | 'item' | 'race' | 'class' | 'background', id: string) => string,
 ): Promise<void> {
   const html = buildCharacterSheetHtml(entity, resolveName);
+  const desktop = desktopBridge();
+  if (desktop) {
+    await desktop.pdf.fromHtml(html, `${entity.identity.name || 'Character'} - Character Sheet.pdf`);
+    return;
+  }
   const { uri } = await Print.printToFileAsync({ html, base64: false });
 
   const canShare = await Sharing.isAvailableAsync();

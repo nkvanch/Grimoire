@@ -10,6 +10,8 @@
 // migrated forward automatically. Search/filters/sort/content-type
 // selection persist across navigation via browseStateStore (session-local,
 // not app-restart-persisted — matches every other screen this pass).
+import { gridProps, withGridCell } from '../../src/components/GridCell';
+import { useListColumns } from '../../src/platform/layout';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, TextInput, InteractionManager } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -105,6 +107,7 @@ const CONTENT_TYPE_ORDER: ContentTypeId[] = [
 
 /** Official mode: the ordinary Compendium browser (search/filters/sort/favorites/detail, SRD exposure). Unchanged apart from the screen title/switch moving into CompendiumScreen below. */
 function OfficialCompendiumView() {
+  const columns = useListColumns(470, 32, 3);
 
   // ── Restore browse state (search/filters/sort/content type) — session-
   // local, survives navigating away (e.g. into a detail expand or a
@@ -958,6 +961,7 @@ function OfficialCompendiumView() {
         // concatenated, in the worst case) as a real native view immediately.
         // FlatList only renders what's near the viewport.
         <FlatList
+          {...gridProps(columns)}
           style={styles.scroll}
           contentContainerStyle={styles.content}
           data={results}
@@ -967,7 +971,7 @@ function OfficialCompendiumView() {
           windowSize={7}
           maxToRenderPerBatch={20}
           removeClippedSubviews
-          renderItem={({ item: entry }) => {
+          renderItem={withGridCell<(typeof results)[number]>(columns, ({ item: entry }) => {
             const isFavorite = favorites.has(favoriteKey(entry.type, entry.id));
             const expanded = expandedId === `${entry.type}:${entry.id}`;
             const visual = CONTENT_TYPE_VISUALS[entry.type];
@@ -1015,7 +1019,7 @@ function OfficialCompendiumView() {
                 )}
               </Pressable>
             );
-          }}
+          })}
         />
       )}
     </View>

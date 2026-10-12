@@ -10,6 +10,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
 import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform } from 'react-native';
+import { useLayout } from '../src/platform/layout';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
@@ -41,6 +42,7 @@ function BootScreen() {
 }
 
 export default function RootLayout() {
+  const { isWide } = useLayout();
   // Keeps the screen from auto-locking while Grimoire is open — same
   // "stays on at the table" behavior as a video/game app, requested since
   // a character sheet needs to stay visible during a session without
@@ -314,13 +316,14 @@ export default function RootLayout() {
           headerStyle:      { backgroundColor: Colors.surfaceHigh },
           headerTintColor:  Colors.gold,
           headerTitleStyle: { color: Colors.textPrimary, fontWeight: '700' },
-          contentStyle:     { backgroundColor: Colors.bg },
+          // Forms, wizards and the live screens keep a readable width in a wide window; the tab screens and the sheet override this.
+          contentStyle:     isWide ? { backgroundColor: Colors.bg, width: '100%', maxWidth: 1040, alignSelf: 'center' } : { backgroundColor: Colors.bg },
           animation:        'slide_from_right',
         }}
       >
-        <Stack.Screen name="(tabs)"              options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)"              options={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }} />
         <Stack.Screen name="creation"            options={{ headerShown: false }} />
-        <Stack.Screen name="sheet/[id]"          options={{ headerShown: false }} />
+        <Stack.Screen name="sheet/[id]"          options={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }} />
         <Stack.Screen name="rules-reference"     options={{ headerShown: false }} />
         {/* Every app/dm/* screen (including ones with no explicit entry
             here before, like encounter-builder/encounters — expo-router
@@ -369,8 +372,7 @@ export default function RootLayout() {
 if (Platform.OS === 'web' && typeof document !== 'undefined') document.body.style.backgroundColor = Colors.bg;
 
 const styles = StyleSheet.create({
-  // On a wide desktop window the phone layout stays a readable column, centred, instead of stretching across the screen.
-  root: { flex: 1, backgroundColor: Colors.bg, ...(Platform.OS === 'web' ? { width: '100%', maxWidth: 1000, alignSelf: 'center' } : {}) },
+  root: { flex: 1, backgroundColor: Colors.bg },
   boot: {
     flex: 1, backgroundColor: Colors.bg,
     alignItems: 'center', justifyContent: 'center', gap: 12,

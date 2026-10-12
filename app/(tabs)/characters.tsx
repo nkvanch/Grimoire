@@ -1,8 +1,10 @@
 // app/(tabs)/characters.tsx
-// Character list — all saved characters. Tap to open sheet. Long press to delete.
+// Character list — all saved characters. Tap to open sheet. Long press (or right-click, or the delete button in the wide layout) to delete.
+import { gridProps, withGridCell } from '../../src/components/GridCell';
+import { useListColumns, useLayout } from '../../src/platform/layout';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, TextInput, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useCampaignStore } from '../../src/store/campaignStore';
@@ -15,9 +17,11 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 type SortMode = 'name' | 'date' | 'campaign';
 
 function CharacterCard({
-  character, campaignName, onPress, onLongPress,
+  character, campaignName, onPress, onLongPress, onDelete,
 }: {
   character: Entity; campaignName: string | null; onPress: () => void; onLongPress: () => void;
+  /** Given in the wide layout, where there is no long press to discover: shows a delete button on the card. */
+  onDelete?: () => void;
 }) {
   const { identity, resources, derived } = character;
   const hpPercent = resources.hp.maximum > 0
@@ -26,7 +30,15 @@ function CharacterCard({
   const hpColor = hpPercent > 0.5 ? Colors.green : hpPercent > 0.25 ? Colors.gold : Colors.red;
 
   return (
-    <Pressable style={styles.card} onPress={onPress} onLongPress={onLongPress}>
+    <Pressable
+      style={styles.card}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      // Right-click opens the same delete confirmation (web and desktop only; the prop does not exist on a phone).
+      {...(Platform.OS === 'web'
+        ? ({ onContextMenu: (e: { preventDefault?: () => void }) => { e.preventDefault?.(); onLongPress(); } } as object)
+        : {})}
+    >
       <View style={styles.cardMain}>
         <Text style={styles.cardName}>{identity.name || 'Unnamed'}</Text>
         <Text style={styles.cardSub}>
@@ -59,11 +71,25 @@ function CharacterCard({
           <Text style={styles.badgeValue}>{derived.speed}</Text>
         </View>
       </View>
+
+      {onDelete && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${identity.name || 'character'}`}
+          testID={`delete-character-${character.id}`}
+          style={styles.deleteBtn}
+          onPress={onDelete}
+        >
+          <Text style={styles.deleteBtnTxt}>Delete</Text>
+        </Pressable>
+      )}
     </Pressable>
   );
 }
 
 export default function CharactersScreen() {
+  const columns = useListColumns(360);
+  const { isWide } = useLayout();
   const router           = useRouter();
   const characters       = useCharacterStore(s => s.characters);
   const characterMeta    = useCharacterStore(s => s.characterMeta);
@@ -289,17 +315,19 @@ export default function CharactersScreen() {
           )}
 
           <FlatList
+            {...gridProps(columns)}
             data={visibleCharacters}
             keyExtractor={c => c.id}
             contentContainerStyle={styles.list}
-            renderItem={({ item }) => (
+            renderItem={withGridCell<(typeof visibleCharacters)[number]>(columns, ({ item }) => (
               <CharacterCard
                 character={item}
                 campaignName={campaignByCharId.get(item.id) ?? null}
                 onPress={() => openSheet(item.id)}
                 onLongPress={() => handleLongPress(item)}
+                onDelete={isWide ? () => handleLongPress(item) : undefined}
               />
-            )}
+            ))}
             ListEmptyComponent={
               <Text style={styles.noResultsTxt}>No characters match your search/filters.</Text>
             }
@@ -312,6 +340,11 @@ export default function CharactersScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.bg },
+  deleteBtn: {
+    alignSelf: 'center', marginLeft: Spacing.sm, paddingVertical: 8, paddingHorizontal: 10,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.red + '66', backgroundColor: Colors.surfaceHigh,
+  },
+  deleteBtnTxt: { fontSize: FontSize.xs, color: Colors.red, fontWeight: FontWeight.bold },
 
   header: {
     flexDirection:     'row',

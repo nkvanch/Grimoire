@@ -7,6 +7,8 @@
 //
 // Only Homebrew-scoped data is read: this view never touches the official
 // content DB, so it can't reintroduce anything SRD-only hides in Official mode.
+import { gridProps, withGridCell } from '../GridCell';
+import { useListColumns } from '../../platform/layout';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -34,6 +36,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 const STATE_KEY = 'compendium.homebrew';
 
 export function HomebrewLibraryView() {
+  const columns = useListColumns(470, 32, 3);
   const router = useRouter();
   // Individually selected (never one combined object) — same fresh-reference
   // footgun avoidance as every other homebrew-store read in the app.
@@ -241,11 +244,12 @@ export function HomebrewLibraryView() {
   return (
     <View style={styles.wrap} testID="compendium-homebrew-screen">
       <FlatList
+        {...gridProps(columns)}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         data={filtered}
         keyExtractor={({ type, item }) => `${type}:${item.id}`}
-        renderItem={renderRow}
+        renderItem={withGridCell(columns, renderRow)}
         initialNumToRender={12}
         windowSize={9}
         ListEmptyComponent={

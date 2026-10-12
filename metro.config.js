@@ -17,11 +17,8 @@ config.resolver.extraNodeModules = {
   'crypto':      require.resolve('./src/mocks/node-stub.js'),
 };
 
-// Exclude SQLite WASM from web builds.
-// expo-sqlite ships a wa-sqlite WASM file for web that Metro cannot bundle.
-// This app targets iOS and Android only — the web platform guard in db.ts
-// prevents any runtime SQLite calls, and this resolver prevents the bundler
-// error entirely by returning an empty module for any .wasm file on web.
+// On web (the browser build and the desktop app) expo-sqlite runs wa-sqlite in a worker; its .wasm is bundled as an asset (below),
+// and react-native-tcp-socket is replaced by a shim over the desktop shell's bridge (src/platform/tcpSocket.web.ts).
 // The built-in catalog is not part of the app: each module that holds catalog data is replaced by an empty one with the same
 // exports (src/content/empty/). Content comes only from installed content packs. Jest and the build scripts do not go through
 // Metro, so they keep the real modules, which are the source the packs are built from.
@@ -35,8 +32,8 @@ const emptyCatalog = new Map([
 ].map(([from, to]) => [path.resolve(__dirname, 'src/content', from), path.resolve(__dirname, 'src/content/empty', to)]));
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (false && platform === 'web' && moduleName.endsWith('.wasm')) {
-    return { type: 'empty' };
+  if (platform === 'web' && moduleName === 'react-native-tcp-socket') {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'src/platform/tcpSocket.web.ts') };
   }
   const resolved = context.resolveRequest(context, moduleName, platform);
   if (resolved?.type !== 'sourceFile') return resolved;
@@ -44,7 +41,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return replacement ? { type: 'sourceFile', filePath: replacement } : resolved;
 };
 
-// expo-sqlite on web ships wa-sqlite as a .wasm that Metro must treat as an asset (prototype for a PC build).
+// expo-sqlite on web ships wa-sqlite as a .wasm that Metro must treat as an asset.
 if (!config.resolver.assetExts.includes('wasm')) config.resolver.assetExts.push('wasm');
 
 module.exports = config;

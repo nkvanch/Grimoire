@@ -1128,7 +1128,7 @@ function NoCampaignView({
   // you don't control), so this is not something we can fix in JS — it's a
   // real platform limitation, not a bug. Show that honestly instead of
   // offering buttons that fail every time on web.
-  const webUnsupported = Platform.OS === 'web';
+  const webUnsupported = Platform.OS === 'web' && !LAN_SESSIONS_AVAILABLE;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.contentCenter}>

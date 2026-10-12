@@ -18,6 +18,7 @@
 import * as Network from 'expo-network';
 import { Platform } from 'react-native';
 import type { EventSubscription } from 'expo-modules-core';
+import { desktopBridge } from '../platform/desktop';
 
 export const SYNC_PORT = 7742;
 
@@ -27,6 +28,11 @@ export const SYNC_PORT = 7742;
  * active network connection).
  */
 export async function getLocalIp(): Promise<string | null> {
+  // The desktop app reads this computer's LAN address itself; a plain browser has no way to know it.
+  const desktop = desktopBridge();
+  if (desktop) {
+    try { return await desktop.network.localIPv4(); } catch { return null; }
+  }
   if (Platform.OS === 'web') return null;
 
   try {
@@ -64,6 +70,18 @@ export async function getLocalIp(): Promise<string | null> {
  */
 export function watchNetworkChanges(onChange: () => void): EventSubscription {
   const noop: EventSubscription = { remove: () => { /* nothing was subscribed */ } };
+  const desktop = desktopBridge();
+  if (desktop) {
+    // No network-state events in the desktop shell: look again every few seconds and report when the address changes.
+    let last: string | null | undefined;
+    const timer = setInterval(() => {
+      desktop.network.localIPv4().then(ip => {
+        if (last !== undefined && ip !== last) onChange();
+        last = ip;
+      }, () => { /* keep the last known address */ });
+    }, 5000);
+    return { remove: () => clearInterval(timer) };
+  }
   if (Platform.OS === 'web') return noop;
 
   try {
