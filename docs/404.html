@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Page not found - Grimoire</title>
 <link rel="icon" href="/Grimoire/assets/favicon.png">
+<script>try{var t=localStorage.getItem('grimoire-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="/Grimoire/style.css">
+<script src="/Grimoire/theme.js" defer></script>
 <script>
   // The browser version is a single page; a refresh on one of its inner paths lands here, so send it to the app's start.
   if (location.pathname.indexOf('/Grimoire/app/') === 0) location.replace('/Grimoire/app/');
@@ -14,6 +16,7 @@
 <body>
 <header class="site"><div class="wrap">
   <a class="brand" href="/Grimoire/index.html"><img src="/Grimoire/assets/favicon.png" alt="">Grimoire</a>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch between light and dark mode">Dark</button>
 </div></header>
 <main><div class="wrap">
   <h1>Page not found</h1>
