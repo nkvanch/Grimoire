@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codebase Architecture (Draft) - Grimoire</title>
+<meta name="description" content="Internal draft: a complete tour of the Grimoire C++/Qt desktop port's codebase, for contributors. Not yet reviewed for public accuracy and not linked from the site.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/favicon.png">
+<script>try{var t=localStorage.getItem('grimoire-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js" defer></script>
+<style>
+  /* page-specific additions on top of the shared stylesheet, using its own tokens */
+  .draft-banner{background:var(--gold-tint);border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:8px;padding:14px 16px;margin:0 0 26px}
+  .draft-banner strong{display:block;margin-bottom:4px;font-size:1.02rem}
+  .draft-banner p{margin:0 0 6px;color:var(--text)}
+  .draft-banner p:last-child{margin-bottom:0}
+  code.path{white-space:nowrap}
+  .flow{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0 20px}
+  .flow .step{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .flow .step:last-child{border-bottom:none}
+  .flow .step .n{font-family:ui-monospace,monospace;color:var(--accent);font-size:0.85rem;flex:0 0 18px}
+  .flow .step .where{font-family:ui-monospace,monospace;font-size:0.82rem;color:var(--muted);margin-bottom:2px}
+  .flow .step .what{font-size:0.92rem}
+  .quick{display:grid;grid-template-columns:1fr;gap:10px 24px;margin:14px 0}
+  @media (min-width:640px){.quick{grid-template-columns:1fr 1fr}}
+  .quick .q .ask{font-weight:600;margin-bottom:2px}
+  .quick .q .ans{color:var(--muted);font-size:0.93rem}
+  .pill{display:inline-block;font-size:0.75rem;padding:2px 9px;border-radius:999px;background:var(--code-bg);color:var(--muted);border:1px solid var(--line);margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch between light and dark mode">Dark</button>
+</div></header>
+
+<main><div class="wrap">
+  <div class="draft-banner">
+    <strong>Draft — not publishable yet</strong>
+    <p>This is an internal, in-progress contributor reference for the native C++/Qt desktop port's codebase. It has not been reviewed for public accuracy, is not linked from anywhere else on this site, and is marked <code>noindex</code> so search engines skip it. Treat anything here as subject to change without notice.</p>
+  </div>
+
+  <h1>Codebase Architecture</h1>
+  <p class="lead">A tour of the C++/Qt desktop port's codebase for someone who hasn't opened the source yet: what each part does, why it's shaped the way it is, and exactly where to find it.</p>
+
+  <div class="toc"><ul>
+    <li><a href="#big-picture">The big picture</a></li>
+    <li><a href="#one-idea">The one idea that explains everything</a></li>
+    <li><a href="#map">Repository map</a></li>
+    <li><a href="#core">The core engine</a></li>
+    <li><a href="#effectpipeline">Deep dive: derived stats</a></li>
+    <li><a href="#other-rules">Three mechanisms worth knowing</a></li>
+    <li><a href="#homebrew-core">The homebrew compiler</a></li>
+    <li><a href="#content">Content &amp; packs</a></li>
+    <li><a href="#liveplay">Live play</a></li>
+    <li><a href="#storage">Persistence</a></li>
+    <li><a href="#viewmodels">The view-model bridge</a></li>
+    <li><a href="#qml">The QML UI</a></li>
+    <li><a href="#trace-damage">Worked example: taking damage</a></li>
+    <li><a href="#trace-homebrew">Worked example: saving homebrew</a></li>
+    <li><a href="#testing">Testing &amp; verification</a></li>
+    <li><a href="#build">Build system</a></li>
+    <li><a href="#patterns">Patterns worth recognizing</a></li>
+    <li><a href="#legacy">Legacy corners</a></li>
+    <li><a href="#cheatsheet">Cheat sheet</a></li>
+  </ul></div>
+
+  <h2 id="big-picture">The big picture</h2>
+  <p>Grimoire is a D&amp;D character manager — character sheets, a homebrew content authoring studio, a
+  searchable library of official rules content, and a "Live Play" mode where a DM runs a fight and players'
+  phones join over the local network. This repository (the phone/browser app) is the original. A separate
+  repository holds a <strong>native C++20 / Qt 6 desktop port</strong> of the same engine, re-implementing the
+  same rules so they run natively on Windows/Linux/macOS, while staying able to read and write the exact same
+  character files and homebrew packs this app produces. This page documents <em>that</em> port's codebase.</p>
+  <p>That porting relationship is visible everywhere in the C++ code: nearly every file's opening comment names
+  the exact TypeScript file it ports (<code>src/engine/leveling.ts</code>, <code>combat.ts</code>, and so on,
+  all in <em>this</em> repository). Treat those comments as the most reliable map there is — when a ported
+  function's behavior is unclear, the comment usually says which original file defined that behavior first.</p>
+  <p>The C++ port has three layers, and they don't overlap:</p>
+  <div class="grid">
+    <div class="card"><strong>Layer 1 — The engine</strong><span><code class="path">core/</code> — pure C++20, zero Qt, zero UI. All rules logic: computing stats, resolving effects, applying damage, leveling up, compiling homebrew drafts, running a fight. Operates entirely on plain JSON, not custom classes.</span></div>
+    <div class="card"><strong>Layer 2 — View-models</strong><span><code class="path">ui/*.cpp</code> — the Qt/QML bridge. Thin classes exposing the engine's state and actions to the UI as Qt properties and invokable methods. No rules logic lives here.</span></div>
+    <div class="card"><strong>Layer 3 — The UI</strong><span><code class="path">ui/qml/*.qml</code> — every pixel on screen: pages, dialogs, small reusable components, in Qt's declarative QML language.</span></div>
+  </div>
+  <div class="note"><p><strong>Why this separation matters:</strong> <code class="path">core/</code> can be (and is) compiled and unit-tested completely on its own, with no Qt installed at all. The UI is an optional add-on layered on top (<code>GRIMOIRE_BUILD_UI</code> in CMake). If you're trying to understand a rule of the game, you almost certainly want <code class="path">core/</code>, not <code class="path">ui/</code>.</p></div>
+
+  <h2 id="one-idea">The one idea that explains everything</h2>
+  <p>If you remember nothing else, remember this: <strong>a character is not a C++ object — it is a JSON tree,
+  and the engine mutates that tree directly.</strong></p>
+  <p>Every character, every homebrew draft, every monster — all of it is <code>nlohmann::ordered_json</code> (an
+  ordered-keys JSON library), aliased throughout as <code>OrderedJson</code>. There's no <code>Character</code>
+  class with a <code>strength</code> field. Instead, a function like <code>recomputeDerived(entity, &amp;catalog)</code>
+  takes a reference to the raw JSON object, reads fields out of it by string key
+  (<code>entity["abilityScores"]["str"]</code>), and either returns a computed result or writes new fields back
+  into the same object in place.</p>
+  <p>This is a deliberate consequence of the porting relationship: this app is written in TypeScript, where a
+  character <em>is</em> just a plain JS object serialized to JSON. Porting that design 1:1 — rather than
+  inventing a typed C++ domain model — means a character file this app wrote opens correctly in the desktop app
+  and vice versa, and a porting bug shows up as "this field is wrong" rather than "this doesn't compile," which
+  is far easier to diff against the original.</p>
+  <div class="note"><p><strong>The practical upshot:</strong> to find where a field like <code>"proficiencyBonus"</code>
+  or <code>"turnState"</code> comes from, you <code>grep</code> for the literal string key across
+  <code class="path">core/</code> — there's no type definition to jump to. Almost every file in
+  <code class="path">core/rules/</code> has a cluster of tiny helpers near its top (<code>str()</code>,
+  <code>num()</code>, <code>arr()</code>, <code>obj()</code>, <code>member()</code>, <code>truthy()</code>)
+  that safely pull a typed value out of an <code>OrderedJson</code> by key, tolerating a missing or
+  wrong-shaped field instead of throwing.</p></div>
+  <p>One exception worth knowing up front: <code class="path">core/model/</code> contains an earlier, abandoned
+  attempt at a strongly-typed C++ domain model (a real <code>Entity</code>, <code>Feature</code>,
+  <code>Resource</code> class). It was the very first design, kept for one historical demo program, and nothing
+  else in the codebase depends on it. See <a href="#legacy">Legacy corners</a>.</p>
+  <div class="note"><p><strong>The container for all of this is <code>CharacterDocument</code></strong>
+  (<code class="path">core/io/CharacterDocument.h</code>) — a thin wrapper around one <code>OrderedJson</code>
+  holding the exact envelope both apps exchange: <code>{"format":"grimoire-character","version":1,
+  "exportedAt":…,"entity":{…}}</code>. Its defining rule: the native engine reads and edits only the fields it
+  understands, at any depth, and carries everything else through untouched on save — so opening a character in
+  the desktop port and saving it again never silently deletes a field this app wrote that the port hasn't
+  learned about yet.</p></div>
+
+  <h2 id="map">Repository map</h2>
+  <p>Rough size of the C++ port, measured in lines of implementation code, so you know where the weight
+  actually is before you go looking:</p>
+  <pre>grimoire-cpp/
+├── core/              — the engine, ~18,000 lines, zero Qt dependency
+│   ├── rules/         8,979 lines — every D&amp;D mechanic (see "The core engine")
+│   ├── homebrew/      4,225 lines — draft → compiled record (see "The homebrew compiler")
+│   ├── live/          3,055 lines — fights, campaigns, the LAN session wire protocol
+│   ├── content/       937 lines — the loaded SRD + homebrew catalog
+│   ├── io/            395 lines — CharacterDocument, pack signing/hashing
+│   ├── storage/        183 lines — SQLite character store
+│   ├── model/           26 lines — abandoned typed design, see "Legacy corners"
+│   ├── ruleset/, dice/   tiny — the ability-score formula, a seeded RNG wrapper
+│   └── CMakeLists.txt  builds the whole tree above into one static lib: grimoire_core
+├── ui/                — the Qt desktop app, optional (needs Qt 6)
+│   ├── *.h / *.cpp     9 view-models, ~7,300 lines total — CharacterViewModel.cpp alone is 3,000
+│   ├── qml/            47 files — pages, dialogs, reusable components
+│   ├── tests/          UI-level Catch2 tests, run against the real view-models
+│   ├── main.cpp        the real application's entry point
+│   └── CMakeLists.txt
+├── app/               — a historical CLI demo, not the real app, see "Legacy corners"
+├── tests/             — 23 Catch2 files exercising core/ only
+│   └── fixtures/       344 synthetic characters + a 1-million-line parity golden file
+├── content/packs/     — the two bundled official rulesets (SRD 5.1 and 5.2.1), as signed JSON
+├── docs/              — rules reference, decision log, and a requirements-traceability system
+└── CMakeLists.txt     the top-level build: fetches Catch2/nlohmann-json/Monocypher/SQLite, wires everything together</pre>
+  <p>A rule of thumb that holds almost everywhere: <strong>if it's about what a character can do, it's in
+  <code class="path">core/rules/</code>. If it's about turning what a person typed into something the engine
+  can run, it's in <code class="path">core/homebrew/</code>. If it's a widget on screen, it's in
+  <code class="path">ui/qml/</code>.</strong></p>
+
+  <h2 id="core">The core engine — <code class="path">core/rules/</code></h2>
+  <p>Twenty-two files, no two of them doing the same job. This is the heart of the application. Every file
+  here is small enough to read in one sitting and owns exactly one slice of the rules. None of them know
+  anything about Qt, QML, SQLite, or the network — they take an <code>OrderedJson&amp;</code> (almost always the
+  character's <code>entity</code>), read and mutate it, and sometimes take a <code>const ItemCatalog*</code>
+  (the loaded rules content) and/or a <code>Rng&amp;</code> (a seeded random source, for anything that rolls
+  dice). Grouped by what they actually do, rather than alphabetically:</p>
+
+  <h3>Computing what a character can currently do</h3>
+  <table>
+    <tr><th>File</th><th>What it owns</th></tr>
+    <tr><td><code class="path">EffectPipeline.cpp</code></td><td>The big one — see the deep dive below.</td></tr>
+    <tr><td><code class="path">DerivedStats.cpp</code></td><td>A small "resolved value with contributions" shape — the explainability trail that lets the sheet show <em>why</em> AC is 17 (base 10, + Dex 2, + shield 2, + ring 3).</td></tr>
+    <tr><td><code class="path">EffectResolver.cpp</code></td><td>Gathers every passive effect currently active on an entity before EffectPipeline folds them into final numbers.</td></tr>
+    <tr><td><code class="path">Hitpoints.cpp</code></td><td>Applying damage/healing: resistance, immunity, vulnerability by damage type, temp HP, death saves.</td></tr>
+    <tr><td><code class="path">SpellSlots.cpp</code></td><td>Which pool a prepared spell gets paid from (a normal slot vs. a Warlock pact slot).</td></tr>
+  </table>
+
+  <h3>Things that change the character</h3>
+  <table>
+    <tr><th>File</th><th>What it owns</th></tr>
+    <tr><td><code class="path">Cards.cpp</code></td><td>The biggest single file (1,517 lines). Turns a feature into a usable "action card," checks whether using it is legal right now (resources, the action economy), and applies the result.</td></tr>
+    <tr><td><code class="path">Rest.cpp</code></td><td>Short/long rests, dawn-triggered recovery, per-turn roll-based recharge, hit dice, and — critically — <code>reconcileEntity()</code>, the function almost every mutation calls afterward.</td></tr>
+    <tr><td><code class="path">Leveling.cpp</code></td><td>The single largest file (1,000 lines): applying a class level, ASIs, feats, subclass choice, spell slot progression.</td></tr>
+    <tr><td><code class="path">Choices.cpp</code></td><td>Second-largest (1,542 lines): the generic "pick N of these" machinery, including prerequisite checking between choices.</td></tr>
+    <tr><td><code class="path">Background.cpp</code></td><td>Swapping a character's background origin/feat mid-game.</td></tr>
+    <tr><td><code class="path">Overrides.cpp</code></td><td>"Free Edit" / DM override — a manual, tracked, cancelable correction layered on top of the normal calculation.</td></tr>
+    <tr><td><code class="path">WildShape.cpp</code></td><td>Druid Wild Shape: entering/leaving a beast form, damage routing to the form first.</td></tr>
+    <tr><td><code class="path">Companion.cpp</code></td><td>A player-owned companion creature that follows its owner's level.</td></tr>
+    <tr><td><code class="path">WeaponMastery.cpp</code></td><td>The 2024 ruleset's Weapon Mastery system.</td></tr>
+    <tr><td><code class="path">RuleProfiles.cpp</code></td><td>Named, saveable bundles of campaign-level house-rule toggles.</td></tr>
+    <tr><td><code class="path">RequestChanges.cpp</code></td><td>Applying a DM's proposed change once a joined player accepts or edits it, in a live session.</td></tr>
+  </table>
+
+  <h3>Setup and reference</h3>
+  <table>
+    <tr><th>File</th><th>What it owns</th></tr>
+    <tr><td><code class="path">Creation.cpp</code></td><td>Building a brand-new character, the way the Builder wizard does.</td></tr>
+    <tr><td><code class="path">Monster.cpp</code></td><td>Turning a monster stat block into a live, playable "character" — used by Live Play.</td></tr>
+    <tr><td><code class="path">Sheet.cpp</code></td><td>Everything else the sheet does directly: inventory, conditions, duration ticking, notes.</td></tr>
+    <tr><td><code class="path">Simulate.cpp</code></td><td>A generic "what would happen if…" preview: runs a mutation on a disposable copy and reports the diff. Powers the Builder's live preview.</td></tr>
+    <tr><td><code class="path">Abilities.cpp</code></td><td>The six ability-score domain events.</td></tr>
+    <tr><td><code class="path">ContentRefs.cpp</code></td><td>Lists every piece of content a character refers to — used for "do you have the pack this needs" checks.</td></tr>
+  </table>
+
+  <h2 id="effectpipeline">Deep dive: how a character's stats actually get computed</h2>
+  <p><code class="path">core/rules/EffectPipeline.cpp</code> — 1,364 lines, the single most important file to
+  understand if you're debugging "why is this number wrong."</p>
+  <p>Nothing about a character's stats is stored pre-computed. Armor Class, proficiency bonus, every saving
+  throw, spell save DC, passive Perception — none of it lives in the JSON as a settled number. Instead, one
+  function, <code>recomputeDerived(character, items)</code>, is called fresh every time anything might have
+  changed, and it rebuilds all of it from scratch:</p>
+  <ol>
+    <li><strong>Collect every effect.</strong> Walks every granted feature — class features, species traits,
+    feats, item effects, active conditions — and gathers every typed effect each one carries.</li>
+    <li><strong>Fold them together.</strong> Effects targeting the same stat combine by their declared
+    operation (mostly addition; some "set" and "advantage/disadvantage" effects don't stack numerically).</li>
+    <li><strong>Apply any active Free Edit override last.</strong> A map, <code>overrideByStat</code>, is built
+    from every active entry in <code>entity["characterOverrides"]</code> / <code>["dmOverrides"]</code>. Each
+    stat's computation calls <code>withOverride(naturalValue, statName)</code>, which replaces or adds to the
+    natural value and marks the override claimed. Anything left unclaimed is reported as <code>unsupported</code>
+    rather than silently doing nothing.</li>
+    <li><strong>Return a <code>NativeDerived</code> struct</strong> — every computed stat, plus an
+    explainability trail so the sheet can show the breakdown, not just the final number.</li>
+  </ol>
+  <div class="note"><p><strong>Nothing here writes to the character.</strong> <code>recomputeDerived</code> is
+  read-only — it's <code>reconcileEntity()</code> in <code class="path">Rest.cpp</code> that calls it and then
+  writes a handful of the results back (current/max HP, a few resource pools) into the stored JSON. Everything
+  else (AC, saves, DCs) is never stored — it's recomputed on every read, every time.</p></div>
+  <p>If you're adding a new kind of stat modifier, or tracing why a bonus isn't applying, this file's big
+  dispatch over effect <code>type</code> strings is where that logic lives.</p>
+
+  <h2 id="other-rules">Three mechanisms worth knowing by name</h2>
+  <h3><code class="path">Rest.cpp</code>'s <code>reconcileEntity()</code> — the "settle everything" chokepoint</h3>
+  <p>Almost every function that changes a character ends with a call to <code>reconcileEntity(character, items)</code>.
+  It calls <code>recomputeDerived()</code> for fresh numbers, resyncs resource-pool maxima against any upgrade
+  entitlement, applies the HP-bonus delta and a few formula-linked pool resyncs, toggles an "activate at X% HP"
+  condition on or off, and — last, so it always has final say — resolves any active Free Edit override of a
+  custom resource pool's current/max. New "resync this after every change" logic almost always gets added as
+  one more small pass inside this one function, near the end.</p>
+  <h3><code class="path">Cards.cpp</code> — the action economy</h3>
+  <p>A "card" is the engine's name for one usable thing on the sheet — a spell, a limited-use class feature, an
+  item's activated ability. <code>generateActionCards()</code> builds the full list; <code>useActionCard()</code>
+  checks legality (resource available, right action-economy slot free), applies the effect, marks the slot
+  used, and reconciles. The action economy tracks three standard slots on <code>entity["turnState"]</code>
+  (action/bonus action/reaction) plus an open-ended <code>turnState.custom</code> map for any homebrew-authored
+  named slot. A fresh turn clears all of it via <code>resetTurnEconomy()</code>.</p>
+  <h3><code class="path">Choices.cpp</code> — "pick N of these"</h3>
+  <p>Every "choose 2 skills," "choose a Fighting Style," "choose an Eldritch Invocation" moment goes through one
+  generic mechanism: a prompt, a pool of options, a count. Resolving one can itself grant more features.
+  Options can declare prerequisites on each other (<code>{kind: "has_option", optionId: …}</code>) or on level —
+  the same machinery official content uses, and, as of the port's own recent work, authorable from the homebrew
+  builder too.</p>
+
+  <h2 id="homebrew-core">The homebrew compiler — <code class="path">core/homebrew/</code></h2>
+  <p>Draft (what a person typed) → compiled record (what the engine runs) → validation (is it legal). This is
+  the second-largest subsystem and arguably the most distinctive part of the whole app: ordinary players author
+  their own species, classes, spells, items, and monsters through a guided builder, and that content runs
+  through <em>exactly the same engine code</em> as official SRD content — there's no separate "homebrew mode"
+  in the rules logic. <code class="path">Homebrew.cpp</code> is what makes that true: a pure, stateless
+  compiler.</p>
+  <table>
+    <tr><th>File</th><th>Job</th></tr>
+    <tr><td><code class="path">Homebrew.cpp</code></td><td>The compiler itself: one function per content kind (<code>compileFeatFields</code>, <code>compileSpellFields</code>, <code>compileSubclassFields</code>, …) plus the validators that decide whether a draft is acceptable to save.</td></tr>
+    <tr><td><code class="path">HomebrewLibrary.h/.cpp</code></td><td>The SQLite-backed store of a person's own saved homebrew (<code>HomebrewStore</code>) — separate from the character database. See "Persistence".</td></tr>
+    <tr><td><code class="path">PackageImport.cpp</code></td><td>Reading and validating a <code>.grimoire-pack</code> file before any of it is kept.</td></tr>
+    <tr><td><code class="path">ImportReview.cpp</code></td><td>What a pack would add or change, shown for a person to accept.</td></tr>
+    <tr><td><code class="path">Preview.cpp</code></td><td>The Builder's live "Test" panel — compiles the in-progress draft, applies it to a throwaway level-1 character via Simulate.cpp, and lists what changed.</td></tr>
+  </table>
+  <h3>The trait system — one editor for every kind of mechanical effect</h3>
+  <p>Almost everything a homebrew author builds — a feat's effect, an item's power, a condition's consequence,
+  one level of a class — bottoms out in the same shape: a <em>trait draft</em>, edited by one shared QML
+  component (<code class="path">TraitEditor.qml</code>) and compiled by one shared function,
+  <code>buildTraitFeature()</code>. A trait draft is a flat bag of fields, and the compiler reads out whichever
+  fields its <code>effectKind</code> actually uses. Adding a genuinely new capability almost always means: one
+  new field on the trait draft, a UI control for it, and a few lines in <code>buildTraitFeature()</code> (or its
+  helper <code>layerAdvanced()</code>) to compile that field into a real effect.</p>
+  <div class="note"><p><strong>Nearly everything is a free string, by design.</strong> Damage types, recharge
+  cadences, condition ids, action-economy slot names — almost none of these are validated against a closed enum
+  anywhere in <code class="path">core/</code>. A closed list you still find is almost always a <em>UI</em>
+  choice (a fixed set of Chips in a QML file) layered on top of a field the compiler already accepts as free
+  text. When extending a vocabulary, check the compiler's own tolerance first — it's very often already general.</p></div>
+
+  <h2 id="content">Content &amp; packs — <code class="path">core/content/</code></h2>
+  <p>A "pack" is a signed JSON file holding a complete ruleset's worth of content. Two ship with the app (SRD
+  5.1 and SRD 5.2.1, in <code class="path">content/packs/</code>); a person can install more, and their own
+  homebrew behaves like a third, always-installed pack layered on top.</p>
+  <table>
+    <tr><th>File</th><th>Job</th></tr>
+    <tr><td><code class="path">Items.h/.cpp</code></td><td>The big one: <code>ItemCatalog</code>, holding every loaded pack's content in memory and answering lookups — <code>findSpell</code>, <code>findClass</code>, <code>findSubclass</code>, <code>spellsFor(ruleset)</code>. Each content kind is looked up its own way; there is no single generic "find any record" method baked in — <code>findBrowsable()</code> is a newer addition that dispatches across all of them for exactly that purpose.</td></tr>
+    <tr><td><code class="path">Registries.h/.cpp</code></td><td>The flat reference lists a choice can draw from: every tool, language, skill.</td></tr>
+    <tr><td><code class="path">ContentRegistry.h/.cpp</code></td><td>A minimal definition/instance lookup for the earlier typed model — mostly historical now.</td></tr>
+  </table>
+  <p>Two more pieces matter here: <code class="path">core/io/PackVerifier.h</code> checks a pack's Ed25519
+  signature (via the Monocypher library) before anything in it is trusted, and
+  <code class="path">core/io/Sha256.h</code> computes the content hash recorded in a pack's manifest.</p>
+  <div class="note"><p><strong>On the UI side, <code>ContentService</code></strong> (<code class="path">ui/ContentService.h</code>)
+  is the single shared owner of both the loaded <code>ItemCatalog</code> and the open <code>HomebrewStore</code>
+  — a Meyers singleton (<code>ContentService::instance()</code>), constructed once, read by every view-model.</p></div>
+
+  <h2 id="liveplay">Live play — <code class="path">core/live/</code></h2>
+  <p>The DM-runs-a-fight-and-phones-join feature. The one part of the engine that talks over a network, via a
+  small custom wire protocol the desktop port and this app both speak.</p>
+  <table>
+    <tr><th>File</th><th>Job</th></tr>
+    <tr><td><code class="path">Encounter.h/.cpp</code></td><td>A fight as the DM actually sees it: exact HP, initiative order, notes. Pure state and consequences — deliberately no spatial/positional simulation.</td></tr>
+    <tr><td><code class="path">EncounterBridge.h/.cpp</code></td><td>The same fight, reshaped for what a joined player's phone is allowed to see.</td></tr>
+    <tr><td><code class="path">Campaign.h/.cpp</code></td><td>The longer-lived container above a single fight: the party, prepared/paused encounters.</td></tr>
+    <tr><td><code class="path">SessionHost.h/.cpp</code></td><td>The desktop port acting as host — the server side of the protocol.</td></tr>
+    <tr><td><code class="path">SessionPeerClient.h/.cpp</code></td><td>The joining side of the same protocol.</td></tr>
+  </table>
+
+  <h2 id="storage">Persistence — two separate SQLite files, deliberately</h2>
+  <p>There is no single "the database." Two completely separate SQLite stores, matching the fact that
+  characters and homebrew content have different lifetimes and sharing models:</p>
+  <div class="quick">
+    <div class="q"><div class="ask"><code class="path">core/storage/CharacterStore.h/.cpp</code></div><div class="ans">The person's own characters. Deliberately never shared with this app — the two apps exchange characters as files, not through a shared database.</div></div>
+    <div class="q"><div class="ask"><code class="path">core/homebrew/HomebrewLibrary.h</code>'s <code>HomebrewStore</code></div><div class="ans">The person's own saved homebrew — kept once, loaded into the in-memory <code>ItemCatalog</code> at startup and reloaded after any save/import.</div></div>
+  </div>
+
+  <h2 id="viewmodels">The view-model bridge — <code class="path">ui/*.h / *.cpp</code></h2>
+  <p>Nine classes, ~7,300 lines, every one a <code>QObject</code> exposed to QML. Each is instantiated directly
+  inside a QML file and exposes state as <code>Q_PROPERTY</code> fields and actions as <code>Q_INVOKABLE</code>
+  methods, called directly from QML.</p>
+  <table>
+    <tr><th>Class</th><th>Backs</th><th>Lines</th></tr>
+    <tr><td>CharacterViewModel</td><td>The open character sheet — nearly every sheet action funnels through it.</td><td>3,000</td></tr>
+    <tr><td>HomebrewViewModel</td><td>The homebrew library list and every builder's draft/save/compile/import/export flow.</td><td>1,838</td></tr>
+    <tr><td>EncounterViewModel</td><td>The DM's live-play fight screen.</td><td>480</td></tr>
+    <tr><td>LibraryViewModel</td><td>Browsing/searching official + homebrew content.</td><td>504</td></tr>
+    <tr><td>SessionService</td><td>Hosting a live session.</td><td>474</td></tr>
+    <tr><td>CampaignViewModel</td><td>The campaigns page.</td><td>369</td></tr>
+    <tr><td>SessionClientService</td><td>Joining someone else's session.</td><td>368</td></tr>
+    <tr><td>ContentService</td><td>The shared singleton — see "Content &amp; packs".</td><td>63</td></tr>
+  </table>
+  <div class="note"><p><strong>The rule every view-model follows:</strong> no game-rules logic lives here. A
+  method like <code>CharacterViewModel::damageForm()</code> is deliberately thin — it calls straight into a
+  <code class="path">core/rules/</code> function, and its own job is only: snapshot for undo, call the core
+  function, decide whether to persist, then refresh the QML-facing properties.</p></div>
+
+  <h2 id="qml">The QML UI — <code class="path">ui/qml/</code></h2>
+  <p>47 files: 2 singletons, about 10 pages, about 20 dialogs, the rest reusable components.</p>
+  <h3>Entry point and navigation</h3>
+  <p><code class="path">Main.qml</code> is the window shell: a <code>NavRail</code> plus one page component per
+  rail item, shown/hidden by a <code>rail.current</code> property rather than a router.</p>
+  <h3>The two singletons</h3>
+  <div class="quick">
+    <div class="q"><div class="ask"><code class="path">Theme.qml</code></div><div class="ans">Every color, referenced unqualified as <code>Theme.gold</code>, <code>Theme.dim</code> from anywhere in the module.</div></div>
+    <div class="q"><div class="ask"><code class="path">GameVocab.qml</code></div><div class="ans">Shared game-vocabulary lists more than one file needs the identical copy of (currently the 13 damage types) — stops two files drifting out of sync.</div></div>
+  </div>
+  <h3>The pages</h3>
+  <table>
+    <tr><th>File</th><th>Lines</th><th>What it is</th></tr>
+    <tr><td><code class="path">HomebrewPage.qml</code></td><td>3,025</td><td>The whole homebrew hub and every builder wizard in one file.</td></tr>
+    <tr><td><code class="path">LivePlayPage.qml</code></td><td>1,516</td><td>The DM's live-fight screen.</td></tr>
+    <tr><td><code class="path">BuilderPage.qml</code></td><td>1,655</td><td>The guided new-character wizard.</td></tr>
+    <tr><td><code class="path">CharacterSheet.qml</code></td><td>1,180</td><td>The character sheet view.</td></tr>
+    <tr><td><code class="path">CampaignsPage.qml</code></td><td>668</td><td>Campaign list and detail.</td></tr>
+  </table>
+  <h3>The shared trait-editing components</h3>
+  <p>These four files are reused across almost every builder, which is why a fix to one of them tends to fix
+  the same problem everywhere at once: <strong><code class="path">TraitEditor.qml</code></strong> (the main
+  effect editor), <strong><code class="path">TraitAdvanced.qml</code></strong> (riders, auras, HP-threshold
+  activation), <strong><code class="path">LevelFeatures.qml</code></strong> (a features-by-level list), and
+  <strong><code class="path">ChoiceList.qml</code></strong> (feature pools and their options).</p>
+  <div class="note"><p><strong>One non-obvious wrinkle worth knowing before touching any of these:</strong> a
+  QML <code>Repeater</code> bound to a plain JavaScript array has no identity tracking between items —
+  reassigning the array destroys and recreates every delegate, including whichever one has keyboard focus. Every
+  list-editing file handles this the same way: buffer an edit, debounce the real array reassignment behind a
+  short <code>Timer</code>, and expose a synchronous <code>flushPending…()</code> called before anything that
+  reads the "real" state directly. Copy this pattern for new list-editing controls.</p></div>
+
+  <h2 id="trace-damage">Worked example: clicking "Damage" on the sheet</h2>
+  <p>One concrete path through every layer, click to disk, using real function names:</p>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><div><div class="where">ui/qml/CharacterSheet.qml</div><div class="what">The player types an amount and damage type and confirms. QML calls <code>character.damageForm(amount, damageType, nonmagical)</code>.</div></div></div>
+    <div class="step"><div class="n">2</div><div><div class="where">ui/CharacterViewModel.cpp — damageForm()</div><div class="what"><code>recordMutation(...)</code> pushes an undo snapshot first.</div></div></div>
+    <div class="step"><div class="n">3</div><div><div class="where">core/rules/Hitpoints.cpp — applyDamage()</div><div class="what">A pure core function: reads resistances/immunities/vulnerabilities, computes the real amount, writes <code>resources.hp.current</code> straight into the JSON.</div></div></div>
+    <div class="step"><div class="n">4</div><div><div class="where">ui/CharacterViewModel.cpp — back in damageForm()</div><div class="what">Adds a concentration-check reminder if relevant. Calls <code>reconcileEntity()</code>, then <code>persist()</code>.</div></div></div>
+    <div class="step"><div class="n">5</div><div><div class="where">core/storage/CharacterStore</div><div class="what">Serialized JSON is written into the character's row in the local SQLite file.</div></div></div>
+    <div class="step"><div class="n">6</div><div><div class="where">ui/CharacterViewModel.cpp — refresh()</div><div class="what">Recomputes derived stats and copies results into every <code>Q_PROPERTY</code> the sheet reads, then <code>emit changed()</code>.</div></div></div>
+    <div class="step"><div class="n">7</div><div><div class="where">ui/qml/CharacterSheet.qml</div><div class="what">Nothing is called here — every number bound to a <code>character.</code> property re-renders on its own, because that's what a Qt property binding does.</div></div></div>
+  </div>
+
+  <h2 id="trace-homebrew">Worked example: saving a homebrew feat</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><div><div class="where">ui/qml/HomebrewPage.qml</div><div class="what">Saving flushes any pending edit, then calls <code>homebrew.save(editType, draft, editId)</code>.</div></div></div>
+    <div class="step"><div class="n">2</div><div><div class="where">ui/HomebrewViewModel.cpp — save()</div><div class="what">Converts the draft to <code>OrderedJson</code>, calls <code>compileFeatFields(draft, id)</code> in Homebrew.cpp.</div></div></div>
+    <div class="step"><div class="n">3</div><div><div class="where">core/homebrew/Homebrew.cpp</div><div class="what">Produces the same compiled JSON shape an official feat record has, then validates it.</div></div></div>
+    <div class="step"><div class="n">4</div><div><div class="where">ui/HomebrewViewModel.cpp</div><div class="what">If valid: writes the compiled record into <code>HomebrewStore</code>, and separately preserves the original draft in the record's own <code>homebrewDraft</code> field for re-editing later.</div></div></div>
+    <div class="step"><div class="n">5</div><div><div class="where">ui/ContentService.cpp — reloadHomebrew()</div><div class="what">The shared catalog re-reads the library, so the new feat is immediately visible everywhere.</div></div></div>
+  </div>
+  <div class="note"><p><strong>This is also exactly how official and homebrew content end up running through
+  identical code at play time:</strong> once compiled, nothing downstream can tell whether a feature came from
+  the bundled SRD pack or from someone's own draft typed five minutes ago.</p></div>
+
+  <h2 id="testing">Testing &amp; verification strategy</h2>
+  <h3>Core unit tests — <code class="path">tests/*.cpp</code>, 23 files</h3>
+  <p>Built as <code>grimoire_tests</code> (Catch2), linking only <code>grimoire_core</code> — no Qt. Named by
+  subsystem, using 344 small synthetic character fixtures as starting states.</p>
+  <h3>Parity tests — <code class="path">tests/test_parity.cpp</code></h3>
+  <p>The most distinctive check in the project: a generated golden file — over a million lines, tens of
+  thousands of cases — each recording an operation and the exact JSON this app's own engine produced for it.
+  The C++ test runs the same operation natively and diffs byte-for-byte against that golden output. This is the
+  port's real confidence that it behaves identically to the original, not just "looks about right."</p>
+  <h3>UI tests — <code class="path">ui/tests/*.cpp</code></h3>
+  <p>A second Catch2 executable, <code>grimoire_ui_tests</code>, instantiating the real view-models against a
+  throwaway in-memory database and driving them exactly the way QML would.</p>
+  <h3>The compliance/traceability system — <code class="path">docs/compliance/</code></h3>
+  <p>A document-level layer above the test suites: a contract document stating every rule the app must hold,
+  each with a stable id; a requirements file linking specific test cases as evidence for specific rules; and a
+  generated report that refuses to call a requirement "verified" unless its linked evidence actually ran and
+  passed in that exact run.</p>
+
+  <h2 id="build">Build system</h2>
+  <p>CMake, with dependencies fetched automatically — no manual install beyond Qt itself.</p>
+  <table>
+    <tr><th>Dependency</th><th>What it's for</th></tr>
+    <tr><td>Catch2 v3.5.4</td><td>The test framework, for both test executables.</td></tr>
+    <tr><td>nlohmann/json 3.11.3</td><td>The <code>OrderedJson</code> that is the entire data model.</td></tr>
+    <tr><td>Monocypher 4.0.2</td><td>Ed25519 signatures — pack signing/verification, matching this app's own crypto library.</td></tr>
+    <tr><td>SQLite (amalgamation)</td><td>Both local stores.</td></tr>
+  </table>
+  <pre>cmake -S . -B build -G Ninja                              # core engine + tests only, no Qt needed
+cmake -S . -B build-ui -G Ninja -DGRIMOIRE_BUILD_UI=ON \
+      -DCMAKE_PREFIX_PATH="&lt;path to Qt 6.8+&gt;"              # adds the real desktop app
+cmake --build build-ui --target grimoire_ui grimoire_tests grimoire_ui_tests</pre>
+  <p>— producing <code>grimoire_core</code> (static lib), <code>grimoire_tests</code>, and, with the UI option,
+  <code>grimoire_ui.exe</code> and <code>grimoire_ui_tests.exe</code>.</p>
+
+  <h2 id="patterns">Patterns worth recognizing on sight</h2>
+  <h3>Free Edit / Override — "set" vs. "add"</h3>
+  <p>A DM correction is stored as a labeled record with a <code>stat</code> (a free string, e.g.
+  <code>"ac"</code> or <code>"resource.blood_debt.maximum"</code>), an <code>operation</code> (<code>"set"</code>
+  replaces the natural value; <code>"add"</code> adds a delta on top), and a <code>value</code>. For an
+  ordinary derived stat, "add" is naturally stable because the natural value is recomputed fresh every time.
+  For a stored resource pool it isn't — so an "add" there is resolved once and the stored override rewritten
+  into an equivalent "set," a one-time correction rather than something that silently keeps compounding on
+  every reopen.</p>
+  <h3>"Is this field validated anywhere?" — usually no, by design</h3>
+  <p>The default is a free string with no enum-style validation. A closed list almost always lives purely in a
+  QML Chips control, not in the compiler. Before assuming you need to loosen validation, check whether the core
+  already accepts the value and the real gap is only that nothing in the UI lets someone type past the preset
+  options.</p>
+  <h3>Comments that name the TypeScript original</h3>
+  <p>Nearly every file in <code class="path">core/</code> opens with a comment naming the exact
+  <code>src/engine/*.ts</code> or <code>src/content/*.ts</code> file (in this repository) it ports. When
+  behavior looks surprising, that's usually the fastest way to find out whether it's intentional or a porting
+  gap.</p>
+
+  <h2 id="legacy">Legacy corners — what not to build on</h2>
+  <p>Two parts of the C++ port are historical and not part of how the real app works today.</p>
+  <div class="grid">
+    <div class="card"><strong>core/model/<span class="pill">abandoned</span></strong><span>A strongly-typed C++ domain model — the project's very first design, before the current JSON-everywhere approach. Only <code>Entity.cpp</code> (26 lines) still compiles, and nothing else depends on it.</span></div>
+    <div class="card"><strong>app/main.cpp<span class="pill">historical demo</span></strong><span>A small CLI program building one hardcoded "Human Fighter, Level 1" on the old typed model. The project's first-ever commit, kept as a build target but not the real application — that's <code>ui/main.cpp</code>.</span></div>
+  </div>
+
+  <h2 id="cheatsheet">Cheat sheet — "I want to…"</h2>
+  <div class="quick">
+    <div class="q"><div class="ask">…find where a D&amp;D rule is implemented</div><div class="ans"><code class="path">core/rules/</code> — see "The core engine" for which file owns it.</div></div>
+    <div class="q"><div class="ask">…understand why a stat shows the wrong value</div><div class="ans">Start at <code>recomputeDerived()</code> in EffectPipeline.cpp; check for an active Free Edit override before assuming it's a rules bug.</div></div>
+    <div class="q"><div class="ask">…add a field a homebrew author can set</div><div class="ans">Trait draft field → TraitEditor.qml/TraitAdvanced.qml control → compile it in <code>buildTraitFeature()</code>, Homebrew.cpp.</div></div>
+    <div class="q"><div class="ask">…find a specific page or dialog's code</div><div class="ans"><code class="path">ui/qml/</code> — file names match what's on screen almost exactly.</div></div>
+    <div class="q"><div class="ask">…trace a click all the way to disk</div><div class="ans">Both worked examples above show the shape: QML → a Q_INVOKABLE on a view-model → a core/rules function → persist().</div></div>
+    <div class="q"><div class="ask">…know if something is tested</div><div class="ans"><code class="path">tests/</code> for engine behavior, <code class="path">ui/tests/</code> for view-model wiring, <code class="path">docs/compliance/</code> for named requirement coverage.</div></div>
+    <div class="q"><div class="ask">…know what not to build on</div><div class="ans"><code class="path">core/model/</code> and <code class="path">app/</code> — see "Legacy corners".</div></div>
+  </div>
+
+  <p><a href="feedback.html">Found something wrong here?</a></p>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>
