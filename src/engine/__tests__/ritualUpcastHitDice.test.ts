@@ -74,7 +74,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
 
   it('3. a normal cast spends a slot normally', () => {
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 2, used: 0 } }), cantrips: [], known: ['comprehend_languages'], prepared: ['comprehend_languages'], concentrating: null },
@@ -87,7 +87,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
 
   it('4. a ritual cast of the SAME card spends NO slot', () => {
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 2, used: 0 } }), cantrips: [], known: ['comprehend_languages'], prepared: ['comprehend_languages'], concentrating: null },
@@ -102,7 +102,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
 
   it('4b. ritual never marks the action-economy slot used, unlike a normal cast', () => {
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...startTurn(makeEmptyEntity('e1')),
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 2, used: 0 } }), cantrips: [], known: ['comprehend_languages'], prepared: ['comprehend_languages'], concentrating: null },
@@ -119,7 +119,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
     // never touches ANY slot pool, pact or normal — spendSpellSlot itself
     // is never even called for a ritual cast (cost is null), so this is a
     // negative-space check.
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
       spellcasting: {
@@ -137,7 +137,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
 
   it('6. ritual cast preserves the correct casting ability/context (Wizard INT, not a global default)', () => {
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       stats: { str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 8 },
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
@@ -178,7 +178,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
 
   it('10. a stale/removed source is rejected before any ritual mutation', () => {
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'comprehend_languages', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 2, used: 0 } }), cantrips: [], known: ['comprehend_languages'], prepared: ['comprehend_languages'], concentrating: null },
@@ -196,7 +196,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
     // is true (Wizard supports it), but the player selects the Sorcerer
     // context specifically. Execution must refuse, not silently succeed.
     const spell = leveledSpell('comprehend_languages', 1, { ritual: true });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [
         ent('spell_access', 'comprehend_languages', 'class', 'wizard'),
@@ -222,7 +222,7 @@ describe('rules-completeness batch — A. ritual casting', () => {
       spellcastingAbility: 'int', spellPreparationPolicy: 'full_list_prepared', ritualCastingPolicy: 'prepared',
     };
     const runeRitual = leveledSpell('rune_ward', 1, { ritual: true, classes: ['runeblade'] });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'rune_ward', 'class', 'runeblade')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 } }), cantrips: [], known: ['rune_ward'], prepared: ['rune_ward'], concentrating: null },
@@ -410,7 +410,7 @@ describe('rules-completeness batch — A8. Wizard source-specific ritual policy 
 describe('rules-completeness batch — B. explicit cast/upcast level', () => {
   it('1. base-level spell with only the base slot available spends that slot, no chooser needed', () => {
     const spell = leveledSpell('magic_missile', 1);
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'magic_missile', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 } }), cantrips: [], known: ['magic_missile'], prepared: ['magic_missile'], concentrating: null },
@@ -423,7 +423,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
 
   it('3. an explicitly selected HIGHER slot level spends EXACTLY that tier, never the base tier', () => {
     const spell = leveledSpell('magic_missile', 1);
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'magic_missile', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 }, '3': { total: 1, used: 0 } }), cantrips: [], known: ['magic_missile'], prepared: ['magic_missile'], concentrating: null },
@@ -437,7 +437,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
 
   it('5. an unavailable slot level cannot be used — payment refused, entity unchanged', () => {
     const spell = leveledSpell('magic_missile', 1);
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'magic_missile', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 } }), cantrips: [], known: ['magic_missile'], prepared: ['magic_missile'], concentrating: null }, // no 3rd-level slot at all
@@ -450,7 +450,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
 
   it('6. a cantrip has no spell-slot cost at all', () => {
     const spell = leveledSpell('fire_bolt', 0);
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('cantrip_access', 'fire_bolt', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots(), cantrips: ['fire_bolt'], known: [], prepared: [], concentrating: null },
@@ -462,7 +462,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
 
   it('11. same spell from two class sources: source selection is independent of the chosen cast level', () => {
     const spell = leveledSpell('shield', 1, { classes: ['wizard', 'sorcerer'] });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       stats: { str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 18 },
       entitlements: [
@@ -487,7 +487,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
     // engine doesn't silently double dice or otherwise scale on its own
     // just because a higher slot was paid for.
     const spell = leveledSpell('inflict_wounds', 1, { upcast: 'When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.' });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'inflict_wounds', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 }, '3': { total: 1, used: 0 } }), cantrips: [], known: ['inflict_wounds'], prepared: ['inflict_wounds'], concentrating: null },
@@ -506,7 +506,7 @@ describe('rules-completeness batch — B. explicit cast/upcast level', () => {
 
   it('14. a stale/removed source is rejected before payment for an upcast attempt too', () => {
     const spell = leveledSpell('magic_missile', 1);
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       entitlements: [ent('spell_access', 'magic_missile', 'class', 'wizard')],
       spellcasting: { ability: 'int', slots: emptySlots({ '1': { total: 1, used: 0 }, '3': { total: 1, used: 0 } }), cantrips: [], known: ['magic_missile'], prepared: ['magic_missile'], concentrating: null },
@@ -529,7 +529,7 @@ describe('rules-completeness batch — D. combined pending-execution-state flow'
     // this exercises the exact SAME applyActionCardUse path a real one
     // would, without inventing new production content.
     const spell = leveledSpell('test_bolt', 1, { classes: ['wizard', 'sorcerer'] });
-    let e: Entity = {
+    const e: Entity = {
       ...makeEmptyEntity('e1'),
       resources: { ...makeEmptyEntity('e1').resources, hp: { current: 0, maximum: 20, temp: 0 } },
       stats: { str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 18 },

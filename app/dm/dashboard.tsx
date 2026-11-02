@@ -263,11 +263,11 @@ export default function DmDashboard() {
 
   function handleStartSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => startSession(c));
+    updateCampaign(activeCampaign.id, c => startSession(c)).catch(e => console.error('[dashboard] starting the session failed:', e));
   }
   function handleEndSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => endSession(c, endSummary));
+    updateCampaign(activeCampaign.id, c => endSession(c, endSummary)).catch(e => console.error('[dashboard] ending the session failed:', e));
     setEndSummary('');
     setEndSessionOpen(false);
   }

@@ -174,7 +174,7 @@ export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficial
     setExpandedSpell(null);
     spellRepo.ensureLoaded([expandedId]).then(() => {
       if (!cancelled) setExpandedSpell(spellRepo.getSpellSync(expandedId, entity.rulesetId) ?? null);
-    });
+    }, e => console.error('[AddSpellModal] loading the spell failed:', e));
     return () => { cancelled = true; };
   }, [expandedId, homebrewSpells]);
 

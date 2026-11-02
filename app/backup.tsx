@@ -200,7 +200,7 @@ export default function BackupScreen() {
           their prepared encounters, your rule profiles and your live-table
           preparation), then opens the share sheet so you choose where to save it.
         </Text>
-        <Pressable style={[styles.actionBtn, exporting && styles.actionBtnDisabled]} onPress={handleExport} disabled={exporting}>
+        <Pressable style={[styles.actionBtn, exporting && styles.actionBtnDisabled]} onPress={() => { void handleExport(); }} disabled={exporting}>
           {exporting ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.actionBtnTxt}>Export Backup</Text>}
         </Pressable>
       </Section>
@@ -211,7 +211,7 @@ export default function BackupScreen() {
           before anything is added — existing characters and campaigns with
           the same ID are updated, not duplicated.
         </Text>
-        <Pressable style={[styles.actionBtnSecondary, importing && styles.actionBtnDisabled]} onPress={handlePickFile} disabled={importing}>
+        <Pressable style={[styles.actionBtnSecondary, importing && styles.actionBtnDisabled]} onPress={() => { void handlePickFile(); }} disabled={importing}>
           {importing ? <ActivityIndicator color={Colors.gold} /> : <Text style={styles.actionBtnSecondaryTxt}>Choose File…</Text>}
         </Pressable>
 
@@ -286,7 +286,7 @@ export default function BackupScreen() {
               <Pressable style={styles.previewCancelBtn} onPress={() => { setPreview(null); setStaleWarnings([]); setIdCollisions([]); }} disabled={committing}>
                 <Text style={styles.previewCancelTxt}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.previewConfirmBtn, committing && styles.actionBtnDisabled]} onPress={handleConfirmImport} disabled={committing}>
+              <Pressable style={[styles.previewConfirmBtn, committing && styles.actionBtnDisabled]} onPress={() => { void handleConfirmImport(); }} disabled={committing}>
                 {committing ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.previewConfirmTxt}>Import</Text>}
               </Pressable>
             </View>

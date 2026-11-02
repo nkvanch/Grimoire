@@ -297,7 +297,7 @@ function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               </Pressable>
             ) : (
               <Pressable style={[styles.primaryBtn, { flex: 2 }, (!name.trim() || loading) && styles.btnDisabled]}
-                onPress={handleCreate} disabled={!name.trim() || loading} testID="wiz-create">
+                onPress={() => { void handleCreate(); }} disabled={!name.trim() || loading} testID="wiz-create">
                 {loading ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.primaryBtnTxt}>Create Campaign</Text>}
               </Pressable>
             )}
@@ -670,7 +670,7 @@ function DmActiveView() {
   const campaignId = activeCampaign.id;   // captured after null guard for closure safety
 
   function save(patch: Partial<typeof activeCampaign>) {
-    updateCampaign(campaignId, c => ({ ...c, ...patch }));
+    updateCampaign(campaignId, c => ({ ...c, ...patch })).catch(e => console.error('[campaigns] saving the campaign failed:', e));
   }
 
   // Closes this campaign without deleting it, so a DM can start or open another one. A running live table is
@@ -853,7 +853,7 @@ function PlayerActiveView({ onJoinLive }: { onJoinLive: () => void }) {
               <Text style={styles.emptyNote}>You have no characters yet. Create one first.</Text>
             ) : (
               characters.map(c => (
-                <Pressable key={c.id} style={styles.pickRow} onPress={() => claim(c.id)}>
+                <Pressable key={c.id} style={styles.pickRow} onPress={() => { void claim(c.id); }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.partyName}>{c.identity.name || 'Unnamed'}</Text>
                     <Text style={styles.partySub}>Lv {c.identity.level} · {identityLabelsFor(c).class || '—'}</Text>
@@ -1047,14 +1047,14 @@ export default function CampaignsScreen() {
     }
   }, [action]);
 
-  useEffect(() => { loadCampaigns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadCampaigns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (session?.nickname !== undefined) setLocalNick(session.nickname);
   }, [session?.nickname]);
 
   const handleNicknameChange = useCallback((n: string) => {
     setLocalNick(n);
-    setNickname(n);
+    void setNickname(n);
   }, [setNickname]);
 
   return (

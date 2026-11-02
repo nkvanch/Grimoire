@@ -254,7 +254,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!dbReady) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         if (installedOfficialPacks().length > 0) return;
         if ((await getMeta('content_packs_prompt_seen')) === '1') return;

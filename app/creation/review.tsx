@@ -210,7 +210,7 @@ export default function ReviewScreen() {
     </ScrollView>
     <SafeBottomView>
       <View style={styles.footer}>
-        <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
+        <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={() => { void handleSave(); }} disabled={saving}>
           <Text style={styles.saveBtnText}>{saving ? 'Saving…' : '⚔️  Save Character'}</Text>
         </Pressable>
 

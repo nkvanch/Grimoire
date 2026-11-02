@@ -36,17 +36,17 @@ describe('movement speeds equal to your Speed', () => {
   });
 
   it("Monk Unarmored Movement needs no armor and no Shield; the Thief's Climb Speed equals the Speed", () => {
-    let e = toLevel(newChar('monk'), 'monk', 2);
+    const e = toLevel(newChar('monk'), 'monk', 2);
     const unarmored = e.derived.speed;
     expect(wear(e, 'shield').derived.speed).toBe(unarmored - 10);
     expect(wear(e, 'leather_armor').derived.speed).toBe(unarmored - 10);
 
-    let r = bindSubclass(toLevel(newChar('rogue'), 'rogue', 3), 'rogue');
+    const r = bindSubclass(toLevel(newChar('rogue'), 'rogue', 3), 'rogue');
     expect(r.derived.movement.climb).toBe(r.derived.speed);
   });
 
   it('Barbarian Fast Movement ignores medium armor but not heavy', () => {
-    let e = toLevel(newChar('barbarian'), 'barbarian', 5);
+    const e = toLevel(newChar('barbarian'), 'barbarian', 5);
     const fast = e.derived.speed;
     expect(wear(e, 'chain_mail').derived.speed).toBe(fast - 10);
     expect(wear(e, 'breastplate').derived.speed).toBe(fast);

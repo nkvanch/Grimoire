@@ -838,7 +838,7 @@ describe('Wild Shape', () => {
       '%s is immune to poison DAMAGE — zero form/temp/base HP loss, immunity gone after reverting, and it reliably reapplies on a second transform',
       formId => {
         const e = testEntity(50);
-        let shaped = startWildShape(e, formId, DEFAULT_RULES);
+        const shaped = startWildShape(e, formId, DEFAULT_RULES);
         const beastHpBefore = shaped.wildShapeState!.beastHp;
         let result = applyWildShapeDamage(shaped, 500, DEFAULT_RULES, 'poison');
         expect(result).toBe(shaped); // no-op, matching Fire Elemental's own fire-immunity assertion above
@@ -854,7 +854,7 @@ describe('Wild Shape', () => {
         expect(hitAfterRevert.resources.hp.current).toBe(40);
 
         // Repeated transform/revert cycle — no leakage either direction.
-        let reshaped = startWildShape(hitAfterRevert, formId, DEFAULT_RULES);
+        const reshaped = startWildShape(hitAfterRevert, formId, DEFAULT_RULES);
         const beastHpBefore2 = reshaped.wildShapeState!.beastHp;
         result = applyWildShapeDamage(reshaped, 500, DEFAULT_RULES, 'poison');
         expect(result).toBe(reshaped); // immunity reliably reapplies on the second transformation

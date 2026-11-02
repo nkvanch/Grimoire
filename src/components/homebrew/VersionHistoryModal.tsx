@@ -29,7 +29,7 @@ export function VersionHistoryModal({ visible, type, id, name, onClose }: Props)
     let cancelled = false;
     useHomebrewStore.getState().loadVersionHistory(type, id).then(h => {
       if (!cancelled) setHistory(h);
-    });
+    }, e => console.error('[VersionHistoryModal] loading the history failed:', e));
     return () => { cancelled = true; };
   }, [visible, type, id]);
 
@@ -42,17 +42,19 @@ export function VersionHistoryModal({ visible, type, id, name, onClose }: Props)
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Restore',
-          onPress: async () => {
+          onPress: () => {
             setRestoring(version);
-            try {
-              await useHomebrewStore.getState().restoreVersion(type, id, version);
-              const refreshed = await useHomebrewStore.getState().loadVersionHistory(type, id);
-              setHistory(refreshed);
-            } catch (e) {
-              Alert.alert('Restore failed', e instanceof Error ? e.message : 'Something went wrong.');
-            } finally {
-              setRestoring(null);
-            }
+            void (async () => {
+              try {
+                await useHomebrewStore.getState().restoreVersion(type, id, version);
+                const refreshed = await useHomebrewStore.getState().loadVersionHistory(type, id);
+                setHistory(refreshed);
+              } catch (e) {
+                Alert.alert('Restore failed', e instanceof Error ? e.message : 'Something went wrong.');
+              } finally {
+                setRestoring(null);
+              }
+            })();
           },
         },
       ],

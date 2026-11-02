@@ -84,7 +84,7 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.screen}>
       {panel < PANELS.length - 1 && (
-        <Pressable style={styles.skipBtn} onPress={handleSkip}>
+        <Pressable style={styles.skipBtn} onPress={() => { void handleSkip(); }}>
           <Text style={styles.skipTxt}>Skip</Text>
         </Pressable>
       )}
@@ -109,7 +109,7 @@ export default function OnboardingScreen() {
         <View style={styles.finalBtnRow}>
           <Pressable
             style={[styles.demoBtn, buildingDemo && styles.btnDisabled]}
-            onPress={handleTryDemo}
+            onPress={() => { void handleTryDemo(); }}
             disabled={buildingDemo}
           >
             {buildingDemo
@@ -118,7 +118,7 @@ export default function OnboardingScreen() {
           </Pressable>
           <Pressable
             style={[styles.createBtn, buildingDemo && styles.btnDisabled]}
-            onPress={handleCreateReal}
+            onPress={() => { void handleCreateReal(); }}
             disabled={buildingDemo}
           >
             <Text style={styles.createBtnTxt}>Create My Own</Text>

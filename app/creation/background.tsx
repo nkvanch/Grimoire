@@ -86,8 +86,12 @@ export default function BackgroundScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, sort, rulesetFilter, officialFilter, skillFilter, toolFilter]);
 
+  useOfficialContentVersion();   // follow pack installs and removals while this list is open
+
   // If ?detail=id is in the URL, show the detail view inline. This branch comes
-  // AFTER all hooks above so hook order stays identical across renders.
+  // AFTER every hook in this component so hook order stays identical across
+  // renders (useOfficialContentVersion used to sit below it, so opening a
+  // detail view in place ran one hook fewer and React threw).
   if (detail) return <BackgroundDetail id={detail} />;
 
   const availableRulesets = Array.from(new Set(globalContentDB.backgrounds.map(b => b.rulesetId).filter((r): r is NonNullable<typeof r> => !!r)))
@@ -97,7 +101,6 @@ export default function BackgroundScreen() {
   const availableTools = Array.from(new Set(globalContentDB.backgrounds.flatMap(b => b.toolProficiencies ?? [])))
     .sort().map(t => ({ id: t, label: t }));
 
-  useOfficialContentVersion();   // follow pack installs and removals while this list is open
   const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
   const backgrounds = officialFilter === 'homebrew' ? [] : suggestFirst(sortByOption(globalContentDB.backgrounds.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) &&

@@ -85,4 +85,13 @@ module.exports = tseslint.config(
       'no-console': 'off',
     },
   },
+
+  // 4. Tests: an in-memory stand-in for a store or repository is written as `async load() { return x; }` to match the
+  //    real Promise-returning interface, so "async with no await" is not a mistake there. App code keeps the rule.
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
 );

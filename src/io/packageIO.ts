@@ -121,6 +121,8 @@ export async function pickAndValidatePackage(
  * The same validation for a file that is already text: one the player picked (above) or one downloaded from a link
  * (content/packDownload.ts). Nothing is imported or installed; the preview is what the player confirms.
  */
+// async on purpose: callers rely on a validation error arriving as a rejected promise, not a synchronous throw.
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function validatePackageText(
   content:         string,
   fileName:        string | null,
