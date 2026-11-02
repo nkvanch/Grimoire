@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For D&amp;D Players - Grimoire</title>
+<meta name="description" content="Grimoire for people who already play: 2014 and 2024 rules, homebrew that works mechanically, DM tools for running a table, and an honest list of what it leaves to you.">
+<link rel="icon" href="assets/favicon.png">
+<script>try{var t=localStorage.getItem('grimoire-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch between light and dark mode">Dark</button>
+</div></header>
+
+<main><div class="wrap">
+  <p class="kicker">Guide for players and DMs</p>
+  <h1>You already play. Here is what Grimoire does differently.</h1>
+  <p class="lead">A character sheet and DM companion for 5e that does the arithmetic, shows its working, and lets your homebrew behave like real content instead of a note in a text box.</p>
+  <ul class="guide-switch" aria-label="Guides">
+    <li><a href="players.html" aria-current="page">I play D&amp;D</a></li>
+    <li><a href="new-to-rpgs.html">I have never played</a></li>
+    <li><a href="developers.html">I write code</a></li>
+  </ul>
+  <ul class="badges">
+    <li>Alpha 0.2.3</li>
+    <li>2014 and 2024 rules</li>
+    <li>SRD 5.1 and 5.2.1</li>
+    <li>Offline, no account</li>
+    <li>Free, GPL-3.0-or-later</li>
+  </ul>
+  <div class="actions">
+    <a class="btn primary" href="https://github.com/nkvanch/Grimoire/releases/latest">Download the Android alpha</a>
+    <a class="btn secondary" href="app/">Try it in your browser</a>
+  </div>
+
+  <h2>The short version</h2>
+  <div class="grid pairs">
+    <div class="card"><strong>Tap a number, see why</strong><span>AC 17 comes with its working: armour, DEX, shield, feats, and any DM override marked with ✱.</span></div>
+    <div class="card"><strong>Pick your edition per character</strong><span>Each character follows the 2014 rules (SRD 5.1) or the 2024 rules (SRD 5.2.1).</span></div>
+    <div class="card"><strong>Homebrew that runs</strong><span>Custom resources, progressions, conditions and actions go through the same engine as SRD content.</span></div>
+    <div class="card"><strong>Your table's rules</strong><span>Point-buy budgets, level caps, HP modes, crit and rest rules, set per character or per campaign.</span></div>
+  </div>
+
+  <h2 id="explainable">Every number shows its working</h2>
+  <p>Tap a stat on the sheet and Grimoire lists everything that went into it, in plain words or as a technical breakdown. That covers ability scores, saving throws, all 18 skills, AC, initiative, speed, the three passives, spell save DC, spell attack bonus and proficiency bonus.</p>
+  <pre><code>Armor Class            17
+  13   Chain Shirt (base)
+  +2   DEX modifier
+  +2   Shield</code></pre>
+  <p>If the DM has overridden a value, the override is listed last and marked ✱. Useful when a player asks "why is my Perception +6?", and when you are checking whether a piece of homebrew does what its author claims. Not every number has a breakdown yet: HP maximum and weapon attack bonuses are next.</p>
+
+  <h2 id="rulesets">Both rulesets, SRD only</h2>
+  <p>The app ships two signed content packs and installs them on first launch. A character follows one of them, and the sheet, spell lists and class names follow that choice.</p>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Content</th><th>SRD 5.1 (2014 rules)</th><th>SRD 5.2.1 (2024 rules)</th></tr>
+    <tr><td>Spells</td><td>319</td><td>339</td></tr>
+    <tr><td>Items</td><td>95</td><td>427 (gear, equipment, magic items)</td></tr>
+    <tr><td>Monsters</td><td>322</td><td>uses the 5.1 stat blocks</td></tr>
+    <tr><td>Classes</td><td>12, one SRD subclass each</td><td>12, one SRD subclass each</td></tr>
+    <tr><td>Species / races</td><td>9, with SRD subraces</td><td>9</td></tr>
+    <tr><td>Backgrounds</td><td>1</td><td>4</td></tr>
+    <tr><td>Feats</td><td>1</td><td>19</td></tr>
+    <tr><td>Rules tables</td><td>Wild Shape beast forms</td><td>Weapon Mastery, class spell lists, beast forms</td></tr>
+  </table>
+  </div>
+  <p>That is all the official content there is, on purpose: the System Reference Document is the part of the game published under CC-BY-4.0, so it can ship in a free app. Subclasses, species and spells from other books, third-party content and your own inventions come in as homebrew, which you build yourself or import from a <code>.grimoire-pack</code> someone sends you.</p>
+
+  <h2 id="homebrew">Homebrew that behaves like real content</h2>
+  <p>Builders for races, subraces, classes, subclasses, spells, items, monsters, feats, backgrounds and conditions. Everything they make is typed data that runs through the same rules engine as the SRD. A few examples of what that buys you:</p>
+  <ul>
+    <li>A resource pool whose maximum follows proficiency bonus, an ability modifier or character level, and grows at a subclass level of your choosing (4 dice, then 5 at 7th, then 6 at 15th).</li>
+    <li>A feature that spends an existing pool, such as Ki, Wild Shape or another feature's dice, instead of inventing its own.</li>
+    <li>An at-will action, bonus action or reaction with nothing to track, like Cunning Action.</li>
+    <li>An expanded spell list for one patron, a cantrip that deals fire on a d12 instead of its printed type and die, and cantrips that scale at the levels you choose.</li>
+    <li>Conditions of your own, effects gated on "while not wearing medium or heavy armour", riders, auras, and healing from damage taken.</li>
+  </ul>
+  <p>Most builders have a <strong>Test</strong> button that puts the draft on a scratch character, at the level you pick, so you see exactly what it changes before you save it.</p>
+  <p>To share, export one entry or a whole package as a <code>.grimoire-pack</code>. Anything it depends on, such as the spells a subclass grants, is included automatically. The person importing gets a preview grouped by type, sees duplicates and missing pieces, and the pack goes in all together or not at all. <a href="documentation.html#packs">How packs work</a>.</p>
+
+  <h2 id="table">At the table</h2>
+  <ul>
+    <li><strong>Action cards.</strong> Attacks, spells and activatable features each get a card. Using one can ask what happened (a hit, a failed save), so an effect that depends on the outcome is applied once, and only when you confirm it.</li>
+    <li><strong>Your dice or the app's.</strong> Roll in the app, or roll real dice and type the result in. Both feed the same consequences.</li>
+    <li><strong>Advantage where it belongs.</strong> Skill rolls pick up advantage or disadvantage from your features, and the skill list shows ADV or DIS.</li>
+    <li><strong>Wild Shape.</strong> The 2014 Druid gets one card with a picker of every SRD beast their level allows, with real speeds, and the form's attacks while shaped.</li>
+    <li><strong>Weapon Mastery</strong> for 2024 characters, with its own step in creation.</li>
+    <li><strong>Previews before commitment.</strong> Short rest, long rest, level-up, feat swaps and equipment changes show what will change first.</li>
+    <li><strong>Undo and redo,</strong> with a timeline of what changed on the sheet.</li>
+    <li><strong>Things the app cannot see stay yours.</strong> "An ally within 5 feet" is a question you answer, an aura applies to whoever you mark as in range, and a recharge it cannot detect gets a Reset button instead of a guess.</li>
+  </ul>
+
+  <h2 id="dm">For the DM</h2>
+  <ul>
+    <li><strong>Campaigns that live offline.</strong> Party, house rules, quests, session log and private notes. Your notes never go to a player's device.</li>
+    <li><strong>Monsters and encounters.</strong> The 322 SRD stat blocks plus your own, an encounter builder, prepared encounters you can start later, and an initiative tracker.</li>
+    <li><strong>Live play on your Wi-Fi.</strong> You host, players join with a room code or a QR code. Your party card shows each character's passives, defenses and running effects. You can run a hidden check against their passive scores, and preview what a hit does before you apply it.</li>
+    <li><strong>Transparent overrides.</strong> Override a number on a character's sheet, and it carries a ✱ that the player sees in its breakdown. Nothing is changed quietly.</li>
+  </ul>
+
+  <h2 id="rules">House rules without hacks</h2>
+  <p>A <strong>Custom Rule Profile</strong> is a named set of rules you attach to a character, on top of the campaign's rules:</p>
+  <ul>
+    <li>ability score cap, level cap, XP on or off, hit point mode, multiclassing on or off</li>
+    <li>ability score generation, including point-buy budget, minimum and maximum</li>
+    <li>feats at level-up, flanking, critical hits, and short and long rest length</li>
+  </ul>
+  <p>Starting at 7th level, capping the game at 10th, or a race with six ability bonuses: allowed. The app adapts to the table, not the other way round.</p>
+
+  <h2 id="limits">What it leaves to you</h2>
+  <p>Grimoire tracks state and does the maths. It does not simulate the world, and it tells you which is which.</p>
+  <ul>
+    <li><strong>Read-and-apply features.</strong> Roughly half of each class's features are automated or tracked. The rest, such as Evasion, Reliable Talent and Jack of All Trades, are text you apply yourself.</li>
+    <li><strong>No battle map.</strong> No range, line of sight, cover or positions. The table decides who is affected, and the app records the result.</li>
+    <li><strong>Starting gear arrives carried, not worn.</strong> Equip armour, shield and weapons on the Items tab before AC and attacks count them.</li>
+    <li><strong>One SRD subclass per class,</strong> and no 2024 monsters yet (a 2024 table uses the 5.1 stat blocks).</li>
+    <li><strong>Live play is young.</strong> It is unencrypted and has no password, so use it on a network you trust. It has been tested with one real phone and a scripted player, not a full table of phones.</li>
+    <li><strong>Backups</strong> cover characters and homebrew. Campaigns are not in them yet.</li>
+    <li><strong>Platforms.</strong> Android, plus a browser version for computers. No iOS build.</li>
+  </ul>
+  <p>The full list is in <a href="https://github.com/nkvanch/Grimoire/blob/main/docs/ALPHA_LIMITATIONS.md">ALPHA_LIMITATIONS.md</a>. If something misbehaves and is not on it, <a href="feedback.html">tell me</a>.</p>
+
+  <h2>Why it is built this way</h2>
+  <p>The table comes first, the app says what it automates and what it does not, correct beats broad, and your data stays on your device. The whole list is on the <a href="index.html#principles">home page</a>.</p>
+
+  <h2>Where to go next</h2>
+  <div class="grid pairs">
+    <a class="card" href="https://github.com/nkvanch/Grimoire/releases/latest"><strong>Download</strong><span>The APK, its checksum and sample packs.</span></a>
+    <a class="card" href="app/"><strong>Browser version</strong><span>Write homebrew on a computer, export it, import it on your phone.</span></a>
+    <a class="card" href="documentation.html"><strong>Documentation</strong><span>Homebrew, packs, character files, rule profiles.</span></a>
+    <a class="card" href="new-to-rpgs.html"><strong>Bringing a new player?</strong><span>Send them the beginner's guide.</span></a>
+  </div>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>

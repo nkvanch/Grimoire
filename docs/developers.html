@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For Developers - Grimoire</title>
+<meta name="description" content="How the Grimoire app works: the Expo and React Native stack, the single Entity model and its rules pipeline, signed content packs, SQLite storage, live play over the LAN, and how to build and test it.">
+<link rel="icon" href="assets/favicon.png">
+<script>try{var t=localStorage.getItem('grimoire-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch between light and dark mode">Dark</button>
+</div></header>
+
+<main><div class="wrap">
+  <p class="kicker">Guide for programmers</p>
+  <h1>How Grimoire works</h1>
+  <p class="lead">A tour of the code: the stack, the one data model everything runs through, how a number on the sheet gets computed, how content packs are verified, how live play talks over the LAN, and how to build and test it.</p>
+  <ul class="guide-switch" aria-label="Guides">
+    <li><a href="players.html">I play D&amp;D</a></li>
+    <li><a href="new-to-rpgs.html">I have never played</a></li>
+    <li><a href="developers.html" aria-current="page">I write code</a></li>
+  </ul>
+  <ul class="badges">
+    <li>TypeScript</li>
+    <li>Expo SDK 56 / React Native 0.85</li>
+    <li>SQLite, local only</li>
+    <li>~3,500 Jest tests</li>
+    <li>GPL-3.0-or-later</li>
+  </ul>
+  <div class="actions">
+    <a class="btn primary" href="https://github.com/nkvanch/Grimoire">Source on GitHub</a>
+    <a class="btn secondary" href="#build">Build it</a>
+  </div>
+
+  <div class="toc"><ul>
+    <li><a href="#stack">The stack</a></li>
+    <li><a href="#map">Repository map</a></li>
+    <li><a href="#entity">The one idea: everything is an Entity</a></li>
+    <li><a href="#pipeline">How a number gets computed</a></li>
+    <li><a href="#content">Content packs and signatures</a></li>
+    <li><a href="#storage">Storage</a></li>
+    <li><a href="#live">Live play over the LAN</a></li>
+    <li><a href="#platforms">Android, browser and desktop</a></li>
+    <li><a href="#build">Build, run, test</a></li>
+    <li><a href="#edges">Rough edges</a></li>
+    <li><a href="#contribute">Contributing</a></li>
+  </ul></div>
+
+  <h2 id="stack">The stack</h2>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Layer</th><th>What it uses</th></tr>
+    <tr><td>App</td><td>Expo SDK 56, React Native 0.85, React 19.2, TypeScript 6</td></tr>
+    <tr><td>Navigation</td><td><code>expo-router</code>: every file in <code>app/</code> is a route</td></tr>
+    <tr><td>State</td><td><code>zustand</code> stores in <code>src/store/</code></td></tr>
+    <tr><td>Storage</td><td><code>expo-sqlite</code> on the device, the same library as WebAssembly in the browser</td></tr>
+    <tr><td>Networking</td><td><code>react-native-tcp-socket</code> for LAN play; no HTTP backend exists</td></tr>
+    <tr><td>Crypto</td><td><code>@noble/curves</code> (Ed25519) and a bundled SHA-256 for pack verification</td></tr>
+    <tr><td>Tests</td><td>Jest with <code>jest-expo</code>, Node-driven live-session tests, Maestro flows on Android</td></tr>
+    <tr><td>Desktop</td><td>Electron wrapper around the web build, in <code>desktop/</code></td></tr>
+  </table>
+  </div>
+  <p>There is no server, no account system and no analytics library. Everything below runs on the player's device.</p>
+
+  <h2 id="map">Repository map</h2>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Path</th><th>What lives there</th></tr>
+    <tr><td><code>app/</code></td><td>Screens (about 28k lines). <code>(tabs)/</code> is Home, Campaigns, Characters, Homebrew and Compendium. <code>creation/</code> is the character wizard, <code>sheet/[id].tsx</code> the character sheet, <code>homebrew/</code> the builders, <code>dm/</code> and <code>live/</code> the DM tools and live sessions.</td></tr>
+    <tr><td><code>src/engine/</code></td><td>The rules engine: types, the derivation pipeline, effect resolution, levelling, rests, combat, conditions, action cards, audit trails, pack and backup formats.</td></tr>
+    <tr><td><code>src/content/</code></td><td>The catalog and everything about content: SRD source data, pack building, signing and trust, the content provider, homebrew compilers, and the spell and item repositories.</td></tr>
+    <tr><td><code>src/store/</code></td><td>zustand stores: characters (with undo, redo and timeline), campaigns, combat, encounters, homebrew, sync status.</td></tr>
+    <tr><td><code>src/db/</code></td><td>SQLite schema and one small repository per table.</td></tr>
+    <tr><td><code>src/session/</code></td><td>The live-session layer: an authoritative host, peers, roles, per-viewer projections, transports.</td></tr>
+    <tr><td><code>src/sync/</code></td><td>The older campaign sync, which still runs alongside the session layer.</td></tr>
+    <tr><td><code>src/io/</code></td><td>Export and import: character JSON, <code>.grimoire-pack</code> files, PDF, Markdown and text.</td></tr>
+    <tr><td><code>src/platform/</code></td><td>Shims that let the same code run in the browser and in the desktop shell.</td></tr>
+    <tr><td><code>assets/packs/</code></td><td>The two signed SRD packs the app installs on first launch.</td></tr>
+    <tr><td><code>third_party/wotc/srd/</code></td><td>The SRD 5.1 and 5.2.1 source documents the packs are checked against.</td></tr>
+    <tr><td><code>docs/</code></td><td>This website, and the exported web build in <code>docs/app/</code>.</td></tr>
+    <tr><td><code>desktop/</code>, <code>scripts/</code></td><td>The Electron app; pack builders, audits, the web export finisher, end-to-end test drivers.</td></tr>
+  </table>
+  </div>
+
+  <h2 id="entity">The one idea: everything is an Entity</h2>
+  <p>Player characters, monsters and NPCs are the same type, run through the same engine. Combat, conditions and stat logic are written once. An abridged version of <code>src/engine/types.ts</code>:</p>
+  <pre><code>type Entity = {
+  id: string;
+  kind: 'character' | 'monster' | 'npc';
+  identity: Identity;            // name, level, class, species, ruleset
+  stats: AbilityScores;          // the six scores as assigned
+  derived: DerivedStats;         // AC, saves, skills, passives, spell DC: always computed
+  resources: ResourceBlock;      // HP, hit dice, spell slots, feature pools
+  inventory: InventoryBlock;
+  conditions: ActiveCondition[];
+  features: FeatureInstance[];   // every trait, class feature, feat and item power
+  choices: ChoiceState[];        // decisions still owed: skills, a subclass, a feat or ASI
+  dmOverrides: DmOverride[];
+  // ...
+};</code></pre>
+  <p>The interesting part is <code>features</code>. A racial trait, a class feature, a feat, a magic item's property, a condition and a piece of homebrew all reduce to the same <code>Feature</code>:</p>
+  <ul>
+    <li><strong>Effects</strong> are passive and typed: a <code>target</code>, an <code>operation</code> (<code>add</code>, <code>set</code>, <code>multiply</code>, <code>scale</code>, <code>advantage</code>, <code>resistance</code> and so on), a value and an optional condition.</li>
+    <li><strong>Actions</strong> become action cards: attacks, spells, activatable abilities and their costs.</li>
+    <li><strong>Choices</strong> are decisions the feature asks of the player, resolved through the same code in the creation wizard and at level-up.</li>
+  </ul>
+  <pre><code>// "+1 to AC", from a feat, an item or homebrew alike
+{ type: 'stat_modifier', target: 'ac', operation: 'add', value: 1, condition: null }</code></pre>
+  <p>Because content is data rather than code, the engine has almost no per-class branches. There is no scripting language either: homebrew is built from the same typed pieces, so a shared file can always be inspected and validated before it runs.</p>
+
+  <h2 id="pipeline">How a number gets computed</h2>
+  <p>What happens when a player equips a shield:</p>
+  <ol class="flow">
+    <li><span class="n">1</span><span><span class="where">app/sheet/[id].tsx → src/store/characterStore.ts</span><span class="what">The screen calls <code>updateCharacter(id, updater, label)</code>. Screens never compute rules themselves.</span></span></li>
+    <li><span class="n">2</span><span><span class="where">src/engine/*.ts</span><span class="what">The updater calls engine functions that take an Entity and return a new Entity. Nothing is mutated in place.</span></span></li>
+    <li><span class="n">3</span><span><span class="where">src/engine/pipeline.ts: recomputeDerived(entity, rules)</span><span class="what">Collects every active effect from features, equipped items, conditions and overrides, resolves them per target (bonuses stack, <code>set</code> picks a winner, <code>scale</code> applies last), and rebuilds <code>derived</code> and the action cards.</span></span></li>
+    <li><span class="n">4</span><span><span class="where">src/store/characterStore.ts</span><span class="what">The store pushes an undo entry, schedules a save to SQLite, writes a timeline entry and sends a patch to any live-session peers.</span></span></li>
+    <li><span class="n">5</span><span><span class="where">src/engine/audit.ts: explainValue(entity, stat)</span><span class="what">When the player taps AC, the same contributions are rebuilt as a list of labelled entries. The "why" screen and the number come from the same effects.</span></span></li>
+  </ol>
+  <p>Campaign rules (point buy, level caps, rest lengths, crit rules) arrive as a <code>CampaignRules</code> value passed into the engine, not as global switches, which is why one device can hold characters under different house rules.</p>
+
+  <h2 id="content">Content packs and signatures</h2>
+  <p>Official content reaches characters through content packs: JSON files with a manifest, the records (classes, species, spells, items, monsters and so on) and rules tables. The two SRD packs are built from the source data in <code>src/content/</code>, ship in <code>assets/packs/</code> and are installed on first launch. A <code>.grimoire-pack</code> of homebrew uses the same envelope.</p>
+  <ul>
+    <li><strong>Content hash.</strong> <code>contentHash</code> is SHA-256 over the canonical JSON (keys sorted, <code>undefined</code> dropped) of the pack's records and rules.</li>
+    <li><strong>Signature.</strong> Ed25519 over <code>"grimoire-pack-signature-v1\n" + canonicalJson(manifest without signature)</code>. The manifest includes the hash, so one signature covers the whole pack. Trusted public keys are in <code>src/content/trustedKeys.ts</code>.</li>
+    <li><strong>Install order</strong> (<code>src/content/officialPackService.ts</code>): envelope, manifest, content hash, record validation, signature, dependency resolution, then activation. A forged signature is always refused. An unsigned or unknown-key pack needs the user's explicit confirmation. The bundled packs must be validly signed.</li>
+    <li><strong>Resolution.</strong> The content provider (<code>src/content/provider/</code>) merges installed packs by id, and the user's homebrew wins over a pack record with the same id.</li>
+  </ul>
+  <p>Packs are rebuilt with <code>npx tsx scripts/build-srd-packs.ts</code>. Without the private signing key, which is not in the repository, a rebuilt pack whose content is unchanged keeps its committed signature.</p>
+
+  <h2 id="storage">Storage</h2>
+  <p>One SQLite database per install. Characters, campaigns and homebrew are stored as JSON documents in a few tables rather than spread across a relational schema, so the domain model can grow without table rewrites. Tables include <code>entities</code>, <code>campaigns</code>, <code>content_cache</code> (homebrew) and its <code>content_cache_history</code>, <code>character_timeline</code>, <code>installed_packs</code>, <code>official_packs</code>, <code>prepared_encounters</code>, <code>combat_state</code> and <code>custom_rule_profiles</code>. Tables are created with <code>CREATE TABLE IF NOT EXISTS</code> at start-up (<code>src/db/db.ts</code>).</p>
+  <p>In the browser, <code>expo-sqlite</code> runs as WebAssembly with a file in the browser's private storage. That needs a cross-origin-isolated page, and GitHub Pages cannot send the headers, so a small service worker (<code>scripts/web/coi-sw.js</code>) adds them.</p>
+
+  <h2 id="live">Live play over the LAN</h2>
+  <p>Live play is direct device-to-device TCP on the local network. Messages are newline-delimited JSON. A room code is the host's IPv4 address written as 7 characters from a 32-character alphabet without 0, O, 1, I or L, so it is a convenience, not a secret.</p>
+  <p>Two layers exist side by side:</p>
+  <ul>
+    <li><strong><code>src/session/</code></strong> (port 7743). <code>SessionHost</code> is the authoritative state machine. Participants hold capabilities (<code>host</code>, <code>dm</code>, <code>player</code>), each authenticated by a per-participant token, and every operation is checked against them. Each viewer receives a projection of the state built for them, so DM-only data never reaches a player's device. A DM's change to the character itself (<code>dm.request_change</code>) is a request the player accepts, edits or declines, while fight consequences on the tracker, such as hit points and conditions, the DM applies directly. Transports are pluggable: in-memory and loopback ones drive the tests.</li>
+    <li><strong><code>src/sync/</code></strong> (port 7742). The older campaign sync, where the device that created the campaign is both host and DM, and entity patches are relayed between devices.</li>
+  </ul>
+  <p>Neither layer encrypts traffic yet, so live play is for networks you trust. <code>scripts/e2e/</code> runs real sessions against a phone over <code>adb</code>, with a Node "table" playing the other seats and a proxy that cuts the link on demand.</p>
+
+  <h2 id="platforms">Android, browser and desktop</h2>
+  <ul>
+    <li><strong>Android</strong> is the main build, released as a signed APK on GitHub Releases.</li>
+    <li><strong>Browser.</strong> <code>expo export --platform web</code>, finished by <code>scripts/web/finish-web-export.js</code> (service worker, fallback for deep links) and published in <code>docs/app/</code>. <code>GRIMOIRE_WEB_BASE_URL</code> sets the sub-path. No live play there, because a web page cannot open TCP sockets.</li>
+    <li><strong>Desktop.</strong> <code>desktop/</code> loads the same web build in Electron through a <code>grimoire://</code> scheme that adds the isolation headers and a content security policy. It gives the page real TCP sockets through a narrow IPC bridge that checks the caller is the app's own page, and <code>metro.config.js</code> swaps <code>react-native-tcp-socket</code> for a shim over that bridge, so the live-session code can run there. In the current source the live-session buttons are still hidden on every web build, the desktop one included (<code>src/platform/features.ts</code>). It is built from source for Windows; there is no desktop release yet.</li>
+  </ul>
+
+  <h2 id="build">Build, run, test</h2>
+  <pre><code>git clone https://github.com/nkvanch/Grimoire.git
+cd Grimoire
+npm install          # also applies the patches in patches/
+npx expo start       # then open it on a device, an emulator or the web</code></pre>
+  <pre><code>npm test             # Jest: about 3,500 tests, a couple of minutes
+npm run typecheck    # tsc --noEmit
+npm run lint         # ESLint with typed rules</code></pre>
+  <p>Good first files to read, in this order:</p>
+  <ol>
+    <li><code>src/engine/types.ts</code>: Entity, Feature, Effect, Choice.</li>
+    <li><code>src/engine/pipeline.ts</code>: <code>recomputeDerived</code>.</li>
+    <li><code>src/engine/audit.ts</code>: how the "why" lists are built.</li>
+    <li><code>src/store/characterStore.ts</code>: <code>updateCharacter</code>, undo and redo.</li>
+    <li><code>src/content/officialPackService.ts</code> and <code>src/content/packSigning.ts</code>.</li>
+    <li><code>src/session/host.ts</code>: roles, operations and projections.</li>
+  </ol>
+
+  <h2 id="edges">Rough edges</h2>
+  <p>Honest notes for anyone about to read the code:</p>
+  <ul>
+    <li>There is no CI yet. Type-check and tests pass on <code>main</code>; <code>npm run lint</code> still reports errors.</li>
+    <li>The engine is meant to be pure, but a few engine files import constants from <code>src/store/</code>. Do not copy that pattern.</li>
+    <li>The release scripts (APK build, Maestro runs) are PowerShell and assume Windows.</li>
+    <li>Two live-play layers exist, as described above.</li>
+    <li>Many files carry long comments that name past audit findings. They explain why code looks the way it does, so read them before "simplifying".</li>
+    <li>The database has no schema version yet. Changes are additive, and older saved data is upgraded when it loads.</li>
+  </ul>
+
+  <h2 id="contribute">Contributing</h2>
+  <ul>
+    <li>The code is GPL-3.0-or-later. A modified version may say it is based on Grimoire, but should not use the official name and branding as its own. See <a href="license.html">License</a>.</li>
+    <li>Content in this repository must be SRD 5.1, SRD 5.2.1 (both CC-BY-4.0) or original. Please do not add text from other books, even as test data. See <a href="https://github.com/nkvanch/Grimoire/blob/main/docs/SRD_EDITION.md">SRD_EDITION.md</a>.</li>
+    <li>Bugs and ideas: <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a> or <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a>.</li>
+  </ul>
+
+  <h2>Where to go next</h2>
+  <div class="grid pairs">
+    <a class="card" href="https://github.com/nkvanch/Grimoire"><strong>Source</strong><span>The repository on GitHub.</span></a>
+    <a class="card" href="documentation.html"><strong>Documentation</strong><span>The file formats from a user's side: packs, character files, rule profiles.</span></a>
+    <a class="card" href="privacy.html"><strong>Privacy</strong><span>Exactly what is stored and what crosses the network.</span></a>
+    <a class="card" href="players.html"><strong>What it does for players</strong><span>The feature tour, for context on the code.</span></a>
+  </div>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>
