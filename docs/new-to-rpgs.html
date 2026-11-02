@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New to Tabletop RPGs - Grimoire</title>
+<meta name="description" content="Never played a tabletop roleplaying game? What they are, how the dice and the character sheet work, the words you will hear, and how Grimoire does the bookkeeping for you.">
+<link rel="icon" href="assets/favicon.png">
+<script>try{var t=localStorage.getItem('grimoire-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js" defer></script>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/favicon.png" alt="">Grimoire</a>
+  <nav aria-label="Main">
+    <a href="documentation.html">Documentation</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="feedback.html">Feedback</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+    <a href="https://github.com/nkvanch/Grimoire">GitHub</a>
+  </nav>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch between light and dark mode">Dark</button>
+</div></header>
+
+<main><div class="wrap">
+  <p class="kicker">Guide for complete beginners</p>
+  <h1>Never played a tabletop roleplaying game? Start here.</h1>
+  <p class="lead">Grimoire is a helper for a game you play with friends around a table, using imagination, a few rules and some dice. This page explains that game in plain words, then shows what the app does for you.</p>
+  <ul class="guide-switch" aria-label="Guides">
+    <li><a href="players.html">I play D&amp;D</a></li>
+    <li><a href="new-to-rpgs.html" aria-current="page">I have never played</a></li>
+    <li><a href="developers.html">I write code</a></li>
+  </ul>
+
+  <h2 id="what">What is a tabletop roleplaying game?</h2>
+  <p>Think of it as a story that a group of friends tells together, where nobody knows the ending.</p>
+  <div class="grid pairs">
+    <div class="card"><strong>One person runs the world</strong><span>The Dungeon Master (DM) describes where you are, plays every other person and monster you meet, and decides what happens.</span></div>
+    <div class="card"><strong>Everyone else plays a hero</strong><span>Each player has one character: a stubborn dwarf, a nervous wizard, a kind-hearted thief. You decide what they say and do.</span></div>
+    <div class="card"><strong>Dice decide the uncertain parts</strong><span>When you try something risky, like jumping a chasm or persuading a guard, you roll a die and the rules say whether it worked.</span></div>
+    <div class="card"><strong>There is no winning</strong><span>The goal is a good story and a good evening. A session lasts a few hours. A campaign is the same story continued over many sessions.</span></div>
+  </div>
+  <p>Most of it happens in conversation: "I check the door for traps." "Roll for it." Some groups use a map and miniatures, many just describe things. Nothing needs a screen.</p>
+
+  <h2 id="dnd">D&amp;D, "5e" and the free rules</h2>
+  <p><strong>Dungeons &amp; Dragons</strong> (D&amp;D) is the best-known game of this kind. Its current version is the fifth edition, which players shorten to <strong>5e</strong>. It was first published in 2014 and revised in 2024, and some people call the revision "5.5e".</p>
+  <p>Part of the rules is published for free, for anyone to use, as the <a href="https://www.dndbeyond.com/srd">System Reference Document</a> (SRD). Grimoire includes the SRD for both the 2014 and the 2024 rules, so you can make a character and play without buying anything. Grimoire is an independent, free app. It is not made by the company that publishes D&amp;D.</p>
+
+  <h2 id="sheet">What is on a character sheet?</h2>
+  <p>Your character is described by a handful of numbers. On paper you would write them on a character sheet and keep them up to date by hand. Here is an example, a 3rd-level human fighter:</p>
+  <div class="sheet" role="group" aria-label="Example character sheet">
+    <div class="sheet-head"><strong>Example fighter</strong><span>Human Fighter, level 3</span></div>
+    <ul class="sheet-grid" aria-label="Ability scores">
+      <li><span class="lbl">Strength</span><span class="val">16</span><span class="sub">+3</span></li>
+      <li><span class="lbl">Dexterity</span><span class="val">14</span><span class="sub">+2</span></li>
+      <li><span class="lbl">Constitution</span><span class="val">14</span><span class="sub">+2</span></li>
+      <li><span class="lbl">Intelligence</span><span class="val">10</span><span class="sub">+0</span></li>
+      <li><span class="lbl">Wisdom</span><span class="val">12</span><span class="sub">+1</span></li>
+      <li><span class="lbl">Charisma</span><span class="val">8</span><span class="sub">−1</span></li>
+    </ul>
+    <ul class="sheet-grid combat" aria-label="Combat numbers">
+      <li><span class="lbl">Armor Class</span><span class="val">18</span></li>
+      <li><span class="lbl">Hit Points</span><span class="val">28</span></li>
+      <li><span class="lbl">Proficiency</span><span class="val">+2</span></li>
+      <li><span class="lbl">Speed</span><span class="val">30 ft</span></li>
+    </ul>
+    <p class="sheet-caption">Each big number is an ability score. The small gold number under it is its modifier, the part you add to dice rolls.</p>
+  </div>
+  <dl class="terms">
+    <dt>Ability scores</dt><dd>Six numbers for what your character is naturally good at: strength, agility, toughness, knowledge, awareness and force of personality. 10 is average.</dd>
+    <dt>Modifier</dt><dd>The bonus that comes from a score. 16 Strength gives +3, so you add 3 when you roll for something strong.</dd>
+    <dt>Hit points (HP)</dt><dd>How much harm you can take. At 0 you fall unconscious and start making rolls to stay alive.</dd>
+    <dt>Armor Class (AC)</dt><dd>How hard you are to hit. An attacker has to roll this number or higher.</dd>
+    <dt>Proficiency bonus</dt><dd>An extra bonus for things your character is trained in. It grows as you level up.</dd>
+  </dl>
+  <p>These numbers depend on each other. Change your armour and your AC changes. Level up and your hit points and bonuses change. Keeping all of that right on paper is the part beginners find hardest, and it is exactly the part Grimoire does for you.</p>
+
+  <h2 id="dice">How the dice work</h2>
+  <p>Games like this use dice with different numbers of sides, named with a "d": a d4, d6, d8, d10, d12 and d20. "2d6" means roll two six-sided dice and add them.</p>
+  <ol class="steps">
+    <li><strong>Roll the d20</strong>The twenty-sided die decides most things: attacks, skills and resisting danger.</li>
+    <li><strong>Add your modifier</strong>The bonus from the matching ability score, plus your proficiency bonus if you are trained in it.</li>
+    <li><strong>Compare with the target</strong>Meet or beat the target number (a monster's Armor Class, or a difficulty the DM sets) and you succeed.</li>
+  </ol>
+  <p><strong>Advantage</strong> means roll the d20 twice and keep the higher result. <strong>Disadvantage</strong> means keep the lower one. You can roll real dice and type the result into Grimoire, or let the app roll for you.</p>
+
+  <h2 id="app">What Grimoire does for you</h2>
+  <div class="grid pairs">
+    <div class="card"><strong>Builds your character with you</strong><span>Step by step: species, class, ability scores, background, skills, equipment and spells, in any order. Every number is worked out for you.</span></div>
+    <div class="card"><strong>Explains every number</strong><span>Tap your Armor Class, a skill or a saving throw and it tells you where the number comes from. A good way to learn the rules as you play.</span></div>
+    <div class="card"><strong>Keeps track during the game</strong><span>Hit points, spells used, conditions such as "poisoned", rests that recover your strength, and an undo button for mistakes.</span></div>
+    <div class="card"><strong>Helps whoever runs the game</strong><span>Over 300 monsters from the free rules, a tool for planning fights, and a turn tracker.</span></div>
+  </div>
+
+  <h2 id="first">Your first ten minutes</h2>
+  <ol class="steps">
+    <li><strong>Open the app</strong>On a computer, <a href="app/">open it in your browser</a>. On an Android phone, <a href="https://github.com/nkvanch/Grimoire/releases/latest">download the app</a>. The <a href="documentation.html#install">install steps</a> explain the warning Android shows.</li>
+    <li><strong>Choose "Try Sample Character"</strong>The first screens offer a ready-made 3rd-level fighter called Aria Stonewall. Nothing you do to her matters, so poke at everything.</li>
+    <li><strong>Tap a number</strong>Tap her Armor Class or a skill and read where it comes from. That is how the game's maths works.</li>
+    <li><strong>Open the Actions tab</strong>Each thing she can do in a fight is a card. Tap one to see what it does and roll it.</li>
+    <li><strong>Make your own</strong>Back on the Characters tab, create a character. Fighter is a good first class: strong, tough and simple to play.</li>
+  </ol>
+
+  <h2 id="group">Finding people to play with</h2>
+  <p>You need a group: a DM and usually three to five players. Ask friends who might be curious, or look for a beginner night at a local game shop or library. If nobody in your group has played before, someone can read the free rules and run a short one-evening adventure (a "one-shot") to try it out. Everyone at the table can use Grimoire on their own phone, and nobody needs an account.</p>
+
+  <h2 id="words">Words you will hear</h2>
+  <dl class="terms">
+    <dt>DM / GM</dt><dd>Dungeon Master or Game Master: the person who runs the game and the world.</dd>
+    <dt>PC / NPC</dt><dd>Player character, a hero played by a player. Non-player character, anyone the DM plays.</dd>
+    <dt>Session / campaign / one-shot</dt><dd>One evening of play / a story over many sessions / a story finished in one session.</dd>
+    <dt>Class</dt><dd>Your character's profession and fighting style: fighter, wizard, rogue, cleric and so on.</dd>
+    <dt>Species (race)</dt><dd>What your character is: human, elf, dwarf and others. The 2014 rules call it race, the 2024 rules species.</dd>
+    <dt>Level</dt><dd>How experienced your character is, from 1 to 20. You gain levels by adventuring.</dd>
+    <dt>DC</dt><dd>Difficulty Class: the number you need to reach on a roll for something to work.</dd>
+    <dt>Saving throw</dt><dd>A roll to resist something bad, such as poison or a spell.</dd>
+    <dt>Spell slot</dt><dd>A spellcaster's limited fuel for spells. Slots come back after a rest.</dd>
+    <dt>Short / long rest</dt><dd>An hour's break, or a night's sleep, that brings back some or all of your strength.</dd>
+    <dt>Condition</dt><dd>A temporary state such as poisoned, prone or frightened, with its own effects.</dd>
+    <dt>Homebrew</dt><dd>Rules, spells or creatures a group invents for itself. Grimoire lets you build them.</dd>
+  </dl>
+
+  <h2 id="not">What Grimoire is not</h2>
+  <ul>
+    <li><strong>It is not a video game.</strong> The fun happens between people at the table. The app keeps the numbers right so you can concentrate on the story.</li>
+    <li><strong>It does not replace the DM.</strong> The DM still describes the world and makes the calls. Grimoire never decides what happens in the story.</li>
+    <li><strong>It does not teach all the rules.</strong> It explains numbers as you go. For the rest, the "Playing the Game" chapter of the <a href="https://www.dndbeyond.com/srd">free rules</a> is a good read.</li>
+    <li><strong>It is an early version.</strong> Free and usable, with rough edges. It runs on Android phones and in a computer's browser, not on iPhone. <a href="feedback.html">Tell me</a> what confused you, because that helps most.</li>
+  </ul>
+
+  <div class="note">
+    <p><strong>Free and private.</strong> No price, no account, no ads and no tracking. Your characters stay on your own device. <a href="privacy.html">Privacy</a>.</p>
+  </div>
+
+  <h2>Where to go next</h2>
+  <div class="grid pairs">
+    <a class="card" href="app/"><strong>Try it in your browser</strong><span>Nothing to install. Start with the sample character.</span></a>
+    <a class="card" href="https://github.com/nkvanch/Grimoire/releases/latest"><strong>Get the Android app</strong><span>Free download from GitHub.</span></a>
+    <a class="card" href="https://www.dndbeyond.com/srd"><strong>Read the free rules</strong><span>The System Reference Document, from the publisher of D&amp;D.</span></a>
+    <a class="card" href="players.html"><strong>Know someone who plays?</strong><span>Send them the guide for players and DMs.</span></a>
+  </div>
+</div></main>
+
+<footer class="site"><div class="wrap">
+  <p>Contact: <a href="mailto:feedback.grimoire@gmail.com">feedback.grimoire@gmail.com</a> &middot; <a href="https://github.com/nkvanch/Grimoire/issues">GitHub issues</a></p>
+  <p>Grimoire is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.</p>
+</div></footer>
+</body>
+</html>
