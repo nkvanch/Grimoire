@@ -2,6 +2,29 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## Unreleased
+
+Changes on `main` since 0.2.3, in the next build.
+
+### Changed
+
+- Live play: the campaign screen has one Host button, which starts a live table (Host + DM). The older campaign sync it replaced is removed: a session hosted with it could not be joined from the join screen, it made the host the DM, and it accepted character data from any device on the network.
+- Every number in a fight explains itself: tap the HP maximum, a weapon's to-hit or its damage bonus, and the numbers on action cards have a breakdown chip.
+- The Features tab says, for each feature, whether the app works it out, only counts its uses, or leaves it to you.
+- Homebrew, Custom Rule Profiles and a character's ruleset can only be set to the rulesets the app can run, 5e (2014) and 5e (2024).
+- Editing a homebrew item or spell that characters use asks first and names them.
+- Homebrew backgrounds can offer personality traits, ideals, bonds and flaws in character creation, like the Acolyte.
+
+### Fixed
+
+- Backups now include campaigns, their prepared encounters, your rule profiles and your live-table preparation, and homebrew spell lists. Restoring onto a new phone keeps you the DM of your own campaigns.
+- Two creation screens (Background, Spellcasting Ability) could crash when their state changed while they were open.
+- Spell text no longer shows link syntax or a link to another site.
+
+### Content
+
+- The source no longer holds 2014 wording from other books for fifteen spells that are only in SRD 5.2.1, or the personality tables of the twelve 2014 backgrounds that are not in SRD 5.1. The Acolyte has its full SRD 5.1 tables. A new test checks content against the SRD text, not only ids. See docs/SRD_EDITION.md.
+
 ## 0.2.3 alpha
 
 Released 12 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.3-alpha).

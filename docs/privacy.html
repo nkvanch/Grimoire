@@ -27,7 +27,7 @@
 <main><div class="wrap">
   <h1>Privacy</h1>
   <p class="lead">Short version: Grimoire keeps your data on your device. I run no server for it, I collect nothing, and the app has no accounts, analytics, ads or crash reporting.</p>
-  <p>This page describes alpha 0.2.3. Last updated 12 October 2026.</p>
+  <p>This page describes alpha 0.2.3 and the changes coming in the next version. Last updated 2 November 2026.</p>
 
   <h2>What is stored, and where</h2>
   <ul>
@@ -44,7 +44,7 @@
   <p>The About screen has links to the SRD and its licence. They open in your browser only when you tap them.</p>
 
   <h2 id="sync">Campaign sync</h2>
-  <p>Sync is optional. When a DM hosts a campaign, their phone listens on port 7742 on the local network. Players join with a 7-character room code, which is the DM's local IP address written in a shorter form, or by scanning the QR code that shows the same code. Character and campaign data then travels between the phones in that session, relayed by the DM's phone.</p>
+  <p>Sync is optional. When someone hosts a live table, their device listens on port 7743 on the local network. Others join with a 7-character room code, which is the host's local IP address written in a shorter form, or by scanning the QR code that shows the same code. Data for the session then travels between the devices, relayed by the host. Each device is sent only what its role may see: the DM's notes and hidden monsters are not sent to players. Alpha 0.2.3 also has an older campaign sync that listens on port 7742; the next version removes it.</p>
   <div class="note">
     <p><strong>Sync is not encrypted and has no password.</strong> Anyone on the same network who knows the room code or the DM's IP address could connect to the session. Use it at home or at a table on a network you trust, and do not use it on public Wi-Fi.</p>
   </div>
