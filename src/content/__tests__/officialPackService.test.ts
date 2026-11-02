@@ -50,7 +50,7 @@ describe('previewing an official pack file', () => {
     const tampered = file(pack51);
     tampered.homebrew.spells[0].name = 'Tampered';
     const t = previewOfficialPack(tampered, []);
-    expect(t).toEqual({ ok: false, problems: [expect.stringMatching(/content hash/)] });
+    expect(t).toEqual({ ok: false, problems: [expect.stringMatching(/contents were changed or damaged/)] });
     expect(previewOfficialPack({ nope: true }, [])).toMatchObject({ ok: false });
     const homebrew = { ...pack51, manifest: { ...pack51.manifest, officialFirstPartyPack: false } };
     expect(isOfficialPackFile(homebrew)).toBe(false);

@@ -1,5 +1,6 @@
 // app/sheet/TabFeatures.tsx
 // Tab 4 — Features grouped by source, plus spells if applicable.
+import { automationOf, AUTOMATION_LABEL, AUTOMATION_HINT } from '../../engine/automation';
 import { useState, memo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { Entity, FeatureInstance, ActionCard, CampaignRules, RulesetId } from '../../engine/types';
@@ -63,10 +64,17 @@ function makeAdHocFeatChoice(): import('../../engine/types').ChoiceState {
 
 function FeatureRow({ feature, onRemove }: { feature: FeatureInstance; onRemove?: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
+  // Says whether the app works this out, only counts it, or leaves it to the table (engine/automation.ts).
+  const automation = automationOf(feature);
   return (
-    <Pressable style={styles.featureRow} onPress={() => setExpanded(e => !e)}>
+    <Pressable style={styles.featureRow} onPress={() => setExpanded(e => !e)}
+      accessibilityLabel={`${feature.name}. ${AUTOMATION_LABEL[automation]}`}>
       <View style={styles.featureHeader}>
         <Text style={styles.featureName}>{feature.name}</Text>
+        <View style={[styles.automationBadge, automation === 'automated' && styles.automationAuto, automation === 'manual' && styles.automationManual]}
+          testID={`feature-automation-${feature.id}`}>
+          <Text style={[styles.automationTxt, automation === 'automated' && styles.automationAutoTxt]}>{AUTOMATION_LABEL[automation]}</Text>
+        </View>
         {onRemove && (
           <Pressable hitSlop={8} onPress={() => onRemove(feature.id)}>
             <Text style={styles.featureRemoveBtn}>✕</Text>
@@ -75,7 +83,10 @@ function FeatureRow({ feature, onRemove }: { feature: FeatureInstance; onRemove?
         <Text style={styles.featureChevron}>{expanded ? '▲' : '▼'}</Text>
       </View>
       {expanded && (
-        <Text style={styles.featureDesc}>{feature.description}</Text>
+        <>
+          <Text style={styles.featureDesc}>{feature.description}</Text>
+          <Text style={styles.automationHint}>{AUTOMATION_HINT[automation]}</Text>
+        </>
       )}
     </Pressable>
   );
@@ -1014,6 +1025,12 @@ const styles = StyleSheet.create({
   featureHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   featureName:   { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary, flex: 1 },
   featureDesc:   { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs, lineHeight: 20 },
+  automationBadge:   { borderWidth: 1, borderColor: Colors.gold + '66', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 1, marginHorizontal: Spacing.xs },
+  automationAuto:    { borderColor: Colors.green + '88' },
+  automationManual:  { borderColor: Colors.border, backgroundColor: Colors.surfaceHigh },
+  automationTxt:     { fontSize: FontSize.xs, color: Colors.gold },
+  automationAutoTxt: { color: Colors.green },
+  automationHint:    { fontSize: FontSize.xs, color: Colors.textDim, marginTop: Spacing.xs, fontStyle: 'italic' },
 
   spellMeta2: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.sm },
   spellMetaPill: {

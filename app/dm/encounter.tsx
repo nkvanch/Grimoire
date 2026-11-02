@@ -1016,7 +1016,7 @@ export default function EncounterScreen() {
 
   function handleStartCombat() {
     if (entities.length === 0) {
-      Alert.alert('No combatants', 'Add at least one entity before starting.');
+      Alert.alert('No combatants', 'Add at least one character or monster before starting.');
       return;
     }
     const encounterId = `enc_${Date.now()}`;

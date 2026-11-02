@@ -1,5 +1,5 @@
 import { CampaignRules, CustomRuleProfile, Entity } from '../../engine/types';
-import { RULESETS, gameIdForRuleset } from '../../content/rulesets';
+import { RULESETS, gameIdForRuleset, isPlayableRuleset } from '../../content/rulesets';
 import { canPlayerFreeEdit } from '../../engine/houseRules';
 import { profilesForRuleset, resolveEffectiveCampaignRules } from '../../engine/customRuleProfiles';
 
@@ -13,7 +13,8 @@ export type RulesetPickerViewModel = {
 export function rulesetPickerViewModel(entity: Pick<Entity, 'rulesetId' | 'customRuleProfileId'>, profiles: readonly CustomRuleProfile[]): RulesetPickerViewModel {
   const currentGame = entity.rulesetId ? gameIdForRuleset(entity.rulesetId) : RULESETS['dnd5e-2014'].gameId;
   return {
-    official: currentGame ? Object.values(RULESETS).filter(rule => rule.gameId === currentGame) : Object.values(RULESETS),
+    // Only rulesets the engine can run a character under (content/rulesets.ts), within the character's own game.
+    official: Object.values(RULESETS).filter(rule => isPlayableRuleset(rule.id) && (!currentGame || rule.gameId === currentGame)),
     custom: profilesForRuleset(profiles, entity.rulesetId),
     activeProfileId: profiles.some(profile => profile.id === entity.customRuleProfileId) ? entity.customRuleProfileId : undefined,
   };

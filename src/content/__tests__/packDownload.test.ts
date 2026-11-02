@@ -93,6 +93,6 @@ describe('a downloaded pack goes through the same checks as one picked from the 
     const downloaded = await downloadText('https://host.test/a.grimoire-pack', { fetchImpl: reply(text) });
     const preview = previewOfficialPack(JSON.parse(downloaded));
     expect(preview.ok).toBe(false);
-    expect(!preview.ok && preview.problems.join(' ')).toMatch(/content hash/);
+    expect(!preview.ok && preview.problems.join(' ')).toMatch(/contents were changed or damaged/);
   });
 });

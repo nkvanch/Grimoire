@@ -43,6 +43,17 @@ export const RULESETS: Record<string, RulesetDefinition> = {
 /** Looks up which Game a RulesetId belongs to. Undefined if the ruleset id
  *  is untagged OR isn't registered above (fails open — an unrecognized
  *  ruleset id shouldn't crash a filter, it just won't resolve a Game). */
+/**
+ * The rulesets the engine can actually run a character under: six ability scores, the 5e skills, proficiency and
+ * action economy. "Correct before broad": these are the only ones offered when tagging homebrew. The other registry
+ * entries stay so content tagged with them elsewhere is labelled, not misread, but nothing here offers them.
+ */
+export const PLAYABLE_RULESET_IDS: readonly RulesetId[] = ['dnd5e-2014' as RulesetId, 'dnd5e-2024' as RulesetId];
+
+export function isPlayableRuleset(rulesetId: RulesetId | undefined): boolean {
+  return !!rulesetId && PLAYABLE_RULESET_IDS.includes(rulesetId);
+}
+
 export function gameIdForRuleset(rulesetId: RulesetId | undefined): GameId | undefined {
   if (!rulesetId) return undefined;
   return RULESETS[rulesetId]?.gameId;

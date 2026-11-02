@@ -65,14 +65,14 @@ export function previewOfficialPack(data: unknown, current: readonly InstalledPa
   const manifestProblems = validateManifest(pack.manifest);
   if (manifestProblems.length > 0) return { ok: false, problems: manifestProblems };
   if (sha256Hex(packHashInput(pack as { homebrew?: unknown; rules?: unknown })) !== pack.manifest.contentHash) {
-    return { ok: false, problems: ['The pack’s content does not match its content hash, so it was changed or damaged. It was not installed.'] };
+    return { ok: false, problems: ['The pack’s contents were changed or damaged after it was made, so it was not installed.'] };
   }
   const contentProblems = validatePackContents(pack);
   if (contentProblems.length > 0) {
     return { ok: false, problems: [`The pack’s content is not valid (${contentProblems.length} problem${contentProblems.length === 1 ? '' : 's'}):`, ...contentProblems.slice(0, 4)] };
   }
   const signature = verifyPackSignature(pack);
-  if (signature.status === 'invalid') return { ok: false, problems: ['The pack’s signature does not match its manifest, so it was changed or forged. It was not installed.'] };
+  if (signature.status === 'invalid') return { ok: false, problems: ['The pack’s signature doesn’t match the pack, so it was changed or forged after it was signed. It was not installed.'] };
   const others = current.filter(p => p.manifest.id !== pack.manifest.id);
   const resolved = activateCheck([...others, pack]);
   if (resolved.length > 0) return { ok: false, problems: resolved };
@@ -82,7 +82,7 @@ export function previewOfficialPack(data: unknown, current: readonly InstalledPa
   const counts = pack.manifest.counts;
   const notes = [
     `${pack.manifest.name} ${pack.manifest.version} (${pack.manifest.ruleset}): ${Object.entries(counts).map(([k, v]) => LABEL(v, k.replace(/s$/, ''), k)).join(', ')}.`,
-    'Installing makes the pack the app’s official content: races, classes, backgrounds, feats, subclasses, spells and items come from installed packs instead of the built-in catalog. Anything the packs do not contain (for example a non-SRD class) is hidden until you remove them. Your homebrew and your characters are not changed.',
+    'Installing makes the pack the app’s official content: races, classes, backgrounds, feats, subclasses, spells and items come from installed packs instead of the built-in catalog. Anything the packs do not contain (for example a non-SRD class) is hidden until you remove them. Your homebrew is not changed. Characters keep their choices, but the items and spells they use follow the pack’s version of them.',
   ];
   if (action === 'update') notes.push(`This replaces version ${existing!.manifest.version}.`);
   if (signature.status === 'unsigned') notes.push('This pack is not signed, so there is no way to tell who made it. Install it only if you trust where it came from.');
