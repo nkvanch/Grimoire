@@ -16,6 +16,7 @@ import { applyGrant, queueChoice } from '../../src/engine/leveling';
 import { revokeResourceSource } from '../../src/engine/entitlements';
 import { applyStatModifiers, collectAllEffects } from '../../src/engine/pipeline';
 import { backgroundSkillGrants, backgroundSortOptions } from '../../src/content/backgrounds/backgroundBrowse';
+import { characteristicsFor } from '../../src/content/backgrounds/characteristics';
 import { sortByOption } from '../../src/content/contentQuery';
 import { SortControl } from '../../src/components/SortControl';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
@@ -34,121 +35,6 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 
 const SCREEN_KEY = 'background_picker';
 
-// ── BG_DETAIL — flavor-only data for the 13 PHB backgrounds ────────────────
-// FILTER-METADATA-2: this table used to ALSO carry skillProficiencies/
-// toolProficiencies — those were retired from here. Skill proficiencies
-// are already real, structured data on each Background's own Feature
-// effects (see backgroundSkillGrants(), imported above); tool
-// proficiencies are now a real field, Background.toolProficiencies (see
-// src/content/backgrounds/index.ts). What's left here — the class-feature
-// name and the personality trait/ideal/bond/flaw picker options — is
-// genuinely UI-only flavor text with no mechanical meaning, so it stays a
-// screen-local table; nothing here is treated as authoritative content
-// metadata anymore.
-const BG_DETAIL: Record<string, {
-  feature: string;
-  traits: string[];
-  ideals: string[];
-  bonds: string[];
-  flaws: string[];
-}> = {
-  acolyte: {
-    feature: 'Shelter of the Faithful',
-    traits: ['I idolize a particular hero of my faith and constantly refer to their deeds.', 'I see omens in every event and action.'],
-    ideals: ['Tradition', 'Charity', 'Change', 'Power'],
-    bonds: ['I owe my life to the priest who took me in when my parents died.'],
-    flaws: ['I am inflexible in my thinking.'],
-  },
-  charlatan: {
-    feature: 'False Identity',
-    traits: ['I fall in and out of love easily and am always pursuing someone.', 'I have a joke for every occasion.'],
-    ideals: ['Independence', 'Fairness', 'Charity', 'Creativity'],
-    bonds: ['I fleeced the wrong person and must work to repay my debt.'],
-    flaws: ["I can't resist a pretty face."],
-  },
-  criminal: {
-    feature: 'Criminal Contact',
-    traits: ['I always have a plan for when things go wrong.', 'I am always calm, no matter what the situation.'],
-    ideals: ['Honor', 'Freedom', 'Charity', 'Redemption'],
-    bonds: ["I'm trying to pay off an old debt I owe to a generous benefactor."],
-    flaws: ['When I see something valuable, I can\'t think of anything but how to steal it.'],
-  },
-  entertainer: {
-    feature: 'By Popular Demand',
-    traits: ['I know a story relevant to almost every situation.', 'I love a good insult, even one directed at me.'],
-    ideals: ['Beauty', 'Tradition', 'Creativity', 'Greed'],
-    bonds: ['I want to be famous, whatever it takes.'],
-    flaws: ["I'm a sucker for a pretty face."],
-  },
-  folk_hero: {
-    feature: 'Rustic Hospitality',
-    traits: ['I judge people by their actions, not their words.', "I'm confident in my own abilities and do what I can to instill confidence in others."],
-    ideals: ['Respect', 'Fairness', 'Freedom', 'Might'],
-    bonds: ['I protect those who cannot protect themselves.'],
-    flaws: ['The tyrant who rules my land will stop at nothing to see me captured or dead.'],
-  },
-  guild_artisan: {
-    feature: 'Guild Membership',
-    traits: ['I believe that anything worth doing is worth doing right.', "I'm rude to people who slack off at their work."],
-    ideals: ['Community', 'Generosity', 'Freedom', 'Aspiration'],
-    bonds: ['The workshop where I learned my trade is the most important place in the world to me.'],
-    flaws: ["I'll do anything to get my hands on something rare or priceless."],
-  },
-  hermit: {
-    feature: 'Discovery',
-    traits: ["I've been isolated for so long that I rarely speak, preferring gestures and the occasional grunt.", 'I am utterly serene, even in the face of disaster.'],
-    ideals: ['Greater Good', 'Logic', 'Free Thinking', 'Self-Knowledge'],
-    bonds: ['I entered seclusion to hide from those who might still be hunting me.'],
-    flaws: ['I like keeping secrets and won\'t share them with anyone.'],
-  },
-  noble: {
-    feature: 'Position of Privilege',
-    traits: ['My eloquent flattery makes everyone I talk to feel like the most wonderful and important person in the world.', 'The common folk love me for my kindness and generosity.'],
-    ideals: ['Respect', 'Responsibility', 'Independence', 'Power'],
-    bonds: ['I will face any challenge to win the approval of my family.'],
-    flaws: ['I secretly believe that everyone is beneath me.'],
-  },
-  outlander: {
-    feature: 'Wanderer',
-    traits: ["I'm driven by a wanderlust that led me away from home.", 'I watch over my friends as if they were a litter of newborn pups.'],
-    ideals: ['Change', 'Greater Good', 'Independence', 'Might'],
-    bonds: ['My family, clan, or tribe is the most important thing in my life.'],
-    flaws: ['I am slow to trust members of other races, tribes, and societies.'],
-  },
-  sage: {
-    feature: 'Researcher',
-    traits: ['I use polysyllabic words that convey the impression of great erudition.', "I've read every book in the world's greatest libraries — or I like to boast that I have."],
-    ideals: ['Knowledge', 'Beauty', 'Logic', 'Power'],
-    bonds: ['I have an ancient text that holds terrible secrets that must not fall into the wrong hands.'],
-    flaws: ['I am easily distracted by the promise of information.'],
-  },
-  sailor: {
-    feature: "Ship's Passage",
-    traits: ['My friends know they can rely on me, no matter what.', 'I work hard so that I can play hard when the work is done.'],
-    ideals: ['Respect', 'Fairness', 'Freedom', 'Mastery'],
-    bonds: ["I'm loyal to my captain first, everything else second."],
-    flaws: ['I follow orders, even if I think they\'re wrong.'],
-  },
-  soldier: {
-    feature: 'Military Rank',
-    traits: [
-      'I am always polite and respectful.',
-      'I face problems head-on.',
-      'I have a crude sense of humor.',
-      'I enjoy being strong and like breaking things.',
-    ],
-    ideals: ['Greater Good', 'Responsibility', 'Independence', 'Might'],
-    bonds: ['I would still lay down my life for the people I served with.', 'Someone saved my life. I owe them.'],
-    flaws: ['I made a terrible mistake in battle that haunts me.', 'I obey the law even if the law causes misery.'],
-  },
-  urchin: {
-    feature: 'City Secrets',
-    traits: ['I hide scraps of food and trinkets away in my pockets.', 'I ask a lot of questions.'],
-    ideals: ['Respect', 'Community', 'Change', 'Aspiration'],
-    bonds: ['I escaped my life of poverty by robbing an important person.'],
-    flaws: ["If I'm outnumbered, I will run away from a fight."],
-  },
-};
 
 // ── List screen ───────────────────────────────────────────────────────────────
 
@@ -186,7 +72,7 @@ export default function BackgroundScreen() {
   // FILTER-METADATA-2: real, derived from each background's own Feature
   // effects (official) or an equivalent homebrew grant — see
   // backgroundSkillGrants(). Tool Proficiency is real too, now a direct
-  // field (Background.toolProficiencies) rather than trapped in BG_DETAIL.
+  // field (Background.toolProficiencies).
   const [skillFilter, setSkillFilter] = useState<Set<SkillName>>(new Set((savedFilters.skillFilter as SkillName[]) ?? []));
   const [toolFilter, setToolFilter] = useState<Set<string>>(new Set((savedFilters.toolFilter as string[]) ?? []));
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -367,15 +253,13 @@ function BackgroundDetail({ id }: { id: string }) {
   // homebrew-wins-on-collision precedent used everywhere else content
   // merges happen (e.g. race-detail.tsx).
   const bg     = getMergedContentDB().backgrounds.find(b => b.id === id);
-  const detail = BG_DETAIL[id];
-  // FIXED (disclosed pre-existing bug): the "Homebrew" tag used to be
-  // driven by `!detail` (no BG_DETAIL entry) — an official-but-undetailed
-  // background (e.g. a future official 2024 background with no personality
-  // table yet) would incorrectly show "Homebrew". Real membership check.
+  // The personality pickers' options: the background's own table (homebrew), or the SRD's for its id (Acolyte).
+  const characteristics = characteristicsFor(bg);
+  // The "Homebrew" tag is a real membership check, not "has no personality table".
   const isHomebrew = !!bg && homebrewBackgroundIds.includes(bg.id);
   // FILTER-METADATA-2: skill proficiencies read straight from the
   // background's own Feature effects — real for both official AND
-  // homebrew backgrounds, not just the 13 with a BG_DETAIL entry.
+  // homebrew backgrounds.
   const skillProficiencies = bg ? backgroundSkillGrants(bg) : [];
   const toolProficiencies  = bg?.toolProficiencies ?? [];
 
@@ -422,8 +306,7 @@ function BackgroundDetail({ id }: { id: string }) {
     // Strip old background's skill proficiencies before applying the new
     // one's, so changing background doesn't stack skills from both.
     // FILTER-METADATA-2: previously a hardcoded, background-id-keyed
-    // BG_SKILL_MAP duplicating BG_DETAIL's own skillProficiencies (and only
-    // covering the 13 official backgrounds). Replaced with the same
+    // BG_SKILL_MAP covering only the official backgrounds. Replaced with the same
     // effect-derivation the grant side already used — one source of truth,
     // and it now correctly untrains a PREVIOUS homebrew background's
     // skills too, which the old hardcoded map never could.
@@ -557,42 +440,33 @@ function BackgroundDetail({ id }: { id: string }) {
         toolProficiencies.map((t, i) => <Text key={i} style={styles.bullet}>{t}</Text>)
       )}
 
-      {detail && (
-        <>
-          <View style={styles.divider} />
-          <Text style={styles.sectionTitle}>Feature</Text>
-          <Text style={styles.featureText}>{detail.feature}</Text>
-
-          <View style={styles.divider} />
-          <Text style={styles.sectionTitle}>Personality</Text>
-
-          <PersonalityPicker label="Trait"  options={detail.traits}  value={trait} onChange={setTrait} />
-          <PersonalityPicker label="Ideal"  options={detail.ideals}  value={ideal} onChange={setIdeal} />
-          <PersonalityPicker label="Bond"   options={detail.bonds}   value={bond}  onChange={setBond}  />
-          <PersonalityPicker label="Flaw"   options={detail.flaws}   value={flaw}  onChange={setFlaw}  />
-        </>
+      <View style={styles.divider} />
+      <Text style={styles.sectionTitle}>Features</Text>
+      {bg.features.length === 0 ? (
+        <Text style={styles.emptyNote}>This background grants no features.</Text>
+      ) : (
+        bg.features.map(f => (
+          <View key={f.id} style={styles.featureBlock}>
+            <Text style={styles.featureName}>{f.name}</Text>
+            <Text style={styles.featureText}>{f.description}</Text>
+          </View>
+        ))
       )}
 
-      {!detail && (
+      <View style={styles.divider} />
+      {characteristics ? (
         <>
-          <View style={styles.divider} />
-          <Text style={styles.sectionTitle}>Features</Text>
-          {bg.features.length === 0 ? (
-            <Text style={styles.emptyNote}>This background grants no features.</Text>
-          ) : (
-            bg.features.map(f => (
-              <View key={f.id} style={styles.featureBlock}>
-                <Text style={styles.featureName}>{f.name}</Text>
-                <Text style={styles.featureText}>{f.description}</Text>
-              </View>
-            ))
-          )}
-          <View style={styles.divider} />
-          <Text style={styles.sub}>
-            Traits, ideals, bonds, and flaws aren't predefined for this background —
-            jot yours down on the Notes tab after creation.
-          </Text>
+          <Text style={styles.sectionTitle}>Personality</Text>
+          {characteristics.traits.length > 0 && <PersonalityPicker label="Trait" options={characteristics.traits} value={trait} onChange={setTrait} />}
+          {characteristics.ideals.length > 0 && <PersonalityPicker label="Ideal" options={characteristics.ideals} value={ideal} onChange={setIdeal} />}
+          {characteristics.bonds.length > 0  && <PersonalityPicker label="Bond"  options={characteristics.bonds}  value={bond}  onChange={setBond}  />}
+          {characteristics.flaws.length > 0  && <PersonalityPicker label="Flaw"  options={characteristics.flaws}  value={flaw}  onChange={setFlaw}  />}
         </>
+      ) : (
+        <Text style={styles.sub}>
+          Traits, ideals, bonds, and flaws aren't predefined for this background —
+          jot yours down on the Notes tab after creation.
+        </Text>
       )}
 
       {flexAsi && (

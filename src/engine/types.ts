@@ -540,10 +540,25 @@ export type CharClass  = {
   /** Where this homebrew came from (a book, a creator, a post). Optional; set by the builders and kept with the content. */
   origin?: ContentOrigin;
 };
+/** Suggested personality traits, ideals, bonds and flaws a background offers in character creation. */
+export type BackgroundCharacteristics = {
+  traits:   string[];
+  ideals:   string[];
+  bonds:    string[];
+  flaws:    string[];
+};
+
 export type Background = {
   id: string;
   name: string;
   features: Feature[];
+  /**
+   * The pickers creation offers for this background. A homebrew background
+   * writes its own in the background builder; the SRD's Acolyte table lives in
+   * content/backgrounds/characteristics.ts (see characteristicsFor) so the
+   * signed pack record is unchanged.
+   */
+  characteristics?: BackgroundCharacteristics;
   /** Same rationale as Race.homebrewDraft — lossless edit-mode round-tripping. */
   homebrewDraft?: Record<string, unknown>;
   /**

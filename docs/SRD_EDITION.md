@@ -24,7 +24,18 @@ Checks that pass on this tree:
 
 - Both packs rebuild from the source in this repository with the same content hash as the packs the app ships.
 - A scan of the tree for the names and ids of removed content finds none.
+- The text is checked, not only the ids (`src/content/__tests__/srdTextProvenance.test.ts`, against the text of the two SRD PDFs in `third_party/wotc/srd`):
+  - every spell in each pack has an entry of that name in its SRD and is worded substantially as that SRD words it;
+  - every spell record in the source is an SRD 5.1 spell or carries its SRD 5.2.1 wording exactly;
+  - the background personality tables are SRD 5.1 text word for word, and no source file names a 2014 background feature that is not in SRD 5.1;
+  - no spell text links to another site, apart from the records listed below.
 - Type-check and the full Jest suite pass. Tests that asserted removed content were removed with it.
+
+### Corrected after the first release
+
+- Fifteen spells that are only in SRD 5.2.1 (Chromatic Orb, Dissonant Whispers, Ensnaring Strike, Hex, Ice Knife, Ray of Sickness, Searing Smite, Dragon's Breath, Mind Spike, Phantasmal Force, Aura of Life, Charm Monster, Vitriolic Sphere, Tsunami, Power Word Heal) had their 2014 wording, from other books, in the source records. The id check passed them because the same ids exist in SRD 5.2.1. The records now carry the SRD 5.2.1 wording. The packs did not change: they only read those records' ids and classes, and their 2024 text already came from SRD 5.2.1.
+- The creation screen held the feature names and personality tables of the twelve 2014 backgrounds that are not in SRD 5.1. They are removed. The Acolyte's tables are the SRD 5.1 text in full, as data (`src/content/backgrounds/characteristics.ts`), and homebrew backgrounds can carry their own.
+- Eighteen SRD 5.1 spell records in the signed 5.1 pack still carry links to the third-party site their text was collected from (Arcane Lock, Astral Projection, Awaken, Clairvoyance, Contact Other Plane, Contagion, Find Steed, Find Traps, Gentle Repose, Giant Insect, Imprisonment, Knock, Locate Creature, Modify Memory, Arcanist's Magic Aura, Resilient Sphere, Phantom Steed, Speak with Plants). The app shows their text without the links. Removing them from the file needs the pack to be rebuilt and re-signed with the project's key.
 
 ## Limits
 
