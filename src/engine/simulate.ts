@@ -2,10 +2,10 @@
 // Generic before/after/diff preview primitive. Lets UI code show a player
 // what a mutation (rest, feat grant, equip, ...) will actually do before
 // they commit to it, reusing the engine's own pure recompute pipeline and
-// the diffing utility already built for LAN sync (src/sync/diff.ts).
+// the shared diffing utility (src/utils/deepDiff.ts).
 import { Entity, CampaignRules } from './types';
 import { recomputeDerived } from './pipeline';
-import { deepDiff } from '../sync/diff';
+import { deepDiff } from '../utils/deepDiff';
 import { DEFAULT_RULES } from '../store/characterStore';
 
 export type SimulationResult = {

@@ -28,7 +28,7 @@ import { COMMON_DAMAGE_TYPES } from '../../src/content/traitCompiler';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { recomputeDerived } from '../../src/engine/pipeline';
 import { Entity, CampaignRules, ActionCard, ActivationOption } from '../../src/engine/types';
-import { deepDiff, deepMerge } from '../../src/sync/diff';
+import { deepDiff, deepMerge } from '../../src/utils/deepDiff';
 import { InitiativeEntry, rollInitiativeValue, rollRecharge, findRechargeableFeatures } from '../../src/engine/combat';
 import { DEFAULT_RULES } from '../../src/store/characterStore';
 import { ConcentrationModal } from '../../src/components/sheet/ConcentrationModal';

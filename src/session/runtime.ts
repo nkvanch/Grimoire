@@ -333,7 +333,7 @@ export function getSessionRuntime(): SessionRuntime {
     // Required lazily so importing this module in tests never pulls native modules.
     const lan = require('./lanTransport') as typeof import('./lanTransport');
     const loop = require('./loopbackTransport') as typeof import('./loopbackTransport');
-    const disc = require('../sync/discovery') as typeof import('../sync/discovery');
+    const disc = require('./network') as typeof import('./network');
     const repo = require('../db/sessionDocRepo') as typeof import('../db/sessionDocRepo');
     singleton = new SessionRuntime({
       kv: repo.getSessionKv(),

@@ -11,8 +11,8 @@ import type Server from 'react-native-tcp-socket/lib/types/Server';
 import { ClientTransport, Connection, ServerTransport } from './transport';
 import { SocketConnection } from './socketConnection';
 
-/** Legacy campaign sync uses 7742. */
-export const SESSION_PORT = 7743;
+import { SESSION_PORT } from './ports';
+export { SESSION_PORT };
 
 function nativeReady(): boolean {
   return tcpAvailable();

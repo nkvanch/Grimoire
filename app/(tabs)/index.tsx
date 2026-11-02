@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useCampaignStore }  from '../../src/store/campaignStore';
-import { useSyncStore }      from '../../src/store/syncStore';
+import { useSessionRuntime } from '../../src/session/runtime';
 import { useLastCharacterStore } from '../../src/store/lastCharacterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { resolveIdentityLabels } from '../../src/content/identityLabels';
@@ -110,20 +110,25 @@ function DiceRollerModal({ visible, onClose }: { visible: boolean; onClose: () =
 }
 
 // ── Active Campaign Card ─────────────────────────────────────────────────────
-// Three states driven by campaign + sync status:
+// Three states driven by the campaign and the live session (src/session):
 //   between-sessions: name, quest count, last session note, party size
-//   live:             name + sync dot, player count, DM shortcut
+//   live:             name, who is connected, DM and live-table shortcuts
 
 function ActiveCampaignCard({ onOpen }: { onOpen: () => void }) {
   const router         = useRouter();
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
   const isDm           = useCampaignStore(s => s.isDm);
-  const syncStatus     = useSyncStore(s => s.status);
+  const liveMode       = useSessionRuntime(s => s.mode);
+  const liveStatus     = useSessionRuntime(s => s.status);
+  const liveView       = useSessionRuntime(s => s.view);
+  const myParticipant  = useSessionRuntime(s => s.participantId);
   const characters     = useCharacterStore(s => s.characters);
 
   if (!activeCampaign) return null;
 
-  const isLive        = syncStatus.connected;
+  // "Live" means this device is in a live session right now (src/session), hosting or joined.
+  const isLive        = liveMode !== 'idle' && liveStatus === 'connected';
+  const othersOnline  = Object.values(liveView?.participants ?? {}).filter(p => p.connected && p.id !== myParticipant).length;
   const activeQuests  = (activeCampaign.quests ?? []).filter(q => q.status === 'active');
   const lastEntry     = activeCampaign.sessionLog?.[0] ?? null;
   const partyCount    = activeCampaign.characterIds.length;
@@ -140,9 +145,9 @@ function ActiveCampaignCard({ onOpen }: { onOpen: () => void }) {
             </View>
             <Text style={styles.campaignCardName}>{activeCampaign.name}</Text>
             <Text style={styles.campaignCardMeta}>
-              {isDm
-                ? `${syncStatus.clientCount} player${syncStatus.clientCount !== 1 ? 's' : ''} connected`
-                : 'Connected to DM'}
+              {liveMode === 'hosting'
+                ? `${othersOnline} ${othersOnline === 1 ? 'person' : 'people'} connected`
+                : 'Connected to the live table'}
             </Text>
           </View>
         </View>
@@ -156,8 +161,8 @@ function ActiveCampaignCard({ onOpen }: { onOpen: () => void }) {
               <Text style={styles.campaignActionTxt}>🎲 DM Dashboard</Text>
             </Pressable>
           )}
-          <Pressable style={[styles.campaignActionBtn, styles.campaignActionBtnSecondary]} onPress={onOpen}>
-            <Text style={styles.campaignActionTxtSecondary}>Open Campaign →</Text>
+          <Pressable style={[styles.campaignActionBtn, styles.campaignActionBtnSecondary]} onPress={() => router.push('/live' as any)}>
+            <Text style={styles.campaignActionTxtSecondary}>Live Table →</Text>
           </Pressable>
         </View>
       </Pressable>

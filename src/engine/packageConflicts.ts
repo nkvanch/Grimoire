@@ -24,7 +24,7 @@ import {
 } from './types';
 import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
 import { GrimoirePack, GrimoirePackHomebrew } from './backup';
-import { deepDiff } from '../sync/diff';
+import { deepDiff } from '../utils/deepDiff';
 
 export type ConflictResolution = 'keep_local' | 'replace' | 'copy';
 

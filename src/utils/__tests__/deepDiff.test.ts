@@ -1,10 +1,10 @@
-// src/sync/__tests__/diff.test.ts
+// src/utils/__tests__/deepDiff.test.ts
 // Tests for the deepDiff/deepMerge pair that replaced full-entity sync,
 // fixing the "minor change overwrites unrelated fields" problem. This is
 // the highest-stakes pure logic in the sync layer — a bug here means real
 // data loss across devices, so it gets real coverage, not just device
 // testing.
-import { deepDiff, deepMerge } from '../diff';
+import { deepDiff, deepMerge } from '../deepDiff';
 
 describe('deepDiff', () => {
   it('returns undefined when nothing changed', () => {

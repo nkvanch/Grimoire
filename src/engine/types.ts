@@ -3070,40 +3070,10 @@ export type RiderOffer = {
   reason: string | null;
 };
 
-// ── 11. Sync & campaign system ───────────────────────────────────────────────
+// ── 11. Device identity & campaign system ───────────────────────────────────────────────
 
 /**
- * All state mutations emit a SyncEvent.
- * Events are stored locally in SQLite with applied=false until the device
- * processes them, then applied=true. Unflushed events are replayed on reconnect.
- */
-export type SyncChangeType =
-  | 'hp_change'
-  | 'resource_spend'
-  | 'resource_restore'
-  | 'condition_apply'
-  | 'condition_remove'
-  | 'spell_slot_spend'
-  | 'spell_slot_restore'
-  | 'dm_override_apply'
-  | 'dm_override_cancel'
-  | 'combat_event'
-  | 'initiative_update'
-  | 'entity_full_sync';     // sent when a player first joins — full entity snapshot
-
-export type SyncEvent = {
-  id:             string;
-  sessionId:      string;
-  entityId:       string;
-  changeType:     SyncChangeType;
-  payload:        unknown;
-  authorDeviceId: string;
-  timestamp:      number;
-  applied:        boolean;
-};
-
-/**
- * One device's identity within the sync system.
+ * This device's identity in live sessions and campaigns.
  * deviceId is a UUID generated once on first install (stored in SecureStore).
  * No accounts or logins required.
  */
@@ -3116,8 +3086,8 @@ export type DeviceSession = {
 
 /**
  * Item 14 (Sessions) — a real-world sit-down play session, distinct from
- * DeviceSession (the LAN connection identity) and SyncEvent.sessionId (the
- * connection-session id, which changes every time the DM re-hosts). A
+ * DeviceSession (the device's identity) and a live session's own id (which
+ * changes every time a table is hosted). A
  * session is "active" precisely when the newest entry in
  * Campaign.sessionLog has `startedAt` set but no `endedAt` — deliberately
  * not a separate Campaign.activeSessionId field, so there's exactly one

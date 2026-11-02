@@ -1,7 +1,7 @@
 // Shows a hosted live session's 7-character room code plus a scannable QR
 // encoding the same code, so a joiner can either type it or scan it instead
 // of typing a raw LAN IP. The code only ever encodes the host's IP (see
-// src/sync/discovery.ts) — the joiner always connects on SESSION_PORT.
+// src/session/network.ts) — the joiner always connects on SESSION_PORT.
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

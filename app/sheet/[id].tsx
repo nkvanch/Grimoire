@@ -14,7 +14,6 @@ import { useLastCharacterStore } from '../../src/store/lastCharacterStore';
 import { Alert } from '../../src/utils/alert';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { useSessionStore }  from '../../src/store/sessionStore';
-import { useCombatTurnStore } from '../../src/store/combatTurnStore';
 import { recomputeDerived } from '../../src/engine/pipeline';
 import { applyDamage, applyHealing, applyWildShapeDamage, playerEndTurn, endConcentration } from '../../src/engine/combat';
 import { applyCondition, removeCondition } from '../../src/engine/conditions';
@@ -49,7 +48,7 @@ import { EquipmentPreviewModal } from '../../src/components/sheet/EquipmentPrevi
 import { ExportFormatSheet } from '../../src/components/ExportFormatSheet';
 import { exportCharacter, ExportFormat, ExportAction } from '../../src/io/exportShare';
 import { GlobalDiceRoller } from '../../src/components/GlobalDiceRoller';
-import { SyncStatusDot }   from '../../src/components/SyncStatusDot';
+import { LiveTurnBanner } from '../../src/components/live/LiveTurnBanner';
 import { SafeBottomView }  from '../../src/components/SafeBottomView';
 import { ErrorBoundary }   from '../../src/components/ErrorBoundary';
 import { useSafeGoBack }   from '../../src/hooks/useSafeGoBack';
@@ -95,7 +94,6 @@ export default function CharacterSheetScreen() {
   const ruleAccess = entity ? sheetRuleAccess(campaignRules, entity, customRuleProfiles) : { effectiveRules: campaignRules, canFreeEdit: true };
   const rules = ruleAccess.effectiveRules;
   const freeEditModel = entity ? freeEditUiModel(campaignRules,entity,customRuleProfiles) : null;
-  const turn = useCombatTurnStore();
   const [activeTab, setActiveTab] = useState<TabId>('character');
   const [sheetMode, setSheetMode] = useState<'combat' | 'exploration'>('combat');
   const [freeEditOpen, setFreeEditOpen] = useState(false);
@@ -753,7 +751,6 @@ export default function CharacterSheetScreen() {
             <Text style={styles.backTxt}>← Back</Text>
           </Pressable>
           <Text style={styles.charName} numberOfLines={1} ellipsizeMode="tail">{identity.name || 'Unnamed'}</Text>
-          <SyncStatusDot />
           <Pressable accessibilityRole="button" testID="character-undo" accessibilityLabel="Undo" style={styles.headerIconBtn} disabled={undoStack[0]?.entityId !== id} onPress={undo}><Text style={[styles.headerIcon,undoStack[0]?.entityId!==id&&styles.undoRedoTxtDisabled]}>↶</Text></Pressable>
           <Pressable accessibilityRole="button" testID="character-redo" accessibilityLabel="Redo" style={styles.headerIconBtn} disabled={redoStack[0]?.entityId !== id} onPress={redo}><Text style={[styles.headerIcon,redoStack[0]?.entityId!==id&&styles.undoRedoTxtDisabled]}>↷</Text></Pressable>
           <Pressable accessibilityRole="button" testID="character-more" accessibilityLabel="More character actions" style={styles.headerIconBtn} onPress={()=>setHeaderMenuOpen(true)}><Text style={styles.headerIcon}>⋮</Text></Pressable>
@@ -802,20 +799,8 @@ export default function CharacterSheetScreen() {
         {issues.length>0&&<MenuAction icon={issues.some(i=>i.severity==='error')?'⛔':'⚠️'} label={`Diagnostics (${issues.length})`} onPress={()=>{setHeaderMenuOpen(false);setIssuesOpen(true)}} />}
       </View></Pressable></Modal>
 
-      {/* Live-play turn banner — only while the DM has an active encounter
-          running and this device is a connected player (turn.active is
-          false whenever offline/no combat/not a player, so this renders
-          nothing in every other case). Player devices previously had zero
-          visibility into whose turn it was during DM-run combat. */}
-      {turn.active && (
-        <View style={[styles.turnBanner, turn.currentEntityId === entity?.id && styles.turnBannerMine]}>
-          <Text style={styles.turnBannerTxt}>
-            {turn.currentEntityId === entity?.id
-              ? '⚔️ YOUR TURN'
-              : `Round ${turn.round} — ${turn.currentName ?? '…'}'s turn`}
-          </Text>
-        </View>
-      )}
+      {/* Whose turn it is, while this device plays this character in a live session's running encounter. */}
+      <LiveTurnBanner characterId={entity?.id} />
 
       {/* Surfaces a failed local save instead of only logging it — a write
           failure used to leave the UI looking correct while the disk
@@ -1084,14 +1069,6 @@ const styles = StyleSheet.create({
   modeTxt:       { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.bold },
   modeTxtActive: { color: Colors.gold },
 
-  turnBanner: {
-    paddingVertical: 6, paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surfaceHigh,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    alignItems: 'center',
-  },
-  turnBannerMine: { backgroundColor: Colors.gold + '33', borderBottomColor: Colors.gold },
-  turnBannerTxt:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
 
   persistErrorBanner: {
     paddingVertical: 6, paddingHorizontal: Spacing.md,

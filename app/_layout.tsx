@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, ThemeProvider, DarkTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform, Pressable } from 'react-native';
 import { useLayout } from '../src/platform/layout';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
@@ -25,9 +25,6 @@ import { useSessionStore }   from '../src/store/sessionStore';
 import { useCampaignStore }  from '../src/store/campaignStore';
 import { useEncounterStore } from '../src/store/encounterStore';
 import { useHomebrewStore }  from '../src/store/homebrewStore';
-import { syncManager }       from '../src/sync/syncManager';
-import { useSyncStore }      from '../src/store/syncStore';
-import { useCombatTurnStore } from '../src/store/combatTurnStore';
 import { hydrateCombatStateOnBoot } from '../src/store/combatStore';
 import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
 import { loadDraftState } from '../src/db/draftRepo';
@@ -194,45 +191,6 @@ export default function RootLayout() {
           }
         } catch (e) { console.error('[_layout] clearing stale session effects failed:', e); }
 
-        // 6. Wire up the sync manager — must run after stores are hydrated
-        try {
-          const { applyIncomingEntity, applyIncomingPatch } = useCharacterStore.getState();
-          const { applyIncomingCampaign, applyIncomingCampaignPatch } = useCampaignStore.getState();
-          const { setStatus }           = useSyncStore.getState();
-          const { setTurn }             = useCombatTurnStore.getState();
-
-          syncManager.initialise({
-            onStatusChange: (status) => {
-              setStatus(status);
-            },
-            onEntityReceived: (entity) => {
-              void applyIncomingEntity(entity);
-            },
-            onEntityPatchReceived: (entityId, patch) => {
-              void applyIncomingPatch(entityId, patch);
-            },
-            onCampaignReceived: (campaign) => {
-              void applyIncomingCampaign(campaign);
-            },
-            onCampaignPatchReceived: (campaignId, patch) => {
-              void applyIncomingCampaignPatch(campaignId, patch);
-            },
-            onCombatTurnReceived: (turn) => {
-              setTurn(turn);
-            },
-            onSyncEvent: (event) => {
-              // DM responds to entity_full_sync requests from players
-              if (event.changeType === 'entity_full_sync' && event.payload === null) {
-                const entity = useCharacterStore.getState().characters
-                  .find(c => c.id === event.entityId);
-                if (entity) syncManager.broadcastEntity(entity);
-              }
-            },
-          });
-        } catch (e) {
-          console.error('[_layout] Sync manager init failed:', e);
-        }
-
         // 6b. Keep characterStore.rules synchronized with the active
         // campaign's own rules — every engine call in the app reads
         // characterStore.rules, but Campaign.rules used to be written once
@@ -241,7 +199,7 @@ export default function RootLayout() {
         // different house rules. Subscribed here (not scattered across
         // every campaignStore call site that can set activeCampaign) so
         // it's one choke point regardless of HOW activeCampaign changed —
-        // join, switch, snapshot/patch sync, or boot restore. Leaving a
+        // create, switch, or boot restore. Leaving a
         // campaign (activeCampaign becomes null) intentionally leaves
         // characterStore.rules as-is — solo play keeps whatever the device's
         // own default already was, same as before this existed.
@@ -251,13 +209,12 @@ export default function RootLayout() {
           }
         });
 
-        // 7. Restore campaign state and re-establish sync if a campaign was
-        //    active before the app was last closed. loadCampaigns sets isDm and
-        //    activeCampaign from the persisted session; resumeSync then re-hosts
-        //    (DM) or reconnects (player). Both are safe no-ops when offline.
+        // 7. Restore campaign state if a campaign was active before the app
+        //    was last closed. loadCampaigns sets isDm and activeCampaign from
+        //    the persisted session. Nothing reconnects here: a live session
+        //    is always started on purpose (src/session).
         try {
           await useCampaignStore.getState().loadCampaigns();
-          await useCampaignStore.getState().resumeSync();
         } catch (e) {
           console.error('[_layout] Campaign restore failed:', e);
         }
@@ -290,28 +247,6 @@ export default function RootLayout() {
       if (v !== 'true') router.replace('/onboarding' as any);
     }).catch(() => { /* if the check fails, just skip onboarding rather than block startup */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbReady]);
-
-  // Item 16 (LAN/session UX) — resumeSync() only ever ran once, at cold
-  // boot. A device that sleeps/loses WiFi mid-session (phone locks, walks
-  // out of range) never re-triggers it: JS timers are typically suspended
-  // during sleep, so the client's own backoff retries may have already
-  // silently exhausted themselves in the background by the time the app is
-  // reopened, leaving the player stuck until they notice and manually find
-  // the buried "Enter a new room code" flow. Re-attempting on every
-  // foreground transition (only when not already connected — this is not a
-  // periodic poll, just a resume hook) closes that gap for free: startAsClient
-  // (and startAsServer) already tear down any stale connection first, so this
-  // is always safe to call, never doubles up a working connection.
-  useEffect(() => {
-    if (!dbReady) return;
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-      if (useSyncStore.getState().status.connected) return;
-      if (!useCampaignStore.getState().activeCampaign) return;
-      useCampaignStore.getState().resumeSync().catch(e => console.error('[_layout] Foreground resumeSync failed:', e));
-    });
-    return () => sub.remove();
   }, [dbReady]);
 
   // First launch with no content packs installed: offer the SRD packs once (the choice is remembered, and skipping is fine).

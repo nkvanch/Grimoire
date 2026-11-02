@@ -8,10 +8,9 @@
 // here (root-level __mocks__/<package-name>.js) for any node_modules
 // package, no per-test-file `jest.mock()` call needed.
 //
-// None of the current test suites (src/engine/**, src/sync/**) actually
-// call into sync at runtime — they only transitively import characterStore.ts
-// (for makeEmptyEntity/DEFAULT_RULES), which imports the sync layer, which
-// imports this package. This stub just needs to load without crashing; the
+// Most test suites never open a socket — they only transitively import the
+// live-session transport (src/session/lanTransport.ts), which imports this
+// package. This stub just needs to load without crashing; the
 // functions below are safe no-ops in case anything ever does call them.
 
 function noop() {}
