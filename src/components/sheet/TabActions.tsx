@@ -3,7 +3,11 @@
 import { useState, useCallback, useEffect, memo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, RiderOffer, OutcomeOffer } from '../../engine/types';
+import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, RiderOffer, OutcomeOffer, CardExplainRef } from '../../engine/types';
+import { AuditModal } from './AuditModal';
+import { useCampaignStore } from '../../store/campaignStore';
+import { useSessionStore } from '../../store/sessionStore';
+import { DEFAULT_RULES } from '../../store/characterStore';
 import { ridersForCard, applyRider } from '../../engine/riders';
 import { outcomeOffersForCard, confirmOutcome, dismissOutcomes } from '../../engine/outcomes';
 import { endWildShape, endAttackSequence } from '../../engine/combat';
@@ -198,9 +202,11 @@ export interface UseModalProps {
    *  rolled and how to log it. */
   onRoll:  (crit: boolean) => DiceRoll | null;
   onClose: () => void;
+  /** Opens the breakdown of one of the card's numbers (to hit, damage bonus, save DC). */
+  onExplain?: (ref: CardExplainRef) => void;
 }
 
-export function UseModal({ card, riders, onApplyRider, outcomeOffers, onConfirmOutcome, onDismissOutcomes, onRoll, onClose }: UseModalProps) {
+export function UseModal({ card, riders, onApplyRider, outcomeOffers, onConfirmOutcome, onDismissOutcomes, onRoll, onClose, onExplain }: UseModalProps) {
   const insets = useSafeAreaInsets();
   const [result, setResult] = useState<DiceRoll | null>(null);
   const [crit, setCrit] = useState(false);
@@ -236,6 +242,16 @@ export function UseModal({ card, riders, onApplyRider, outcomeOffers, onConfirmO
           <Text style={styles.modalL1}>{card.layer1}</Text>
           <Text style={styles.modalL2}>{card.layer2}</Text>
           {card.layer3 ? <Text style={styles.modalL3}>{card.layer3}</Text> : null}
+          {onExplain && card.explain && card.explain.length > 0 && (
+            <View style={styles.explainRow}>
+              {card.explain.map(ref => (
+                <Pressable key={ref.stat} style={styles.explainChip} onPress={() => onExplain(ref)}
+                  accessibilityRole="button" accessibilityLabel={`${ref.label}: show how it is worked out`} testID={`card-why-${ref.stat}`}>
+                  <Text style={styles.explainChipTxt}>ⓘ {ref.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           {card.triggerNote ? <Text style={styles.modalOutcome}>{card.triggerNote}</Text> : null}
           {card.outcomes.map((line, i) => (
             <Text key={i} style={styles.modalOutcome}>{line}</Text>
@@ -704,6 +720,11 @@ interface Props {
 
 function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
   const [activeCard, setActiveCard] = useState<ActionCard | null>(null);
+  // Which card number's breakdown is open ("why +5 to hit?"), over the card's own sheet.
+  const [explainRef, setExplainRef] = useState<CardExplainRef | null>(null);
+  const isDm       = useCampaignStore(s => s.isDm);
+  const campaignId = useCampaignStore(s => s.activeCampaign?.id ?? '');
+  const deviceId   = useSessionStore(s => s.session?.deviceId ?? '');
   // A-57: set instead of activeCard when a card declares activation.options
   // — the picker must resolve BEFORE spending, since handleUse below
   // otherwise spends immediately on tap. Rules-engine blocker RE-AUDIT
@@ -1001,6 +1022,18 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
         onDismissOutcomes={() => activeCard && onEntityUpdate?.(dismissOutcomes(entity, activeCard.featureId))}
         onRoll={rollForCard}
         onClose={handleCloseUseModal}
+        onExplain={setExplainRef}
+      />
+      <AuditModal
+        entity={entity}
+        stat={explainRef?.stat ?? null}
+        label={explainRef ? `${activeCard?.name ?? ''} — ${explainRef.label}` : ''}
+        rules={rules ?? DEFAULT_RULES}
+        isDm={isDm}
+        campaignId={campaignId}
+        deviceId={deviceId}
+        onUpdate={updated => onEntityUpdate?.(updated)}
+        onClose={() => setExplainRef(null)}
       />
       <ActivationOptionModal
         entity={entity}
@@ -1098,6 +1131,9 @@ const styles = StyleSheet.create({
   modalL1:   { fontSize: FontSize.xs, color: Colors.textDim },
   modalL2:   { fontSize: FontSize.sm, color: Colors.textSecondary },
   modalL3:   { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic' },
+  explainRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
+  explainChip:    { borderWidth: 1, borderColor: Colors.gold + '66', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+  explainChipTxt: { fontSize: FontSize.xs, color: Colors.gold },
   modalOutcome: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 1 },
   riderBtn:    { borderWidth: 1, borderColor: Colors.gold, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginTop: Spacing.sm },
   riderBtnOff: { borderColor: Colors.border, opacity: 0.6 },

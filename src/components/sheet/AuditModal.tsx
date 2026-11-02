@@ -93,7 +93,7 @@ export function AuditModal({
             {mode === 'plain' && (
               <View style={styles.plainCard}>
                 {entries.length === 0 ? (
-                  <Text style={styles.empty}>No breakdown available.</Text>
+                  <Text style={styles.empty}>This isn't a number the sheet works out.</Text>
                 ) : (
                   <Text style={styles.plainSentence}>
                     {buildPlainSentence(total, entries)}
@@ -122,7 +122,7 @@ export function AuditModal({
                   </View>
                 ))}
                 {entries.length === 0 && (
-                  <Text style={styles.empty}>No breakdown available.</Text>
+                  <Text style={styles.empty}>This isn't a number the sheet works out.</Text>
                 )}
               </ScrollView>
             )}
