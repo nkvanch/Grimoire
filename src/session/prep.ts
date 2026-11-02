@@ -212,6 +212,13 @@ export class PrepService {
   async remove(campaignId: string): Promise<void> {
     await this.kv.delete(PREP_PREFIX + campaignId);
   }
+
+  /** Writes a whole preparation document as it is, e.g. one restored from a backup. Same live-field rule as edit(). */
+  async restore(prep: CampaignPrep): Promise<void> {
+    const live = findLiveFields(prep);
+    if (live.length > 0) throw new Error(`Preparation must not contain live-session fields: ${live.join(', ')}`);
+    await this.kv.set(PREP_PREFIX + prep.campaignId, prep);
+  }
 }
 
 // ── Activation builders (prepared -> live payloads) ─────────────────────────

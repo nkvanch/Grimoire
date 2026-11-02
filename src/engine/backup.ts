@@ -9,7 +9,8 @@
 // Designed once now so the bigger import pipeline doesn't need a new file
 // format later — exactly what the roadmap asked for.
 //
-import { Entity, Race, Subrace, CharClass, HomebrewSubclass, Item, Spell, Background, Feature, Feat, Condition, SpellList, RulesetId } from './types';
+import { Entity, Race, Subrace, CharClass, HomebrewSubclass, Item, Spell, Background, Feature, Feat, Condition, SpellList, RulesetId, Campaign, PreparedEncounter, CustomRuleProfile } from './types';
+import type { CampaignPrep } from '../session/prep';
 import { MonsterTemplate } from '../content/monsters/types';
 import { ContentCacheType } from '../db/contentCacheRepo';
 import { validateContent, validateFeature, validateEntityShape } from './homebrewValidator';
@@ -73,6 +74,21 @@ export type PackageMediaAsset = {
   data?:    string;
 };
 
+/**
+ * A DM's own data, carried only in a personal backup ('backup' packType): the
+ * campaigns on this device, the encounters prepared for them, the user's own
+ * Custom Rule Profiles, and the live-table preparation kept for each campaign
+ * (src/session/prep.ts). Without it a lost or reset phone lost every campaign,
+ * since there is no cloud copy by design. Optional, so an older app reading a
+ * newer backup ignores it and a newer app reading an older backup sees none.
+ */
+export type BackupCampaignData = {
+  campaigns:          Campaign[];
+  preparedEncounters: PreparedEncounter[];
+  customRuleProfiles: CustomRuleProfile[];
+  livePrep:           CampaignPrep[];
+};
+
 export type GrimoirePack = {
   formatVersion: number;              // GRIMOIRE_PACK_FORMAT_VERSION at export time
   packType:      'backup' | 'content-pack';
@@ -85,6 +101,8 @@ export type GrimoirePack = {
    *  content-pack, the actual payload being shared). Omitted/empty arrays
    *  mean "none of that type in this pack". */
   homebrew?:     GrimoirePackHomebrew;
+  /** Campaigns and the DM data that belongs with them. Personal backups only. */
+  campaignData?: BackupCampaignData;
 
   // ── HOMEBREW-PACKAGE-1: package-specific metadata ──────────────────────
   // All optional and ONLY ever set for packType:'content-pack' packages
@@ -119,10 +137,11 @@ export type GrimoirePack = {
 };
 
 export function createBackupPack(
-  characters: Entity[],
-  homebrew:   GrimoirePackHomebrew,
-  deviceId:   string | null,
-  appVersion: string,
+  characters:    Entity[],
+  homebrew:      GrimoirePackHomebrew,
+  deviceId:      string | null,
+  appVersion:    string,
+  campaignData?: BackupCampaignData,
 ): GrimoirePack {
   return {
     formatVersion: GRIMOIRE_PACK_FORMAT_VERSION,
@@ -132,6 +151,17 @@ export function createBackupPack(
     deviceId,
     characters,
     homebrew,
+    ...(campaignData ? { campaignData } : {}),
+  };
+}
+
+/** How many campaigns, prepared encounters, rule profiles and live-table preparations a pack carries. */
+export function countCampaignData(data: BackupCampaignData | undefined): { campaigns: number; encounters: number; ruleProfiles: number; livePrep: number } {
+  return {
+    campaigns:    data?.campaigns?.length ?? 0,
+    encounters:   data?.preparedEncounters?.length ?? 0,
+    ruleProfiles: data?.customRuleProfiles?.length ?? 0,
+    livePrep:     data?.livePrep?.length ?? 0,
   };
 }
 
@@ -222,6 +252,14 @@ export function validateGrimoirePack(data: unknown): string | null {
   }
   if (!Array.isArray(p.characters)) {
     return 'Missing characters list — this file may be corrupted.';
+  }
+  if (p.campaignData !== undefined) {
+    if (p.packType !== 'backup') return 'Only a personal backup can carry campaigns — this file may be corrupted.';
+    const d = p.campaignData as Partial<BackupCampaignData> | null;
+    if (typeof d !== 'object' || d === null) return 'The campaign section of this backup is damaged.';
+    for (const key of ['campaigns', 'preparedEncounters', 'customRuleProfiles', 'livePrep'] as const) {
+      if (d[key] !== undefined && !Array.isArray(d[key])) return 'The campaign section of this backup is damaged.';
+    }
   }
   return null;
 }
@@ -316,6 +354,27 @@ export function validatePackContents(pack: GrimoirePack): string[] {
         const { valid, errors } = validateFeature(f, `${label}[${i}]`);
         if (!valid) problems.push(`character "${name}" ${label}[${i}]: ${errors.join('; ')}`);
       }
+    }
+  }
+
+  const data = pack.campaignData;
+  if (data) {
+    const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+    const str = (v: unknown) => typeof v === 'string' && v.length > 0;
+    for (const c of data.campaigns ?? []) {
+      const label = isObj(c) && typeof c.name === 'string' ? c.name : '(unnamed campaign)';
+      if (!isObj(c) || !str(c.id) || typeof c.name !== 'string' || !isObj(c.rules) || !Array.isArray(c.characterIds)) {
+        problems.push(`campaign "${label}": missing its id, name, rules or party list`);
+      }
+    }
+    for (const e of data.preparedEncounters ?? []) {
+      if (!isObj(e) || !str(e.id) || typeof e.name !== 'string') problems.push('a prepared encounter is missing its id or name');
+    }
+    for (const r of data.customRuleProfiles ?? []) {
+      if (!isObj(r) || !str(r.id) || typeof r.name !== 'string' || !isObj(r.rules)) problems.push('a rule profile is missing its id, name or rules');
+    }
+    for (const prep of data.livePrep ?? []) {
+      if (!isObj(prep) || !str(prep.campaignId)) problems.push('a live-table preparation is missing its campaign');
     }
   }
 

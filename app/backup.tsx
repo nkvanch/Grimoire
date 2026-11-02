@@ -1,8 +1,9 @@
 // app/backup.tsx
-// Backup & Restore — export all characters + homebrew to a .grimoire-pack
-// file via the OS share sheet, or import one back in. This is the ONLY way
-// a character survives a lost/reset device (see docs/PRIVACY_POLICY.md —
-// there is no cloud backup by design). docs/ROADMAP_1.0.md Phase 3.2.
+// Backup & Restore — export all characters, homebrew and campaigns (with the
+// DM's prepared encounters, rule profiles and live-table preparation) to a
+// .grimoire-pack file via the OS share sheet, or import one back in. This is
+// the ONLY way that data survives a lost/reset device (see
+// docs/PRIVACY_POLICY.md — there is no cloud backup by design).
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -10,7 +11,11 @@ import { useCharacterStore } from '../src/store/characterStore';
 import { Alert } from '../src/utils/alert';
 import { useHomebrewStore } from '../src/store/homebrewStore';
 import { useSessionStore } from '../src/store/sessionStore';
-import { exportBackup, pickAndValidateBackup, ImportPreview, findStaleCharacterOverwrites, findHomebrewIdCollisions, HomebrewIdCollision } from '../src/io/backupIO';
+import { exportBackup, pickAndValidateBackup, ImportPreview, findStaleCharacterOverwrites, findHomebrewIdCollisions, HomebrewIdCollision, collectCampaignBackupData, restoreCampaignBackupData } from '../src/io/backupIO';
+import { countCampaignData } from '../src/engine/backup';
+import { useCampaignStore } from '../src/store/campaignStore';
+import { useEncounterStore } from '../src/store/encounterStore';
+import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
 import { recordInstalledPack, PackItemRef } from '../src/db/packRegistryRepo';
 import { loadAllEntityMeta } from '../src/db/entityRepo';
 import { HomebrewContent } from '../src/db/contentCacheRepo';
@@ -21,6 +26,7 @@ export default function BackupScreen() {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(tabs)');
   const characters = useCharacterStore(s => s.characters);
+  const campaignCount = useCampaignStore(s => s.campaigns.length);
   const applyIncomingEntity = useCharacterStore(s => s.applyIncomingEntity);
   const homebrew = useHomebrewStore(s => s);
   const saveHomebrewItem = useHomebrewStore(s => s.saveItem);
@@ -65,8 +71,10 @@ export default function BackupScreen() {
           feats:       homebrew.feats,
           monsters:    homebrew.monsters,
           conditions:  homebrew.conditions,
+          spellLists:  homebrew.spellLists,
         },
         deviceId,
+        await collectCampaignBackupData(),
       );
     } catch (e: any) {
       Alert.alert('Export failed', e?.message ?? 'Something went wrong.');
@@ -97,10 +105,10 @@ export default function BackupScreen() {
     if (!preview) return;
     setCommitting(true);
     try {
-      // Characters: applyIncomingEntity already handles add-or-replace-by-id
-      // and persists to SQLite — same function the sync system uses.
+      // Characters: applyIncomingEntity handles add-or-replace-by-id and
+      // persists to SQLite.
       for (const entity of preview.pack.characters) {
-        applyIncomingEntity(entity);
+        await applyIncomingEntity(entity);
       }
       // Homebrew: saveItem is an upsert per category. itemRefs collects what
       // was actually imported so a content-pack (not a personal backup —
@@ -138,11 +146,22 @@ export default function BackupScreen() {
         for (const ft of hb.feats ?? [])      await saveAndTrack('feat', ft);
         for (const m of hb.monsters ?? [])    await saveAndTrack('monster', m);
         for (const c of hb.conditions ?? [])  await saveAndTrack('condition', c);
+        for (const sl of hb.spellLists ?? []) await saveAndTrack('spellList', sl);
       }
-      setResultMsg(
-        `Imported ${preview.characterCount} character${preview.characterCount !== 1 ? 's' : ''}` +
-        (preview.homebrewCount > 0 ? ` and ${preview.homebrewCount} homebrew item${preview.homebrewCount !== 1 ? 's' : ''}.` : '.')
-      );
+      // Campaigns and the DM data that belongs with them (personal backups only), then reload
+      // the stores that show them so the restore is visible without restarting the app.
+      const restoredCampaigns = preview.pack.packType === 'backup' && preview.pack.campaignData
+        ? countCampaignData(preview.pack.campaignData).campaigns : 0;
+      if (preview.pack.packType === 'backup' && preview.pack.campaignData) {
+        await restoreCampaignBackupData(preview.pack.campaignData, { backupDeviceId: preview.pack.deviceId, thisDeviceId: deviceId });
+        await useCampaignStore.getState().loadCampaigns();
+        await useEncounterStore.getState().loadEncounters();
+        await useCustomRuleProfileStore.getState().load();
+      }
+      const parts = [`${preview.characterCount} character${preview.characterCount !== 1 ? 's' : ''}`];
+      if (preview.homebrewCount > 0) parts.push(`${preview.homebrewCount} homebrew item${preview.homebrewCount !== 1 ? 's' : ''}`);
+      if (restoredCampaigns > 0) parts.push(`${restoredCampaigns} campaign${restoredCampaigns !== 1 ? 's' : ''}`);
+      setResultMsg(`Imported ${parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0]}.`);
       setPreview(null);
       setStaleWarnings([]);
       setIdCollisions([]);
@@ -177,8 +196,9 @@ export default function BackupScreen() {
       <Section title="Export">
         <Text style={styles.body}>
           Creates a .grimoire-pack file with all {characters.length} of your
-          characters and your homebrew content, then opens the share sheet
-          so you choose where to save it.
+          characters, your homebrew content and your {campaignCount} campaign{campaignCount !== 1 ? 's' : ''} (with
+          their prepared encounters, your rule profiles and your live-table
+          preparation), then opens the share sheet so you choose where to save it.
         </Text>
         <Pressable style={[styles.actionBtn, exporting && styles.actionBtnDisabled]} onPress={handleExport} disabled={exporting}>
           {exporting ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.actionBtnTxt}>Export Backup</Text>}
@@ -188,8 +208,8 @@ export default function BackupScreen() {
       <Section title="Import">
         <Text style={styles.body}>
           Pick a .grimoire-pack file to restore. You'll see what's inside
-          before anything is added — existing characters with the same ID
-          are updated, not duplicated.
+          before anything is added — existing characters and campaigns with
+          the same ID are updated, not duplicated.
         </Text>
         <Pressable style={[styles.actionBtnSecondary, importing && styles.actionBtnDisabled]} onPress={handlePickFile} disabled={importing}>
           {importing ? <ActivityIndicator color={Colors.gold} /> : <Text style={styles.actionBtnSecondaryTxt}>Choose File…</Text>}
@@ -215,6 +235,32 @@ export default function BackupScreen() {
               <Text style={styles.previewLabel}>Homebrew items</Text>
               <Text style={styles.previewValue}>{preview.homebrewCount}</Text>
             </View>
+            {preview.pack.packType === 'backup' && (() => {
+              const counts = countCampaignData(preview.pack.campaignData);
+              return (
+                <>
+                  <View style={styles.previewRow}>
+                    <Text style={styles.previewLabel}>Campaigns</Text>
+                    <Text style={styles.previewValue}>{counts.campaigns}</Text>
+                  </View>
+                  {counts.encounters > 0 && (
+                    <View style={styles.previewRow}>
+                      <Text style={styles.previewLabel}>Prepared encounters</Text>
+                      <Text style={styles.previewValue}>{counts.encounters}</Text>
+                    </View>
+                  )}
+                  {counts.ruleProfiles > 0 && (
+                    <View style={styles.previewRow}>
+                      <Text style={styles.previewLabel}>Rule profiles</Text>
+                      <Text style={styles.previewValue}>{counts.ruleProfiles}</Text>
+                    </View>
+                  )}
+                  {!preview.pack.campaignData && (
+                    <Text style={styles.previewNote}>This backup was made by an older version and has no campaigns in it.</Text>
+                  )}
+                </>
+              );
+            })()}
             <Text style={styles.previewNote}>
               Created {new Date(preview.pack.createdAt).toLocaleDateString()}
               {'  \u00b7  '}Grimoire v{preview.pack.appVersion}
