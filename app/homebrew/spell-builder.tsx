@@ -2,6 +2,7 @@
 // Homebrew spell builder — rebuilt with quick-pick presets (+ custom fallback)
 // for level/school/casting time/range/duration, real V/S/M component
 // checkboxes instead of comma-separated text, and spell-type tagging.
+import { charactersUsing, usedByWarning } from '../../src/content/contentUsage';
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
@@ -190,11 +191,21 @@ export default function SpellBuilderScreen() {
     if (warnings.length > 0) {
       Alert.alert('Warnings', warnings.join('\n') + '\n\nSave anyway?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: () => { void doSave(spell); } },
+        { text: 'Save', onPress: () => { confirmUsersThenSave(spell); } },
       ]);
       return;
     }
-    void doSave(spell);
+    confirmUsersThenSave(spell);
+  }
+
+  // Editing a spell characters have changes their cards too: ask first, naming them (content/contentUsage.ts).
+  function confirmUsersThenSave(spell: Spell) {
+    const warning = editing ? usedByWarning('spell', charactersUsing('spell', editing.id, useCharacterStore.getState().characters)) : null;
+    if (!warning) { void doSave(spell); return; }
+    Alert.alert(warning.title, warning.message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Save', onPress: () => { void doSave(spell); } },
+    ]);
   }
 
   // Doesn't wait on the confirmation Alert's dismissal to navigate — saves

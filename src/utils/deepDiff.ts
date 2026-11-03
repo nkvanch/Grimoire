@@ -1,5 +1,6 @@
-// src/sync/diff.ts
-// Recursive diff/merge for entity sync — replaces the old "always send and
+// src/utils/deepDiff.ts
+// Recursive diff/merge, used for undo-safe store merges, encounter and package
+// comparisons. It began as the entity-sync diff that replaced the old "always send and
 // apply the full entity" model, which caused two real problems Nick reported:
 //   1. Every minor change (e.g. -1 HP) sent the ENTIRE character over the
 //      wire, not just what changed.

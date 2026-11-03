@@ -10,7 +10,6 @@ import { Entity } from '../../engine/types';
 import * as timelineRepo from '../../db/timelineRepo';
 import * as entityRepo from '../../db/entityRepo';
 import * as draftRepo from '../../db/draftRepo';
-import { syncManager } from '../../sync/syncManager';
 
 // updateCharacter/undo/redo all call scheduleSave(), which debounces a real
 // SQLite write behind a 600ms setTimeout — with no initDb() call in this
@@ -27,6 +26,12 @@ afterEach(() => {
 
 function reset(characters: Entity[] = []) {
   useCharacterStore.setState({ characters, undoStack: [], redoStack: [] });
+}
+
+/** A whole-entity replacement from outside the store (a backup being restored), built on the current copy. */
+async function inboundReplace(id: string, fields: Partial<Entity>): Promise<void> {
+  const current = useCharacterStore.getState().characters.find(c => c.id === id)!;
+  await useCharacterStore.getState().applyIncomingEntity({ ...current, ...fields });
 }
 
 function testCharacter(id: string, hp = 20): Entity {
@@ -262,15 +267,15 @@ describe('undo/redo — refuse to apply over an unrelated inbound change (re-aud
     useCharacterStore.setState({ lastPersistError: null });
   });
 
-  it('undo() refuses and surfaces a conflict message when an inbound sync patch landed since the undo entry was captured, leaving both changes intact', async () => {
+  it('undo() refuses and surfaces a conflict message when the character was replaced from outside (a restore) since the undo entry was captured, leaving both changes intact', async () => {
     reset([testCharacter('c1', 20)]);
     useCharacterStore.getState().updateCharacter(
       'c1', e => ({ ...e, resources: { ...e.resources, hp: { ...e.resources.hp, current: 5 } } }), 'Damage',
     );
     const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    // Simulate an inbound sync patch (e.g. a DM correction) landing after
-    // the local edit above, before undo() is ever called.
-    await useCharacterStore.getState().applyIncomingPatch('c1', { notes: 'DM note' });
+    // Simulate an outside replacement (a restore) landing after the local
+    // edit above, before undo() is ever called.
+    await inboundReplace('c1', { notes: 'DM note' });
 
     useCharacterStore.getState().undo();
 
@@ -292,7 +297,7 @@ describe('undo/redo — refuse to apply over an unrelated inbound change (re-aud
     expect(useCharacterStore.getState().lastPersistError).toBeNull();
   });
 
-  it('redo() refuses when an inbound sync patch landed after the undo it would be re-applying over', async () => {
+  it('redo() refuses when an outside replacement landed after the undo it would be re-applying over', async () => {
     reset([testCharacter('c1', 20)]);
     useCharacterStore.getState().updateCharacter(
       'c1', e => ({ ...e, resources: { ...e.resources, hp: { ...e.resources.hp, current: 5 } } }), 'Damage',
@@ -300,7 +305,7 @@ describe('undo/redo — refuse to apply over an unrelated inbound change (re-aud
     useCharacterStore.getState().undo(); // back to HP 20, redo entry pushed
 
     const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    await useCharacterStore.getState().applyIncomingPatch('c1', { notes: 'DM note' });
+    await inboundReplace('c1', { notes: 'DM note' });
 
     useCharacterStore.getState().redo();
 
@@ -323,7 +328,7 @@ describe('undo/redo — refuse to apply over an unrelated inbound change (re-aud
     expect(useCharacterStore.getState().undoStack).toHaveLength(2);
 
     const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    await useCharacterStore.getState().applyIncomingPatch('c1', { notes: 'DM note' });
+    await inboundReplace('c1', { notes: 'DM note' });
 
     useCharacterStore.getState().undo(); // attempts to undo B — refused
     expect(useCharacterStore.getState().characters[0].resources.hp.current).toBe(10);
@@ -341,7 +346,7 @@ describe('undo/redo — refuse to apply over an unrelated inbound change (re-aud
 });
 
 describe('scheduleSave — always persists the LIVE entity at flush time, never a stale snapshot (re-audit A01/A29, item 14)', () => {
-  it('an inbound sync patch landing during the debounce window is what gets persisted, not the pre-patch snapshot captured at schedule time', async () => {
+  it('an outside replacement landing during the debounce window is what gets persisted, not the pre-patch snapshot captured at schedule time', async () => {
     reset([testCharacter('c1', 20)]);
     const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
 
@@ -349,9 +354,9 @@ describe('scheduleSave — always persists the LIVE entity at flush time, never 
       'c1', e => ({ ...e, resources: { ...e.resources, hp: { ...e.resources.hp, current: 5 } } }),
     ); // schedules a debounced save of the HP-5 state
 
-    // Before the debounce fires, an inbound patch (e.g. a DM edit) lands and
-    // persists immediately via its own saveEntity call.
-    await useCharacterStore.getState().applyIncomingPatch('c1', { notes: 'DM note' });
+    // Before the debounce fires, an outside replacement lands and persists
+    // immediately via its own saveEntity call.
+    await inboundReplace('c1', { notes: 'DM note' });
     saveSpy.mockClear(); // only care about what the debounced flush writes next
 
     jest.advanceTimersByTime(600);
@@ -393,53 +398,30 @@ describe('updateCharacter — persistent timeline write (Phase B)', () => {
   });
 });
 
-describe('applyIncomingEntity — owned-character reconnect protection (architecture review P1, S0)', () => {
-  it('does NOT overwrite local state with an incoming snapshot for a character this device owns, and pushes the local copy back up instead', async () => {
-    const ownedSpy = jest.spyOn(syncManager, 'ownedCharacterId', 'get').mockReturnValue('c1');
-    const pushSpy  = jest.spyOn(syncManager, 'pushEntity').mockImplementation(() => {});
-    reset([testCharacter('c1', 6)]); // local: HP 6 (the player's own, correct, un-transmitted edit)
-
-    const staleFromDm = testCharacter('c1', 20); // DM's stale pre-blip copy: still full HP
-    await useCharacterStore.getState().applyIncomingEntity(staleFromDm);
-
-    expect(useCharacterStore.getState().characters[0].resources.hp.current).toBe(6); // local state untouched
-    expect(pushSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', resources: expect.objectContaining({ hp: expect.objectContaining({ current: 6 }) }) }));
-
-    ownedSpy.mockRestore();
-    pushSpy.mockRestore();
-  });
-
-  it('still accepts an incoming snapshot normally for a character this device does NOT own', async () => {
-    const ownedSpy = jest.spyOn(syncManager, 'ownedCharacterId', 'get').mockReturnValue('some_other_character');
+describe('applyIncomingEntity — insert or replace a whole entity', () => {
+  it('replaces the local copy of an existing character', async () => {
     reset([testCharacter('c1', 6)]);
 
-    const incoming = testCharacter('c1', 20);
-    await useCharacterStore.getState().applyIncomingEntity(incoming);
+    await useCharacterStore.getState().applyIncomingEntity(testCharacter('c1', 20));
 
     expect(useCharacterStore.getState().characters[0].resources.hp.current).toBe(20);
-    ownedSpy.mockRestore();
   });
 
-  it('still accepts an incoming snapshot for an owned character when this device has no local copy of it yet (nothing to protect)', async () => {
-    const ownedSpy = jest.spyOn(syncManager, 'ownedCharacterId', 'get').mockReturnValue('c1');
-    reset([]); // no local copy at all
+  it('inserts a character this device has no local copy of', async () => {
+    reset([]);
 
-    const incoming = testCharacter('c1', 20);
-    await useCharacterStore.getState().applyIncomingEntity(incoming);
+    await useCharacterStore.getState().applyIncomingEntity(testCharacter('c1', 20));
 
     expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')?.resources.hp.current).toBe(20);
-    ownedSpy.mockRestore();
   });
 
-  it('still accepts an incoming snapshot for a brand-new, not-yet-locally-known entity even when unclaimed (companion insert path)', async () => {
-    const ownedSpy = jest.spyOn(syncManager, 'ownedCharacterId', 'get').mockReturnValue(null);
+  it('inserts a brand-new entity alongside existing ones (companion insert path)', async () => {
     reset([testCharacter('c1', 20)]);
 
-    const companion = testCharacter('companion1', 5);
-    await useCharacterStore.getState().applyIncomingEntity(companion);
+    await useCharacterStore.getState().applyIncomingEntity(testCharacter('companion1', 5));
 
     expect(useCharacterStore.getState().characters.find(c => c.id === 'companion1')).toBeDefined();
-    ownedSpy.mockRestore();
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')).toBeDefined();
   });
 });
 
@@ -651,66 +633,30 @@ describe('lastPersistError — surfaces SQLite write failures instead of only lo
   });
 });
 
-describe('applyIncomingPatch — normalizes item-instance identity before exposing/persisting (item-identity closure, pass 3 finding B)', () => {
+describe('applyIncomingEntity — normalizes item-instance identity before exposing/persisting (item-identity closure)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     useCharacterStore.setState({ lastPersistError: null });
   });
 
-  it('a patch introducing a legacy identity-less carried item gets an id immediately, no restart required', async () => {
-    reset([testCharacter('c1', 20)]);
+  it('a restored character carrying a legacy identity-less carried item gets an id immediately, no restart required', async () => {
+    reset([]);
     const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-
-    await useCharacterStore.getState().applyIncomingPatch('c1', {
-      inventory: { equipped: [], carried: [{ itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] }] },
+    const legacy = testCharacter('c1', 20);
+    await useCharacterStore.getState().applyIncomingEntity({
+      ...legacy,
+      inventory: { ...legacy.inventory, equipped: [], carried: [{ itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] } as unknown as Entity['inventory']['carried'][number]] },
     });
 
     const entity = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
     expect(entity.inventory.carried).toHaveLength(1);
     expect(typeof entity.inventory.carried[0].id).toBe('string');
     expect(entity.inventory.carried[0].id).toBeTruthy();
-    expect(useCharacterStore.getState().lastPersistError).toBeNull();
-    saveSpy.mockRestore();
-  });
-
-  it('rejects a patch whose supplied ItemInstance id is malformed (empty string), leaving prior local state untouched', async () => {
-    reset([testCharacter('c1', 20)]);
-    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    const before = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
-
-    await useCharacterStore.getState().applyIncomingPatch('c1', {
-      inventory: { equipped: [], carried: [{ id: '', itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] }] },
-    });
-
-    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')).toEqual(before);
-    expect(useCharacterStore.getState().lastPersistError).not.toBeNull();
-    expect(saveSpy).not.toHaveBeenCalled();
-    saveSpy.mockRestore();
-  });
-
-  it('rejects a patch that introduces two carried rows with the same supplied nonempty instance id', async () => {
-    reset([testCharacter('c1', 20)]);
-    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    const before = useCharacterStore.getState().characters.find(c => c.id === 'c1')!;
-
-    await useCharacterStore.getState().applyIncomingPatch('c1', {
-      inventory: {
-        equipped: [],
-        carried: [
-          { id: 'dup:1', itemId: 'rope_50ft', quantity: 1, attuned: false, features: [] },
-          { id: 'dup:1', itemId: 'torch', quantity: 1, attuned: false, features: [] },
-        ],
-      },
-    });
-
-    expect(useCharacterStore.getState().characters.find(c => c.id === 'c1')).toEqual(before);
-    expect(useCharacterStore.getState().lastPersistError).not.toBeNull();
-    expect(saveSpy).not.toHaveBeenCalled();
     saveSpy.mockRestore();
   });
 });
 
-describe('Extra Attack sequence closure (two-issue final closure, Part B): attackSequence never survives applyIncomingEntity/applyIncomingPatch', () => {
+describe('Extra Attack sequence closure (two-issue final closure, Part B): attackSequence never survives applyIncomingEntity', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     useCharacterStore.setState({ lastPersistError: null });
@@ -728,20 +674,6 @@ describe('Extra Attack sequence closure (two-issue final closure, Part B): attac
 
     const stored = useCharacterStore.getState().characters.find(c => c.id === 'c1');
     expect(stored?.attackSequence).toBeFalsy();
-    saveSpy.mockRestore();
-  });
-
-  it('F12: an incoming patch attempting to SET attackSequence is stripped from the merged result before it is exposed/persisted', async () => {
-    const saveSpy = jest.spyOn(entityRepo, 'saveEntity').mockResolvedValue(undefined);
-    reset([testCharacter('c1', 20)]);
-
-    await useCharacterStore.getState().applyIncomingPatch('c1', {
-      attackSequence: { sequenceId: 'forged-patch-seq', actorId: 'c1', maxAttacks: 2, usedAttacks: 1 },
-    });
-
-    const merged = useCharacterStore.getState().characters.find(c => c.id === 'c1');
-    expect(merged?.attackSequence).toBeFalsy();
-    expect(useCharacterStore.getState().lastPersistError).toBeNull();
     saveSpy.mockRestore();
   });
 

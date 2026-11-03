@@ -4,7 +4,7 @@ The Grimoire app in its own window. It is the same code as the phone app, built 
 parts a web page cannot do provided by the desktop shell:
 
 - **Live sessions over the local network.** Hosting and joining use real TCP sockets (`tcpBridge.js`), so a PC can host a table for
-  phones, join a phone's table, or play PC to PC. The room code, ports (7742 and 7743) and protocol are the phone app's.
+  phones, join a phone's table, or play PC to PC. The room code, port (7743) and protocol are the phone app's.
 - **PDF export.** Character sheets and homebrew print to PDF and ask where to save.
 - **This computer's network address**, for the room code.
 - Your data (characters, homebrew, installed packs) is stored in the app's own profile folder on this computer.

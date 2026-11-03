@@ -118,3 +118,28 @@ describe('prepareImportedPack validation boundary', () => {
     expect(prepareImportedPack(pack).characters[0].id).toBe('safe');
   });
 });
+
+describe('campaignsForThisDevice — restoring onto a new phone', () => {
+  const { campaignsForThisDevice } = jest.requireActual('../backupIO') as typeof import('../backupIO');
+  const c = (id: string, dmDeviceId: string) => ({ id, name: id, dmDeviceId, joinCode: '', rules: {} as never, playerIds: [], characterIds: [], notes: '', createdAt: 0 });
+
+  it("hands the backup device's own campaigns to this device, so the DM is still their DM", () => {
+    const out = campaignsForThisDevice([c('mine', 'old-phone'), c('joined', 'someone-else')], 'old-phone', 'new-phone');
+    expect(out.find(x => x.id === 'mine')?.dmDeviceId).toBe('new-phone');
+    expect(out.find(x => x.id === 'joined')?.dmDeviceId).toBe('someone-else');
+  });
+
+  it('changes nothing when restoring on the same device, or when either device is unknown', () => {
+    const list = [c('mine', 'phone')];
+    expect(campaignsForThisDevice(list, 'phone', 'phone')).toBe(list);
+    expect(campaignsForThisDevice(list, null, 'phone')).toBe(list);
+    expect(campaignsForThisDevice(list, 'phone', null)).toBe(list);
+  });
+});
+
+describe('prepareImportedPack — campaign data', () => {
+  it('accepts a backup with campaigns and keeps them', () => {
+    const pack = { ...packWithCharacters(1, []), campaignData: { campaigns: [{ id: 'k1', name: 'K', dmDeviceId: 'd', joinCode: '', rules: {}, playerIds: [], characterIds: [], notes: '', createdAt: 0 }], preparedEncounters: [], customRuleProfiles: [], livePrep: [] } };
+    expect(prepareImportedPack(pack).campaignData?.campaigns).toHaveLength(1);
+  });
+});

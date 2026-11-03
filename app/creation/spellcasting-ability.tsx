@@ -18,21 +18,22 @@ export default function SpellcastingAbilityScreen() {
   const setDraft = useCharacterStore(s => s.setDraft);
   const rules    = useCharacterStore(s => s.rules);
 
+  const pending = draft?.choices.find(c => c.definition.kind === 'spellcasting_ability' && !c.resolved);
+
+  // No draft: back to the start. Nothing pending (already resolved, or this
+  // class doesn't need it): back to the hub rather than an empty screen.
+  // Both checks live in hooks that always run, before any early return, so
+  // the hook order is the same on every render (the second effect used to
+  // sit after `if (!draft) return null`, so losing the draft while this
+  // screen was mounted ran one hook fewer and React threw).
   useEffect(() => {
     if (!draft) router.replace('/creation/name');
   }, [draft]);
-
-  if (!draft) return null;
-
-  const pending = draft.choices.find(c => c.definition.kind === 'spellcasting_ability' && !c.resolved);
-
-  // Nothing pending (already resolved, or this class doesn't need it) —
-  // just go back to the hub rather than show an empty screen.
   useEffect(() => {
     if (draft && !pending) router.replace('/creation/hub');
   }, [draft, pending]);
 
-  if (!pending) return null;
+  if (!draft || !pending) return null;
 
   function choose(optionId: string) {
     const updated = resolveChoice(draft!, pending!.id, [optionId], rules);

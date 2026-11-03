@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { RULESETS, gameIdForRuleset, gameLabel, rulesetLabel } from '../../src/content/rulesets';
+import { RULESETS, gameIdForRuleset, gameLabel, rulesetLabel, isPlayableRuleset } from '../../src/content/rulesets';
 import { asRulesetId, AbilityGenerationMode, CampaignRules } from '../../src/engine/types';
 import { makeCustomRuleProfile } from '../../src/engine/customRuleProfiles';
 import { STANDARD_POINT_BUY } from '../../src/engine/pointBuy';
@@ -15,7 +15,7 @@ const MODES:{id:AbilityGenerationMode;label:string}[]=[{id:'standard',label:'Sta
 export default function RuleProfileScreen(){
  const {editId}=useLocalSearchParams<{editId?:string}>(),router=useRouter();
  const profiles=useCustomRuleProfileStore(s=>s.profiles),save=useCustomRuleProfileStore(s=>s.save),remove=useCustomRuleProfileStore(s=>s.remove);
- const existing=profiles.find(p=>p.id===editId),dndRulesets=useMemo(()=>Object.values(RULESETS).filter(r=>gameIdForRuleset(r.id)?.toString()==='dnd'),[]);
+ const existing=profiles.find(p=>p.id===editId),dndRulesets=useMemo(()=>Object.values(RULESETS).filter(r=>isPlayableRuleset(r.id)),[]);
  const initial=existing?.rules??{};
  const [name,setName]=useState(existing?.name??''),[base,setBase]=useState(existing?.baseRulesetId??asRulesetId('dnd5e-2014'));
  const [hpMode,setHpMode]=useState<CampaignRules['hpMode']>(initial.hpMode??'fixed'),[multiclass,setMulticlass]=useState(initial.allowMulticlass??false),[useXP,setUseXP]=useState(initial.useXP??false);

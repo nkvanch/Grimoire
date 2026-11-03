@@ -15,7 +15,7 @@ import {
   Feature, Entity, ActionCard, ActionCardType, ActionCardColor,
   AbilityEffect, FeatureActivation, Spell, OutcomeKey,
   FeatureInstance, Ability, CharClass, EntitlementSourceKind, SpellPreparationPolicy,
-  SpellCastingContext, Race, Item, RulesetId,
+  SpellCastingContext, Race, Item, RulesetId, CardExplainRef,
 } from './types';
 import { spellRepo } from '../content/spellRepo';
 import { effectiveItemFeatures, isItemMechanicallyActive, resolveItemDefinition } from './itemMechanics';
@@ -33,6 +33,7 @@ import { wildShapeLimits, eligibleWildShapeForms, wildShapeOptions } from './wil
 import { isFeatureSuspended } from './suspension';
 import { spellRangeOverride, spellDamageBonus, spellDamageTypeOverride, spellDamageDieOverride } from './spellModifiers';
 import { masteryPropertyFor } from './weaponMastery';
+import { attackKey } from './attackKey';
 
 // ── Large-creature weapon dice (house rule) ──────────────────────────
 
@@ -959,6 +960,46 @@ export function buildLayer3(feature: Feature, entity?: Entity, classDefs: readon
  * is unchanged (the existing description-regex heuristic); this only adds
  * the number once a save is already found.
  */
+/** The card numbers of a spell that the character's headline spell attack or save DC breakdown explains. */
+export function explainRefsForSpell(spell: Spell, entity?: Entity, classDefs: readonly CharClass[] = officialClasses()): CardExplainRef[] {
+  if (!entity) return [];
+  const refs: CardExplainRef[] = [];
+  if (/(melee|ranged) spell attack/i.test(spell.description)) {
+    const atk = resolveSpellAttackBonus(entity, spell.id, classDefs);
+    if (atk != null && atk === entity.derived.spellAttackBonus) refs.push({ stat: 'spellAttackBonus', label: 'Spell attack' });
+  }
+  if (/(\w+)\s+saving throw/i.test(spell.description)) {
+    const dc = resolveSpellSaveDC(entity, spell.id, classDefs);
+    if (dc != null && dc === entity.derived.spellSaveDC) refs.push({ stat: 'spellSaveDC', label: 'Spell save DC' });
+  }
+  return refs;
+}
+
+/** The card numbers of a feature (a weapon's to hit and damage, a save DC) that a breakdown explains. */
+export function explainRefsForFeature(feature: Feature, entity?: Entity, classDefs: readonly CharClass[] = officialClasses()): CardExplainRef[] {
+  if (!entity) return [];
+  const grantedSpell = findGrantedSpell(feature, entity.rulesetId);
+  if (grantedSpell) return explainRefsForSpell(grantedSpell, entity, classDefs);
+  const refs: CardExplainRef[] = [];
+  const weaponFeature = feature.source?.kind === 'item' && (feature.abilityEffects ?? []).some(e => e.type === 'damage');
+  const atk = weaponFeature ? entity.derived.attackBonuses.find(ab => ab.id === feature.source.refId) : undefined;
+  if (atk) refs.push(...weaponExplainRefs(atk));
+  const dc = feature.activation?.requiresSave?.dc;
+  if (dc === 'spell_save_dc' && entity.derived.spellSaveDC != null) refs.push({ stat: 'spellSaveDC', label: 'Save DC' });
+  if (dc === 'ki_save_dc' && entity.derived.kiSaveDC != null) refs.push({ stat: 'kiSaveDC', label: 'Save DC' });
+  return refs;
+}
+
+function weaponExplainRefs(attack: { id: string; instanceId?: string; damageBonus: number }): CardExplainRef[] {
+  const key = attackKey(attack);
+  return [
+    { stat: `attack:${key}`, label: 'To hit' },
+    ...(attack.damageBonus !== 0 ? [{ stat: `damage:${key}`, label: 'Damage bonus' }] : []),
+  ];
+}
+
+const withExplain = (refs: CardExplainRef[]) => (refs.length > 0 ? { explain: refs } : {});
+
 export function buildLayer3ForSpell(spell: Spell, entity?: Entity, classDefs: readonly CharClass[] = officialClasses()): string | null {
   const parts: string[] = [];
 
@@ -1271,6 +1312,7 @@ export function generateActionCard(
     layer1:            buildLayer1(feature, cardType, entity?.rulesetId),
     layer2:            buildLayer2(feature, entity, opts),
     layer3:            buildLayer3(feature, entity),
+    ...withExplain(explainRefsForFeature(feature, entity)),
     outcomes:          [...buildOutcomeLines(feature), ...buildCritLine(feature, entity)],
     triggerNote:       feature.trigger ?? null,
     activation,
@@ -1403,6 +1445,7 @@ export function generateSpellCard(
     layer1:            buildLayer1ForSpell(spell, cardType),
     layer2:            buildLayer2ForSpell(spell, entity, classDefs),
     layer3:            buildLayer3ForSpell(spell, entity, classDefs),
+    ...withExplain(explainRefsForSpell(spell, entity, classDefs)),
     outcomes:          [],
     triggerNote:       null,
     activation,
@@ -1538,6 +1581,7 @@ export function generateAllActionCards(
           featureId: `${inst.id ?? inst.itemId}_basic_weapon_attack`, name: definition.name,
           cardType: 'damage', color: 'red', layer1: `Action • ${capitalize(attack.type)} Weapon Attack`,
           layer2: `${fmtBonus(attack.bonus)} to hit • ${dice}${attack.damageBonus !== 0 ? fmtBonus(attack.damageBonus) : ''} ${capitalize(attack.damageType)}`,
+          explain: weaponExplainRefs(attack),
           layer3: masteryNote(entity, inst.itemId), outcomes: [], triggerNote: null, activation, resourceCost: null,
           tabs: ['actions', 'features'], available: availability.available, unavailableReason: availability.reason,
           incapacitatedOverridable: availability.incapacitatedOverridable,
@@ -1574,6 +1618,7 @@ export function generateAllActionCards(
       color:     'red',
       layer1:    'Action • Damage',
       layer2:    `${fmtBonus(unarmed.bonus)} to hit • ${dmgStr}`,
+      explain:   weaponExplainRefs(unarmed),
       layer3:    null,
       outcomes:  [],
       triggerNote: null,

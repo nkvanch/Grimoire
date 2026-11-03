@@ -4,6 +4,7 @@
 // MULTIPLE damage+type pairs + property tags; armor: AC+category), a rarity
 // picker, and the mechanical-effect system (labeled "Additional Mechanical
 // Effects" per request). Edit-mode reloads via homebrewDraft.
+import { charactersUsing, usedByWarning } from '../../src/content/contentUsage';
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
@@ -355,7 +356,18 @@ export default function ItemBuilderScreen() {
     setTestOpen(true);
   }
 
-  async function handleSave() {
+  // Editing an item characters carry changes them too: ask first, naming them (content/contentUsage.ts).
+  function handleSave() {
+    if (!name.trim() || saving) return;
+    const warning = editing ? usedByWarning('item', charactersUsing('item', editing.id, useCharacterStore.getState().characters)) : null;
+    if (!warning) { void doSave(); return; }
+    Alert.alert(warning.title, warning.message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Save', onPress: () => { void doSave(); } },
+    ]);
+  }
+
+  async function doSave() {
     if (!name.trim() || saving) return;
     setSaving(true);
     const id = editing?.id ?? ('hb_' + (toId(name) || 'item') + '_' + Date.now().toString(36));
@@ -587,7 +599,7 @@ export default function ItemBuilderScreen() {
           <Pressable style={[styles.testBtn, !name.trim() && styles.btnDisabled]} onPress={runTest} disabled={!name.trim()}>
             <Text style={styles.testBtnTxt}>🧪 Test</Text>
           </Pressable>
-          <Pressable style={[styles.saveBtn, (!name.trim() || saving) && styles.btnDisabled]} onPress={() => { void handleSave(); }} disabled={!name.trim() || saving}>
+          <Pressable style={[styles.saveBtn, (!name.trim() || saving) && styles.btnDisabled]} onPress={handleSave} disabled={!name.trim() || saving}>
             <Text style={styles.saveBtnTxt}>{saving ? 'Saving...' : requiredContext ? 'Save & Select' : 'Save Item'}</Text>
           </Pressable>
         </View>

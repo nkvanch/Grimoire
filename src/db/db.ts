@@ -75,6 +75,9 @@ export async function initDb(): Promise<SQLite.SQLiteDatabase | null> {
     }
   }
 
+  // The old campaign sync's offline event queue. Nothing reads it since live play moved to src/session.
+  await _db.execAsync('DROP TABLE IF EXISTS sync_events');
+
   return _db;
 }
 

@@ -15,8 +15,7 @@ import { HiddenCheckPanel } from '../../src/components/dm/HiddenCheckPanel';
 import { activeSession, startSession, endSession } from '../../src/engine/session';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
-import { SyncStatusDot } from '../../src/components/SyncStatusDot';
-import { useSyncStore }  from '../../src/store/syncStore';
+import { useSessionRuntime } from '../../src/session/runtime';
 
 // ── Party Character Card ──────────────────────────────────────────────────────
 
@@ -250,7 +249,12 @@ export default function DmDashboard() {
   const characters     = useCharacterStore(s => s.characters);
   const rules          = useCharacterStore(s => s.rules);
   const startCombat    = useCombatStore(s => s.startCombat);
-  const syncStatus     = useSyncStore(s => s.status);
+  const liveMode       = useSessionRuntime(s => s.mode);
+  const liveRoomCode   = useSessionRuntime(s => s.roomCode);
+  const liveView       = useSessionRuntime(s => s.view);
+  const myParticipant  = useSessionRuntime(s => s.participantId);
+  const hostingLive    = liveMode === 'hosting';
+  const liveOthers     = Object.values(liveView?.participants ?? {}).filter(p => p.id !== myParticipant);
   const showFull       = dmFullStatVisibility(rules);
   const [endSessionOpen, setEndSessionOpen] = useState(false);
   const [endSummary, setEndSummary] = useState('');
@@ -259,11 +263,11 @@ export default function DmDashboard() {
 
   function handleStartSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => startSession(c));
+    updateCampaign(activeCampaign.id, c => startSession(c)).catch(e => console.error('[dashboard] starting the session failed:', e));
   }
   function handleEndSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => endSession(c, endSummary));
+    updateCampaign(activeCampaign.id, c => endSession(c, endSummary)).catch(e => console.error('[dashboard] ending the session failed:', e));
     setEndSummary('');
     setEndSessionOpen(false);
   }
@@ -302,11 +306,10 @@ export default function DmDashboard() {
           <Text style={styles.backTxt}>← Back</Text>
         </Pressable>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <SyncStatusDot />
           <Text style={styles.title}>DM Dashboard</Text>
-          {syncStatus.role === 'dm' && (
+          {hostingLive && (
             <Text style={{ fontSize: 11, color: '#4ade80', marginLeft: 8 }}>
-              {syncStatus.clientCount} connected
+              {liveOthers.filter(p => p.connected).length} connected
             </Text>
           )}
         </View>
@@ -316,23 +319,19 @@ export default function DmDashboard() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {/* Room code banner — what players type/scan to join. Hosting itself
-            (CampaignHost) never depends on this — only whether a room code
-            is currently dialable does (NetworkHostAvailability). A missing
-            code is a non-blocking recommendation, not an error: this DM
-            screen and every local host/DM tool stay fully usable either
-            way. */}
-        {syncStatus.role === 'dm' && (
+        {/* Room code banner, while this device hosts a live table (src/session). A missing
+            code is a non-blocking note, not an error: every DM tool here works offline. */}
+        {hostingLive && (
           <View style={styles.roomCard}>
             <Text style={styles.roomLabel}>ROOM CODE</Text>
-            {syncStatus.roomCode ? (
-              <Text style={styles.roomCode}>{syncStatus.roomCode}</Text>
+            {liveRoomCode ? (
+              <Text style={styles.roomCode}>{liveRoomCode}</Text>
             ) : (
               <Text style={styles.roomCodeDim}>No local network — not joinable yet</Text>
             )}
             <Text style={styles.roomHint}>
-              {syncStatus.roomCode
-                ? 'Players join with this code on the same WiFi network.'
+              {liveRoomCode
+                ? 'Players join with this code on the same Wi-Fi network.'
                 : 'Enable Wi-Fi or a mobile hotspot to let other players join. Everything here still works on this device.'}
             </Text>
           </View>
@@ -389,41 +388,31 @@ export default function DmDashboard() {
           </View>
         </Modal>
 
-        {/* Connected players roster (live sync) */}
-        {syncStatus.role === 'dm' && (
+        {/* Who is at the live table (src/session). Their characters stay on their own devices;
+            the live DM screen shows what they report. */}
+        {hostingLive && (
           <>
-            <Text style={styles.sectionLabel}>CONNECTED PLAYERS ({syncStatus.roster.length})</Text>
-            {syncStatus.roster.length === 0 ? (
+            <Text style={styles.sectionLabel}>AT THE LIVE TABLE ({liveOthers.length})</Text>
+            {liveOthers.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyTxt}>
-                  No players connected yet.{'\n'}
-                  Share your room code from the Campaigns tab.
+                  Nobody has joined yet.{'\n'}
+                  Players join with the room code above.
                 </Text>
               </View>
             ) : (
-              syncStatus.roster.map(p => {
-                const claimed = p.characterId
-                  ? characters.find(c => c.id === p.characterId) ?? null
-                  : null;
+              liveOthers.map(p => {
+                const reported = liveView?.characters[p.id]?.summary;
                 return (
-                  <Pressable
-                    key={p.deviceId}
-                    style={styles.rosterRow}
-                    onPress={() => claimed && router.push(`/dm/character/${claimed.id}` as any)}
-                    disabled={!claimed}
-                  >
-                    <View style={styles.rosterDot} />
+                  <Pressable key={p.id} style={styles.rosterRow} onPress={() => router.push('/live/dm' as any)}>
+                    <View style={[styles.rosterDot, !p.connected && { opacity: 0.3 }]} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.rosterName}>{p.nickname}</Text>
+                      <Text style={styles.rosterName}>{p.nickname}{p.connected ? '' : ' (disconnected)'}</Text>
                       <Text style={styles.rosterSub}>
-                        {claimed
-                          ? `Playing ${claimed.identity.name || 'Unnamed'} · Lv ${claimed.identity.level}`
-                          : p.characterId
-                            ? 'Character not synced yet…'
-                            : 'No character selected'}
+                        {reported ? `Playing ${reported.name || 'Unnamed'}` : p.capabilities.includes('player') ? 'No character shared yet' : p.capabilities.join(' + ') || 'Waiting for a role'}
                       </Text>
                     </View>
-                    {claimed && <Text style={styles.rosterArrow}>›</Text>}
+                    <Text style={styles.rosterArrow}>›</Text>
                   </Pressable>
                 );
               })

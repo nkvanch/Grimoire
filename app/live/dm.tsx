@@ -187,7 +187,6 @@ export default function DmLiveScreen() {
       <Card testID="dm-status">
         <Row wrap>
           <Badge label={rt.status} tone={offline ? 'warn' : 'good'} />
-          <Badge label={`revision ${view?.revision ?? 0}`} />
           {view?.ended && <Badge label="session ended" tone="bad" />}
           {alertCount > 0 && <Badge label={`${alertCount} need${alertCount === 1 ? 's' : ''} attention`} tone="warn" />}
           {activeEncounter && <Badge label={`⚔ ${activeEncounter.name}`} tone="good" />}

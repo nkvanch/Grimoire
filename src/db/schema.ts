@@ -11,7 +11,7 @@
 // architecture/09-conformance-answers.md §1.1 and the plan file's B6 note.
 // Kept as-is, for reasons specific to this app rather than a general
 // argument against normalization:
-//   - Sync already diffs at the JS-object layer (src/sync/diff.ts's
+//   - Sync already diffs at the JS-object layer (src/utils/deepDiff.ts's
 //     deepDiff/deepMerge) before anything reaches SQLite — the "row-level
 //     sync is difficult with blobs" concern doesn't apply here; that
 //     problem is solved one layer above the database already.
@@ -42,20 +42,6 @@ export const CREATE_CAMPAIGNS_TABLE = `
     id        TEXT PRIMARY KEY NOT NULL,
     data      TEXT NOT NULL,
     updatedAt INTEGER NOT NULL
-  );
-`;
-
-// applied is stored as 0/1 (SQLite has no native BOOLEAN)
-export const CREATE_SYNC_EVENTS_TABLE = `
-  CREATE TABLE IF NOT EXISTS sync_events (
-    id             TEXT PRIMARY KEY NOT NULL,
-    sessionId      TEXT NOT NULL,
-    entityId       TEXT NOT NULL,
-    changeType     TEXT NOT NULL,
-    payload        TEXT NOT NULL,
-    authorDeviceId TEXT NOT NULL,
-    timestamp      INTEGER NOT NULL,
-    applied        INTEGER NOT NULL DEFAULT 0
   );
 `;
 
@@ -219,7 +205,6 @@ export const CREATE_SESSION_DOCS_TABLE = `
 // Indexes for common query patterns
 export const CREATE_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_entities_kind     ON entities    (kind);
-  CREATE INDEX IF NOT EXISTS idx_sync_events_applied ON sync_events (applied, sessionId);
   CREATE INDEX IF NOT EXISTS idx_content_type      ON content_cache (type);
   CREATE INDEX IF NOT EXISTS idx_content_history_contentId ON content_cache_history (contentId);
   CREATE INDEX IF NOT EXISTS idx_timeline_entityId ON character_timeline (entityId);
@@ -230,7 +215,6 @@ export const CREATE_INDEXES = `
 export const ALL_TABLES = [
   CREATE_ENTITIES_TABLE,
   CREATE_CAMPAIGNS_TABLE,
-  CREATE_SYNC_EVENTS_TABLE,
   CREATE_DEVICE_SESSION_TABLE,
   CREATE_CONTENT_CACHE_TABLE,
   CREATE_CONTENT_CACHE_HISTORY_TABLE,

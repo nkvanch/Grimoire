@@ -23,7 +23,7 @@ export interface ClientTransport {
   connect(): Promise<Connection>;
 }
 
-// ── Framing (same newline-delimited JSON as src/sync/protocol.ts) ────────────
+// ── Framing (newline-delimited JSON) ─────────────────────────────────────────
 
 export function encodeFrame(msg: unknown): string {
   return JSON.stringify(msg);

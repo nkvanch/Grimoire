@@ -8,6 +8,16 @@
 // This means classification-only re-runs (the common case during the legal
 // audit) leave this file byte-for-byte unchanged — only srdClassification.json
 // updates. This file only changes when the vault content itself changes.
+//
+// Public SRD edition: fifteen spells here are not in SRD 5.1, only in SRD 5.2.1
+// (Chromatic Orb, Dissonant Whispers, Ensnaring Strike, Hex, Ice Knife, Ray of
+// Sickness, Searing Smite, Dragon's Breath, Mind Spike, Phantasmal Force, Aura of
+// Life, Charm Monster, Vitriolic Sphere, Tsunami, Power Word Heal). Their records
+// carry the SRD 5.2.1 wording (content/spells/spellVersions2024.ts), not the 2014
+// wording from other books, so no text in this repository comes from outside the
+// SRD. The packs read only their ids and classes, so both stay unchanged.
+// src/content/__tests__/srdTextProvenance.test.ts enforces this; do not
+// regenerate this file from the vault without it.
 // 487 spells.
 // ============================================================================
 import { Spell } from '../../engine/types';
@@ -670,7 +680,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Chromatic Orb",
     "level": 1,
     "school": "Evocation",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "90 feet",
     "components": [
       "V",
@@ -678,8 +688,8 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Instantaneous",
-    "description": "You hurl a 4-inch-diameter sphere of energy at a creature that you can see within range. You choose acid, cold, fire, lightning, poison, or thunder for the type of orb you create, and then make a ranged spell attack against the target. If the attack hits, the creature takes 3d8 damage of the type you chose.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.",
-    "upcast": null,
+    "description": "You hurl an orb of energy at a target within range. Choose Acid, Cold, Fire, Lightning, Poison, or Thunder for the type of orb you create, and then make a ranged spell attack against the target. On a hit, the target takes 3d8 damage of the chosen type.\n\nIf you roll the same number on two or more of the d8s, the orb leaps to a different target of your choice within 30 feet of the target. Make an attack roll against the new target, and make a new damage roll. The orb can't leap again unless you cast the spell with a level 2+ spell slot.",
+    "upcast": "The damage increases by 1d8 for each spell slot level above 1. The orb can leap a maximum number of times equal to the level of the slot expended, and a creature can be targeted only once by each casting of this spell.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -901,14 +911,14 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Dissonant Whispers",
     "level": 1,
     "school": "Enchantment",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "60 feet",
     "components": [
       "V"
     ],
     "duration": "Instantaneous",
-    "description": "You whisper a discordant melody that only one creature of your choice within range can hear, wracking it with terrible pain. The target must make a Wisdom saving throw. On a failed save, it takes 3d6 psychic damage and must immediately use its reaction, if available, to move as far as its speed allows away from you. The creature doesn't move into obviously dangerous ground, such as a fire or a pit. On a successful save, the target takes half as much damage and doesn't have to move away. A deafened creature automatically succeeds on the save.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.",
-    "upcast": null,
+    "description": "One creature of your choice that you can see within range hears a discordant melody in its mind. The target makes a Wisdom saving throw. On a failed save, it takes 3d6 Psychic damage and must immediately use its Reaction, if available, to move as far away from you as it can, using the safest route. On a successful save, the target takes half as much damage only.",
+    "upcast": "The damage increases by 1d6 for each spell slot level above 1.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -940,14 +950,14 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Ensnaring Strike",
     "level": 1,
     "school": "Conjuration",
-    "castingTime": "1 bonus action",
+    "castingTime": "Bonus Action, which you take immediately after hitting a creature with a weapon",
     "range": "Self",
     "components": [
       "V"
     ],
     "duration": "Concentration, up to 1 minute",
-    "description": "The next time you hit a creature with a weapon attack before this spell ends, a writhing mass of thorny vines appears at the point of impact, and the target must succeed on a Strength saving throw or be restrained by the magical vines until the spell ends. A Large or larger creature has advantage on this saving throw. If the target succeeds on the save, the vines shrivel away. While restrained by this spell, the target takes 1d6 piercing damage at the start of each of its turns. A creature restrained by the vines or one that can touch the creature can use its action to make a Strength check against your spell save DC. On a success, the target is freed.\n\n**_At Higher Levels_**. If you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.",
-    "upcast": null,
+    "description": "As you hit the target, grasping vines appear on it, and it makes a Strength saving throw. A Large or larger creature has Advantage on this save. On a failed save, the target has the Restrained condition until the spell ends. On a successful save, the vines shrivel away, and the spell ends.\n\nWhile Restrained, the target takes 1d6 Piercing damage at the start of each of its turns. The target or a creature within reach of it can take an action to make a Strength (Athletics) check against your spell save DC. On a success, the spell ends.",
+    "upcast": "The damage increases by 1d6 for each spell slot level above 1.",
     "ritual": false,
     "concentration": true,
     "classes": [
@@ -1237,7 +1247,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Hex",
     "level": 1,
     "school": "Enchantment",
-    "castingTime": "1 bonus action",
+    "castingTime": "Bonus Action",
     "range": "90 feet",
     "components": [
       "V",
@@ -1245,8 +1255,8 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Concentration, up to 1 hour",
-    "description": "You place a curse on a creature that you can see within range. Until the spell ends, you deal an extra 1d6 necrotic damage to the target whenever you hit it with an attack. Also, choose one ability when you cast the spell. The target has disadvantage on ability checks made with the chosen ability.\n\nIf the target drops to 0 hit points before this spell ends, you can use a bonus action on a subsequent turn of yours to curse a new creature.\n\nA _[remove curse](https://www.aidedd.org/dnd/sorts.php?vo=remove-curse)_ cast on the target ends this spell early.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 3rd or 4th level, you can maintain your concentration on the spell for up to 8 hours. When you use a spell slot of 5th level or higher, you can maintain your concentration on the spell for up to 24 hours.",
-    "upcast": null,
+    "description": "You place a curse on a creature that you can see within range. Until the spell ends, you deal an extra 1d6 Necrotic damage to the target whenever you hit it with an attack roll. Also, choose one ability when you cast the spell. The target has Disadvantage on ability checks made with the chosen ability.\n\nIf the target drops to 0 Hit Points before this spell ends, you can take a Bonus Action on a later turn to curse a new creature.",
+    "upcast": "Your Concentration can last longer with a spell slot of level 2 (up to 4 hours), 34 (up to 8 hours), or 5+ (24 hours).",
     "ritual": false,
     "concentration": true,
     "classes": [
@@ -1299,15 +1309,15 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Ice Knife",
     "level": 1,
     "school": "Conjuration",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "60 feet",
     "components": [
       "S",
       "M"
     ],
     "duration": "Instantaneous",
-    "description": "You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.",
-    "upcast": null,
+    "description": "You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 Piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 Cold damage.",
+    "upcast": "The Cold damage increases by 1d6 for each spell slot level above 1.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -1525,15 +1535,15 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Ray of Sickness",
     "level": 1,
     "school": "Necromancy",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "60 feet",
     "components": [
       "V",
       "S"
     ],
     "duration": "Instantaneous",
-    "description": "A ray of sickening greenish energy lashes out toward a creature within range. Make a ranged spell attack against the target. On a hit, the target takes 2d8 poison damage and must make a Constitution saving throw. On a failed save, it is also poisoned until the end of your next turn.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.",
-    "upcast": null,
+    "description": "You shoot a greenish ray at a creature within range. Make a ranged spell attack against the target. On a hit, the target takes 2d8 Poison damage and has the Poisoned condition until the end of your next turn.",
+    "upcast": "The damage increases by 1d8 for each spell slot level above 1.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -1569,16 +1579,16 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Searing Smite",
     "level": 1,
     "school": "Evocation",
-    "castingTime": "1 bonus action",
+    "castingTime": "Bonus Action, which you take immediately after hitting a target with a Melee weapon or an Unarmed Strike",
     "range": "Self",
     "components": [
       "V"
     ],
-    "duration": "Concentration, up to 1 minute",
-    "description": "The next time you hit a creature with a melee weapon attack during the spell's duration, your weapon flares with white-hot intensity, and the attack deals an extra 1d6 fire damage to the target and causes the target to ignite in flames. At the start of each of its turns until the spell ends, the target must make a Constitution saving throw. On a failed save, it takes 1d6 fire damage. On a successful save, the spell ends. If the target or a creature within 5 feet of it uses an action to put out the flames, or if some other effect douses the flames (such as the target being submerged in water), the spell ends.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 2nd level or higher, the initial extra damage dealt by the attack increases by 1d6 for each slot level above 1st.",
-    "upcast": null,
+    "duration": "1 minute",
+    "description": "As you hit the target, it takes an extra 1d6 Fire damage from the attack. At the start of each of its turns until the spell ends, the target takes 1d6 Fire damage and then makes a Constitution saving throw. On a failed save, the spell continues. On a successful save, the spell ends.",
+    "upcast": "All the damage increases by 1d6 for each spell slot level above 1.",
     "ritual": false,
-    "concentration": true,
+    "concentration": false,
     "classes": [
       "paladin"
     ]
@@ -1595,7 +1605,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "S"
     ],
     "duration": "1 round",
-    "description": "An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from _[magic missile](https://www.aidedd.org/dnd/sorts.php?vo=magic-missile)_.",
+    "description": "An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from magic missile.",
     "upcast": null,
     "ritual": false,
     "concentration": false,
@@ -2111,7 +2121,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Dragon's Breath",
     "level": 2,
     "school": "Transmutation",
-    "castingTime": "1 bonus action",
+    "castingTime": "Bonus Action",
     "range": "Touch",
     "components": [
       "V",
@@ -2119,8 +2129,8 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Concentration, up to 1 minute",
-    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nSpew a 15-ft cone that deals 3d6 acid, cold, fire, lightning, or poison damage in case of failed Dex. save (damage/lvl).",
-    "upcast": null,
+    "description": "You touch one willing creature, and choose Acid, Cold, Fire, Lightning, or Poison. Until the spell ends, the target can take a Magic action to exhale a 15-foot Cone. Each creature in that area makes a Dexterity saving throw, taking 3d6 damage of the chosen type on a failed save or half as much damage on a successful one.",
+    "upcast": "The damage increases by 1d6 for each spell slot level above 2.",
     "ritual": false,
     "concentration": true,
     "classes": [
@@ -2559,14 +2569,14 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Mind Spike",
     "level": 2,
     "school": "Divination",
-    "castingTime": "1 action",
-    "range": "60 feet",
+    "castingTime": "Action",
+    "range": "120 feet",
     "components": [
       "S"
     ],
     "duration": "Concentration, up to 1 hour",
-    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nThe target must succeed on a Wis. save or take 3d8 psychic damage (damage/lvl).",
-    "upcast": null,
+    "description": "You drive a spike of psionic energy into the mind of one creature you can see within range. The target makes a Wisdom saving throw, taking 3d8 Psychic damage on a failed save or half as much damage on a successful one. On a failed save, you also always know the target's location until the spell ends, but only while the two of you are on the same plane of existence. While you have this knowledge, the target can't become hidden from you, and if it has the Invisible condition, it gains no benefit from that condition against you.",
+    "upcast": "The damage increases by 1d8 for each spell slot level above 2.",
     "ritual": false,
     "concentration": true,
     "classes": [
@@ -2666,7 +2676,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Phantasmal Force",
     "level": 2,
     "school": "Illusion",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "60 feet",
     "components": [
       "V",
@@ -2674,7 +2684,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Concentration, up to 1 minute",
-    "description": "You craft an illusion that takes root in the mind of a creature that you can see within range. The target must make an Intelligence saving throw. On a failed save, you create a phantasmal object, creature, or other visible phenomenon of your choice that is no larger than a 10-foot cube and that is perceivable only to the target for the duration. This spell has no effect on undead or constructs.\n\nThe phantasm includes sound, temperature, and other stimuli, also evident only to the creature.\n\nThe target can use its action to examine the phantasm with an Intelligence (Investigation) check against your spell save DC. If the check succeeds, the target realizes that the phantasm is an illusion, and the spell ends.\n\nWhile a target is affected by the spell, the target treats the phantasm as if it were real. The target rationalizes any illogical outcomes from interacting with the phantasm. For example, a target attempting to walk across a phantasmal bridge that spans a chasm falls once it steps onto the bridge. If the target survives the fall, it still believes that the bridge exists and comes up with some other explanation for its fall—it was pushed, it slipped, or a strong wind might have knocked it off.\n\nAn affected target is so convinced of the phantasm's reality that it can even take damage from the illusion. A phantasm created to appear as a creature can attack the target. Similarly, a phantasm created to appear as fire, a pool of acid, or lava can burn the target. Each round on your turn, the phantasm can deal 1d6 psychic damage to the target if it is in the phantasm's area or within 5 feet of the phantasm, provided that the illusion is of a creature or hazard that could logically deal damage, such as by attacking. The target perceives the damage as a type appropriate to the illusion.",
+    "description": "You attempt to craft an illusion in the mind of a creature you can see within range. The target makes an Intelligence saving throw. On a failed save, you create a phantasmal object, creature, or other phenomenon that is no larger than a 10-foot Cube and that is perceivable only to the target for the duration. The phantasm includes sound, temperature, and other stimuli.\n\nThe target can take a Study action to examine the phantasm with an Intelligence (Investigation) check against your spell save DC. If the check succeeds, the target realizes that the phantasm is an illusion, and the spell ends.\n\nWhile affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it. For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.\n\nAn affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard. On each of your turns, such a phantasm can deal 2d8 Psychic damage to the target if it is in the phantasm's area or within 5 feet of the phantasm. The target perceives the damage as a type appropriate to the illusion.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
@@ -3066,7 +3076,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "S"
     ],
     "duration": "Concentration, up to 1 minute",
-    "description": "You touch a creature, and that creature must succeed on a Wisdom saving throw or become cursed for the duration of the spell. When you cast this spell, choose the nature of the curse from the following options:\n\n• Choose one ability score. While cursed, the target has disadvantage on ability checks and saving throws made with that ability score.\n\n• While cursed, the target has disadvantage on attack rolls against you.\n\n• While cursed, the target must make a Wisdom saving throw at the start of each of its turns. If it fails, it wastes its action that turn doing nothing.\n\n• While the target is cursed, your attacks and spells deal an extra 1d8 necrotic damage to the target.\n\nA _[remove curse](https://www.aidedd.org/dnd/sorts.php?vo=remove-curse)_ spell ends this effect. At the DM's option, you may choose an alternative curse effect, but it should be no more powerful than those described above. The DM has final say on such a curse's effect.\n\n**_At Higher Levels_**. If you cast this spell using a spell slot of 4th level or higher, the duration is concentration, up to 10 minutes. If you use a spell slot of 5th level or higher, the duration is 8 hours. If you use a spell slot of 7th level or higher, the duration is 24 hours. If you use a 9th level spell slot, the spell lasts until it is dispelled. Using a spell slot of 5th level or higher grants a duration that doesn't require concentration.",
+    "description": "You touch a creature, and that creature must succeed on a Wisdom saving throw or become cursed for the duration of the spell. When you cast this spell, choose the nature of the curse from the following options:\n\n• Choose one ability score. While cursed, the target has disadvantage on ability checks and saving throws made with that ability score.\n\n• While cursed, the target has disadvantage on attack rolls against you.\n\n• While cursed, the target must make a Wisdom saving throw at the start of each of its turns. If it fails, it wastes its action that turn doing nothing.\n\n• While the target is cursed, your attacks and spells deal an extra 1d8 necrotic damage to the target.\n\nA remove curse spell ends this effect. At the DM's option, you may choose an alternative curse effect, but it should be no more powerful than those described above. The DM has final say on such a curse's effect.\n\n**_At Higher Levels_**. If you cast this spell using a spell slot of 4th level or higher, the duration is concentration, up to 10 minutes. If you use a spell slot of 5th level or higher, the duration is 8 hours. If you use a spell slot of 7th level or higher, the duration is 24 hours. If you use a 9th level spell slot, the spell lasts until it is dispelled. Using a spell slot of 5th level or higher grants a duration that doesn't require concentration.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
@@ -3983,13 +3993,13 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Aura of Life",
     "level": 4,
     "school": "Abjuration",
-    "castingTime": "1 action",
-    "range": "Self (30-foot radius)",
+    "castingTime": "Action",
+    "range": "Self",
     "components": [
       "V"
     ],
     "duration": "Concentration, up to 10 minutes",
-    "description": "Life-preserving energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you, centered on you. Each non-hostile creature in the aura (including you) has resistance to necrotic damage, and its hit point maximum can't be reduced. In addition, a non-hostile, living creature regains 1 hit point when it starts its turn in the aura with 0 hit points.",
+    "description": "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Necrotic damage, and your Hit Point maximums can't be reduced. If an ally with 0 Hit Points starts its turn in the aura, that ally regains 1 Hit Point.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
@@ -4050,15 +4060,15 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Charm Monster",
     "level": 4,
     "school": "Enchantment",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "30 feet",
     "components": [
       "V",
       "S"
     ],
     "duration": "1 hour",
-    "description": "Description not available (not OGL).\n\nBut here is a summary:\n\nThe target must succeed on a Wis. save or be charmed by the caster (duration/lvl).",
-    "upcast": null,
+    "description": "One creature you can see within range makes a Wisdom saving throw. It does so with Advantage if you or your allies are fighting it. On a failed save, the target has the Charmed condition until the spell ends or until you or your allies damage it. The Charmed creature is Friendly to you. When the spell ends, the target knows it was Charmed by you.",
+    "upcast": "You can target one additional creature for each spell slot level above 4.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -4652,7 +4662,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "name": "Vitriolic Sphere",
     "level": 4,
     "school": "Evocation",
-    "castingTime": "1 action",
+    "castingTime": "Action",
     "range": "150 feet",
     "components": [
       "V",
@@ -4660,8 +4670,8 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Instantaneous",
-    "description": "You point at a location within range, and a glowing 1-foot-diameter ball of emerald acid streaks there and explodes in a 20-foot-radius sphere. Each creature in that area must make a Dexterity saving throw. On a failed save, a creature takes 10d4 acid damage and another 5d4 acid damage at the end of its next turn. On a successful save, a creature takes half the initial damage and no damage at the end of its next turn.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 5th level or higher, the initial damage increases by 2d4 for each slot level above 4th.",
-    "upcast": null,
+    "description": "You point at a location within range, and a glowing, 1-foot-diameter ball of acid streaks there and explodes in a 20-foot-radius Sphere. Each creature in that area makes a Dexterity saving throw. On a failed save, a creature takes 10d4 Acid damage and another 5d4 Acid damage at the end of its next turn. On a successful save, a creature takes half the initial damage only.",
+    "upcast": "The initial damage increases by 2d4 for each spell slot level above 4.",
     "ritual": false,
     "concentration": false,
     "classes": [
@@ -5051,7 +5061,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "V"
     ],
     "duration": "30 days",
-    "description": "You place a magical command on a creature that you can see within range, forcing it to carry out some service or refrain from some action or course of activity as you decide. If the creature can understand you, it must succeed on a Wisdom saving throw or become charmed by you for the duration. While the creature is charmed by you, it takes 5d10 psychic damage each time it acts in a manner directly counter to your instructions, but no more than once each day. A creature that can't understand you is unaffected by the spell.\n\nYou can issue any command you choose, short of an activity that would result in certain death. Should you issue a suicidal command, the spell ends.\n\nYou can end the spell early by using an action to dismiss it. A _[remove curse](https://www.aidedd.org/dnd/sorts.php?vo=remove-curse), [greater restoration](https://www.aidedd.org/dnd/sorts.php?vo=greater-restoration)_, or _[wish](https://www.aidedd.org/dnd/sorts.php?vo=wish)_ spell also ends it.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 7th or 8th level, the duration is 1 year. When you cast this spell using a spell slot of 9th level, the spell lasts until it is ended by one of the spells mentioned above.",
+    "description": "You place a magical command on a creature that you can see within range, forcing it to carry out some service or refrain from some action or course of activity as you decide. If the creature can understand you, it must succeed on a Wisdom saving throw or become charmed by you for the duration. While the creature is charmed by you, it takes 5d10 psychic damage each time it acts in a manner directly counter to your instructions, but no more than once each day. A creature that can't understand you is unaffected by the spell.\n\nYou can issue any command you choose, short of an activity that would result in certain death. Should you issue a suicidal command, the spell ends.\n\nYou can end the spell early by using an action to dismiss it. A _remove curse, greater restoration_, or wish spell also ends it.\n\n**_At Higher Levels_**. When you cast this spell using a spell slot of 7th or 8th level, the duration is 1 year. When you cast this spell using a spell slot of 9th level, the spell lasts until it is ended by one of the spells mentioned above.",
     "upcast": null,
     "ritual": false,
     "concentration": false,
@@ -5476,7 +5486,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "M"
     ],
     "duration": "Concentration, up to 10 minutes",
-    "description": "An invisible wall of force springs into existence at a point you choose within range. The wall appears in any orientation you choose, as a horizontal or vertical barrier or at an angle. It can be free floating or resting on a solid surface. You can form it into a hemispherical dome or a sphere with a radius of up to 10 feet, or you can shape a flat surface made up of ten 10-foot-by-10-foot panels. Each panel must be contiguous with another panel. In any form, the wall is 1/4 inch thick. It lasts for the duration. If the wall cuts through a creature's space when it appears, the creature is pushed to one side of the wall (your choice which side).\n\nNothing can physically pass through the wall. It is immune to all damage and can't be dispelled by _[dispel magic](https://www.aidedd.org/dnd/sorts.php?vo=dispel-magic)_. A _[disintegrate](https://www.aidedd.org/dnd/sorts.php?vo=disintegrate)_ spell destroys the wall instantly, however. The wall also extends into the Ethereal Plane, blocking ethereal travel through the wall.",
+    "description": "An invisible wall of force springs into existence at a point you choose within range. The wall appears in any orientation you choose, as a horizontal or vertical barrier or at an angle. It can be free floating or resting on a solid surface. You can form it into a hemispherical dome or a sphere with a radius of up to 10 feet, or you can shape a flat surface made up of ten 10-foot-by-10-foot panels. Each panel must be contiguous with another panel. In any form, the wall is 1/4 inch thick. It lasts for the duration. If the wall cuts through a creature's space when it appears, the creature is pushed to one side of the wall (your choice which side).\n\nNothing can physically pass through the wall. It is immune to all damage and can't be dispelled by dispel magic. A disintegrate spell destroys the wall instantly, however. The wall also extends into the Ethereal Plane, blocking ethereal travel through the wall.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
@@ -6930,13 +6940,13 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "level": 8,
     "school": "Conjuration",
     "castingTime": "1 minute",
-    "range": "Sight",
+    "range": "1 mile",
     "components": [
       "V",
       "S"
     ],
     "duration": "Concentration, up to 6 rounds",
-    "description": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration.\n\nWhen the wall appears, each creature within its area must make a Strength saving throw. On a failed save, a creature takes 6d10 bludgeoning damage, or half as much damage on a successful save.\n\nAt the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 bludgeoning damage. A creature can take this damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage creatures take from the spell on subsequent rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends.\n\nA creature caught in the wall can move by swimming. Because of the force of the wave, though, the creature must make a successful Strength (Athletics) check against your spell save DC in order to move at all. If it fails the check, it can't move. A creature that moves out of the area falls to the ground.",
+    "description": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration.\n\nWhen the wall appears, each creature in its area makes a Strength saving throw, taking 6d10 Bludgeoning damage on a failed save or half as much damage on a successful one.\n\nAt the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 Bludgeoning damage. A creature can take this damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage the wall deals on later rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends.\n\nA creature caught in the wall can move by swimming. Because of the wave's force, though, the creature must succeed on a Strength (Athletics) check against your spell save DC to move at all. If it fails the check, it can't move. A creature that moves out of the wall falls to the ground.",
     "upcast": null,
     "ritual": false,
     "concentration": true,
@@ -7082,15 +7092,14 @@ export const ALL_VAULT_SPELLS: Spell[] = [
     "id": "power_word_heal",
     "name": "Power Word Heal",
     "level": 9,
-    "school": "Evocation",
-    "castingTime": "1 action",
-    "range": "Touch",
+    "school": "Enchantment",
+    "castingTime": "Action",
+    "range": "60 feet",
     "components": [
-      "V",
-      "S"
+      "V"
     ],
     "duration": "Instantaneous",
-    "description": "A wave of healing energy washes over a creature you touch. The target regains all its hit points. If the creature is charmed, frightened, paralyzed, or stunned, the condition ends. If the creature is prone, it can use its reaction to stand up. This spell has no effect on undead or constructs.",
+    "description": "A wave of healing energy washes over one creature you can see within range. The target regains all its Hit Points. If the creature has the Charmed, Frightened, Paralyzed, Poisoned, or Stunned condition, the condition ends. If the creature has the Prone condition, it can use its Reaction to stand up.",
     "upcast": null,
     "ritual": false,
     "concentration": false,
@@ -7133,7 +7142,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "S"
     ],
     "duration": "10 minutes",
-    "description": "A shimmering, multicolored plane of light forms a vertical opaque wall—up to 90 feet long, 30 feet high, and 1 inch thick—centered on a point you can see within range. Alternatively, you can shape the wall into a sphere up to 30 feet in diameter centered on a point you choose within range. The wall remains in place for the duration. If you position the wall so that it passes through a space occupied by a creature, the spell fails, and your action and the spell slot are wasted.\n\nThe wall sheds bright light out to a range of 100 feet and dim light for an additional 100 feet. You and creatures you designate at the time you cast the spell can pass through and remain near the wall without harm. If another creature that can see the wall moves to within 20 feet of it or starts its turn there, the creature must succeed on a Constitution saving throw or become blinded for 1 minute.\n\nThe wall consists of seven layers, each with a different color. When a creature attempts to reach into or pass through the wall, it does so one layer at a time through all the wall's layers. As it passes or reaches through each layer, the creature must make a Dexterity saving throw or be affected by that layer's properties as described below.\n\nThe wall can be destroyed, also one layer at a time, in order from red to violet, by means specific to each layer. Once a layer is destroyed, it remains so for the duration of the spell. _[Antimagic field](https://www.aidedd.org/dnd/sorts.php?vo=antimagic-field)_ has no effect on the wall and _[dispel magic](https://www.aidedd.org/dnd/sorts.php?vo=dispel-magic)_ can affect only the violet layer.\n\n**1. Red**. The creature takes 10d6 fire damage on a failed save, or half as much damage on a successful one. While this layer is in place, nonmagical ranged attacks can't pass through the wall. The layer can be destroyed by dealing at least 25 cold damage to it.\n\n**2. Orange**. The creature takes 10d6 acid damage on a failed save, or half as much damage on a successful one. While this layer is in place, magical ranged attacks can't pass through the wall. The layer is destroyed by a strong wind.\n\n**3. Yellow**. The creature takes 10d6 lightning damage on a failed save, or half as much damage on a successful one. This layer can be destroyed by dealing at least 60 force damage to it.\n\n**4. Green**. The creature takes 10d6 poison damage on a failed save, or half as much damage on a successful one. A _[passwall](https://www.aidedd.org/dnd/sorts.php?vo=passwall)_ spell, or another spell of equal or greater level that can open a portal on a solid surface, destroys this layer.\n\n**5. Blue**. The creature takes 10d6 cold damage on a failed save, or half as much damage on a successful one. This layer can be destroyed by dealing at least 25 fire damage to it.\n\n**6. Indigo**. On a failed save, the creature is restrained. It must then make a Constitution saving throw at the end of each of its turns. If it successfully saves three times, the spell ends. If it fails its save three times, it permanently turns to stone and is subjected to the petrified condition. The successes and failures don't need to be consecutive; keep track of both until the creature collects three of a kind.\n\nWhile this layer is in place, spells can't be cast through the wall. The layer is destroyed by bright light shed by a _[daylight](https://www.aidedd.org/dnd/sorts.php?vo=daylight)_ spell or a similar spell of equal or higher level.\n\n**7. Violet**. On a failed save, the creature is blinded. It must then make a Wisdom saving throw at the start of your next turn. A successful save ends the blindness. If it fails that save, the creature is transported to another plane of the DM's choosing and is no longer blinded. (Typically, a creature that is on a plane that isn't its home plane is banished home, while other creatures are usually cast into the Astral or Ethereal planes.) This layer is destroyed by a _[dispel magic](https://www.aidedd.org/dnd/sorts.php?vo=dispel-magic)_ spell or a similar spell of equal or higher level that can end spells and magical effects.",
+    "description": "A shimmering, multicolored plane of light forms a vertical opaque wall—up to 90 feet long, 30 feet high, and 1 inch thick—centered on a point you can see within range. Alternatively, you can shape the wall into a sphere up to 30 feet in diameter centered on a point you choose within range. The wall remains in place for the duration. If you position the wall so that it passes through a space occupied by a creature, the spell fails, and your action and the spell slot are wasted.\n\nThe wall sheds bright light out to a range of 100 feet and dim light for an additional 100 feet. You and creatures you designate at the time you cast the spell can pass through and remain near the wall without harm. If another creature that can see the wall moves to within 20 feet of it or starts its turn there, the creature must succeed on a Constitution saving throw or become blinded for 1 minute.\n\nThe wall consists of seven layers, each with a different color. When a creature attempts to reach into or pass through the wall, it does so one layer at a time through all the wall's layers. As it passes or reaches through each layer, the creature must make a Dexterity saving throw or be affected by that layer's properties as described below.\n\nThe wall can be destroyed, also one layer at a time, in order from red to violet, by means specific to each layer. Once a layer is destroyed, it remains so for the duration of the spell. Antimagic field has no effect on the wall and dispel magic can affect only the violet layer.\n\n**1. Red**. The creature takes 10d6 fire damage on a failed save, or half as much damage on a successful one. While this layer is in place, nonmagical ranged attacks can't pass through the wall. The layer can be destroyed by dealing at least 25 cold damage to it.\n\n**2. Orange**. The creature takes 10d6 acid damage on a failed save, or half as much damage on a successful one. While this layer is in place, magical ranged attacks can't pass through the wall. The layer is destroyed by a strong wind.\n\n**3. Yellow**. The creature takes 10d6 lightning damage on a failed save, or half as much damage on a successful one. This layer can be destroyed by dealing at least 60 force damage to it.\n\n**4. Green**. The creature takes 10d6 poison damage on a failed save, or half as much damage on a successful one. A passwall spell, or another spell of equal or greater level that can open a portal on a solid surface, destroys this layer.\n\n**5. Blue**. The creature takes 10d6 cold damage on a failed save, or half as much damage on a successful one. This layer can be destroyed by dealing at least 25 fire damage to it.\n\n**6. Indigo**. On a failed save, the creature is restrained. It must then make a Constitution saving throw at the end of each of its turns. If it successfully saves three times, the spell ends. If it fails its save three times, it permanently turns to stone and is subjected to the petrified condition. The successes and failures don't need to be consecutive; keep track of both until the creature collects three of a kind.\n\nWhile this layer is in place, spells can't be cast through the wall. The layer is destroyed by bright light shed by a daylight spell or a similar spell of equal or higher level.\n\n**7. Violet**. On a failed save, the creature is blinded. It must then make a Wisdom saving throw at the start of your next turn. A successful save ends the blindness. If it fails that save, the creature is transported to another plane of the DM's choosing and is no longer blinded. (Typically, a creature that is on a plane that isn't its home plane is banished home, while other creatures are usually cast into the Astral or Ethereal planes.) This layer is destroyed by a dispel magic spell or a similar spell of equal or higher level that can end spells and magical effects.",
     "upcast": null,
     "ritual": false,
     "concentration": false,
@@ -7279,7 +7288,7 @@ export const ALL_VAULT_SPELLS: Spell[] = [
       "V"
     ],
     "duration": "Instantaneous",
-    "description": "_Wish_ is the mightiest spell a mortal creature can cast. By simply speaking aloud, you can alter the very foundations of reality in accord with your desires.\n\nThe basic use of this spell is to duplicate any other spell of 8th level or lower. You don't need to meet any requirements in that spell, including costly components. The spell simply takes effect.\n\nAlternatively, you can create one of the following effects of your choice:\n\n• You create one object of up to 25,000 gp in value that isn't a magic item. The object can be no more than 300 feet in any dimension, and it appears in an unoccupied space you can see on the ground.\n\n• You allow up to twenty creatures that you can see to regain all hit points, and you end all effects on them described in the _[greater restoration](https://www.aidedd.org/dnd/sorts.php?vo=greater-restoration)_ spell.\n\n• You grant up to ten creatures that you can see resistance to a damage type you choose.\n\n• You grant up to ten creatures you can see immunity to a single spell or other magical effect for 8 hours. For instance, you could make yourself and all your companions immune to a lich's life drain attack.\n\n• You undo a single recent event by forcing a reroll of any roll made within the last round (including your last turn). Reality reshapes itself to accommodate the new result. For example, a _wish_ spell could undo an opponent's successful save, a foe's critical hit, or a friend's failed save. You can force the reroll to be made with advantage or disadvantage, and you can choose whether to use the reroll or the original roll.\n\nYou might be able to achieve something beyond the scope of the above examples. State your wish to the DM as precisely as possible. The DM has great latitude in ruling what occurs in such an instance; the greater the wish, the greater the likelihood that something goes wrong. This spell might simply fail, the effect you desire might only be partly achieved, or you might suffer some unforeseen consequence as a result of how you worded the wish. For example, wishing that a villain were dead might propel you forward in time to a period when that villain is no longer alive, effectively removing you from the game. Similarly, wishing for a legendary magic item or artifact might instantly transport you to the presence of the item's current owner.\n\nThe stress of casting this spell to produce any effect other than duplicating another spell weakens you. After enduring that stress, each time you cast a spell until you finish a long rest, you take 1d10 necrotic damage per level of that spell. This damage can't be reduced or prevented in any way. In addition, your Strength drops to 3, if it isn't 3 or lower already, for 2d4 days. For each of those days that you spend resting and doing nothing more than light activity, your remaining recovery time decreases by 2 days. Finally, there is a 33 percent chance that you are unable to cast _wish_ ever again if you suffer this stress.",
+    "description": "_Wish_ is the mightiest spell a mortal creature can cast. By simply speaking aloud, you can alter the very foundations of reality in accord with your desires.\n\nThe basic use of this spell is to duplicate any other spell of 8th level or lower. You don't need to meet any requirements in that spell, including costly components. The spell simply takes effect.\n\nAlternatively, you can create one of the following effects of your choice:\n\n• You create one object of up to 25,000 gp in value that isn't a magic item. The object can be no more than 300 feet in any dimension, and it appears in an unoccupied space you can see on the ground.\n\n• You allow up to twenty creatures that you can see to regain all hit points, and you end all effects on them described in the greater restoration spell.\n\n• You grant up to ten creatures that you can see resistance to a damage type you choose.\n\n• You grant up to ten creatures you can see immunity to a single spell or other magical effect for 8 hours. For instance, you could make yourself and all your companions immune to a lich's life drain attack.\n\n• You undo a single recent event by forcing a reroll of any roll made within the last round (including your last turn). Reality reshapes itself to accommodate the new result. For example, a _wish_ spell could undo an opponent's successful save, a foe's critical hit, or a friend's failed save. You can force the reroll to be made with advantage or disadvantage, and you can choose whether to use the reroll or the original roll.\n\nYou might be able to achieve something beyond the scope of the above examples. State your wish to the DM as precisely as possible. The DM has great latitude in ruling what occurs in such an instance; the greater the wish, the greater the likelihood that something goes wrong. This spell might simply fail, the effect you desire might only be partly achieved, or you might suffer some unforeseen consequence as a result of how you worded the wish. For example, wishing that a villain were dead might propel you forward in time to a period when that villain is no longer alive, effectively removing you from the game. Similarly, wishing for a legendary magic item or artifact might instantly transport you to the presence of the item's current owner.\n\nThe stress of casting this spell to produce any effect other than duplicating another spell weakens you. After enduring that stress, each time you cast a spell until you finish a long rest, you take 1d10 necrotic damage per level of that spell. This damage can't be reduced or prevented in any way. In addition, your Strength drops to 3, if it isn't 3 or lower already, for 2d4 days. For each of those days that you spend resting and doing nothing more than light activity, your remaining recovery time decreases by 2 days. Finally, there is a 33 percent chance that you are unable to cast _wish_ ever again if you suffer this stress.",
     "upcast": null,
     "ritual": false,
     "concentration": false,

@@ -99,7 +99,7 @@ export function buildDemoCharacter(rules: CampaignRules): Entity {
   //    picks the first `count` options, a sensible default. Everything else
   //    (subclass, fighting style, and anything without a concrete pool)
   //    stays a genuine pending choice for the player to explore/resolve.
-  let unresolved = entity.choices.filter(c => !c.resolved);
+  const unresolved = entity.choices.filter(c => !c.resolved);
   for (const choice of unresolved) {
     const def = choice.definition;
     if ((def.kind !== 'skill' && def.kind !== 'equipment') || !Array.isArray(def.pool)) continue;

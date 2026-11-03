@@ -59,7 +59,7 @@ export default function CreationRulesScreen() {
   function setRules(partial: Partial<CampaignRules>) {
     setRulesLocal(partial);
     if (activeCampaign && isDm) {
-      updateCampaign(activeCampaign.id, c => ({ ...c, rules: { ...c.rules, ...partial } }));
+      updateCampaign(activeCampaign.id, c => ({ ...c, rules: { ...c.rules, ...partial } })).catch(e => console.error('[rules] saving the campaign rules failed:', e));
     }
   }
 
@@ -68,7 +68,7 @@ export default function CreationRulesScreen() {
   function toggle(title: string) {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(title) ? next.delete(title) : next.add(title);
+      if (next.has(title)) next.delete(title); else next.add(title);
       return next;
     });
   }

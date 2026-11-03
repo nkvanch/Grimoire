@@ -16,24 +16,21 @@ import {
   Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
 
 import { Alert } from '../../src/utils/alert';
 import { useCampaignStore }  from '../../src/store/campaignStore';
 import { useSessionStore }   from '../../src/store/sessionStore';
 import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
 import { useCustomRuleProfileStore } from '../../src/store/customRuleProfileStore';
-import { useSyncStore }      from '../../src/store/syncStore';
-import { syncManager }       from '../../src/sync/syncManager';
-import { decodeRoomCode }    from '../../src/sync/discovery';
 import { profilesForRuleset, sanitizeProfileRules } from '../../src/engine/customRuleProfiles';
-import { SyncStatusDot }     from '../../src/components/SyncStatusDot';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { Quest, SessionLogEntry, Campaign, CampaignRules, RulesetId } from '../../src/engine/types';
 import { InstalledPack, loadInstalledPacks } from '../../src/db/packRegistryRepo';
 import { HostModal, JoinModal as LiveJoinModal } from '../../src/components/live/LiveSessionStart';
+import { LiveSessionStatus } from '../../src/components/live/LiveSessionStatus';
+import { useSessionRuntime } from '../../src/session/runtime';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,11 +60,11 @@ function showError(title: string, message: string) {
 }
 
 // ── Create/Join Campaign Modals ───────────────────────────────────────────────
-// Restored: these drive the persistent, DM-owned legacy campaign (rules sync, the DM
-// dashboard/encounter tracker under app/dm/*) — a different, independent concern from the
-// Live Session card below, which is the temporary Host/DM/Player network room. A campaign is
-// not owned by a Host; keeping these two entry points separate (instead of merging Create
-// Campaign into Host Session) is what keeps that distinction real instead of just documented.
+// These drive the persistent, DM-owned campaign (rules, the DM dashboard/encounter tracker
+// under app/dm/*) — a different, independent concern from a live table (src/session), the
+// temporary Host/DM/Player network room. A campaign is not owned by a Host; keeping these two
+// entry points separate (instead of merging Create Campaign into hosting) is what keeps that
+// distinction real instead of just documented.
 
 // ── Wizard primitives ─────────────────────────────────────────────────────────
 
@@ -96,7 +93,7 @@ function WizToggle({ label, hint, value, onChange, testID }: { label: string; hi
 // ── Create Campaign wizard (CREATE_CAMPAIGN_FLOW_SPEC.md) ────────────────────
 // 5 steps: Basics -> Rules -> Permissions -> Content -> Review. Per the spec's own "important
 // rules": never creates a Host session or room code here (createCampaign makes the persistent
-// campaign object only; a live session is a separate later step, DmActiveView's "Host Session" button), and the chosen rule profile is COPIED into
+// campaign object only; a live session is a separate later step, DmActiveView's "Host Live Table" button), and the chosen rule profile is COPIED into
 // the campaign's own `rules`, not referenced — editing the original profile later never
 // silently rewrites an existing campaign (createCampaign already enforces this; the wizard just
 // decides what to copy in).
@@ -179,7 +176,7 @@ function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => vo
     if (!trimmed || !session) return;
     setLoading(true);
     try {
-      // createCampaign is offline state only: it opens no server and allocates no room code (Host Session does that later).
+      // createCampaign is offline state only: it opens no server and allocates no room code (Host Live Table does that later).
       await createCampaign({
         name: trimmed, description, rulesetId, rules: buildRules(),
         bannedPackIds,
@@ -300,7 +297,7 @@ function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => vo
               </Pressable>
             ) : (
               <Pressable style={[styles.primaryBtn, { flex: 2 }, (!name.trim() || loading) && styles.btnDisabled]}
-                onPress={handleCreate} disabled={!name.trim() || loading} testID="wiz-create">
+                onPress={() => { void handleCreate(); }} disabled={!name.trim() || loading} testID="wiz-create">
                 {loading ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.primaryBtnTxt}>Create Campaign</Text>}
               </Pressable>
             )}
@@ -660,47 +657,28 @@ function DmActiveView() {
   const router         = useRouter();
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
   const updateCampaign = useCampaignStore(s => s.updateCampaign);
-  const liveSession      = useCampaignStore(s => s.liveSession);
-  const startLiveSession = useCampaignStore(s => s.startLiveSession);
-  const endLiveSession   = useCampaignStore(s => s.endLiveSession);
-  const leaveCampaign    = useCampaignStore(s => s.leaveCampaign);
-  const syncStatus     = useSyncStore(s => s.status);
+  const leaveCampaign  = useCampaignStore(s => s.leaveCampaign);
   const liveNickname   = useSessionStore(s => s.session?.nickname ?? '');
+  const liveMode       = useSessionRuntime(s => s.mode);
   const [hostOpen, setHostOpen] = useState(false);
-  const [starting, setStarting] = useState(false);
 
   if (!activeCampaign) return null;
 
-  // A room code exists only during a live session; an offline campaign has none.
-  const roomCode   = liveSession ? (syncStatus.roomCode ?? activeCampaign.joinCode) : '';
+  const inLiveSession = liveMode !== 'idle';
   const quests     = activeCampaign.quests ?? [];
   const log        = activeCampaign.sessionLog ?? [];
   const campaignId = activeCampaign.id;   // captured after null guard for closure safety
 
   function save(patch: Partial<typeof activeCampaign>) {
-    updateCampaign(campaignId, c => ({ ...c, ...patch }));
+    updateCampaign(campaignId, c => ({ ...c, ...patch })).catch(e => console.error('[campaigns] saving the campaign failed:', e));
   }
 
-  function confirmEnd() {
-    // Bug fix: this used to permanently delete the campaign (leaveCampaign's
-    // old DM behavior) — now it just stops hosting and disconnects any
-    // connected players, same as a network outage. The campaign itself is
-    // untouched and can be resumed later from the campaign list (a DM can
-    // own more than one campaign now — see campaignStore.switchToCampaign).
-    Alert.alert('End Live Session', 'Players currently connected will be disconnected. The campaign stays as it is and you can host another session any time.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'End Live Session', style: 'destructive', onPress: () => { void endLiveSession(); } },
-    ]);
-  }
-
-  // Leaves this campaign without deleting it: a live session (if any) is announced and stopped, and the Campaigns page returns to
-  // Create / Open Existing / Join, so a DM can start or open another campaign. The campaign stays saved and can be reopened.
+  // Closes this campaign without deleting it, so a DM can start or open another one. A running live table is
+  // separate from the campaign and keeps running; end it from the live table itself.
   function confirmClose() {
     Alert.alert(
       'Close Campaign',
-      liveSession
-        ? 'Players currently connected will be disconnected. "' + activeCampaign!.name + '" stays saved; you can reopen it or start another campaign.'
-        : '"' + activeCampaign!.name + '" stays saved; you can reopen it or start another campaign.',
+      '"' + activeCampaign!.name + '" stays saved; you can reopen it or start another campaign.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Close Campaign', onPress: () => { void leaveCampaign(); } },
@@ -708,107 +686,47 @@ function DmActiveView() {
     );
   }
 
-  async function beginLiveSession() {
-    setStarting(true);
-    try { await startLiveSession(); }
-    catch (e) { Alert.alert('Could not start the session', e instanceof Error ? e.message : 'Try again.'); }
-    finally { setStarting(false); }
-  }
-
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <CampaignPacksNote campaign={activeCampaign} />
 
-      {/* Connection block */}
       <View style={styles.campaignCard}>
-        <View style={styles.campaignHeaderRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.campaignName}>{activeCampaign.name}</Text>
-            <View style={styles.syncRow}>
-              <SyncStatusDot />
-              <Text style={styles.campaignMeta}>
-                {!liveSession
-                  ? 'Offline campaign, no live session'
-                  : syncStatus.connected
-                    ? `${syncStatus.clientCount} player${syncStatus.clientCount !== 1 ? 's' : ''} connected`
-                    : 'Starting server…'}
-              </Text>
-            </View>
+        <Text style={styles.campaignName}>{activeCampaign.name}</Text>
+        <Text style={styles.campaignMeta}>
+          {inLiveSession ? 'A live table is running on this device' : 'Offline campaign. No live table running.'}
+        </Text>
+        {!inLiveSession && (
+          <View style={styles.noNetworkNotice}>
+            <Text style={styles.noNetworkTxt}>
+              This campaign works offline: the DM dashboard, rules and encounters need no network. Host a live table when you want players to join over Wi-Fi.
+            </Text>
           </View>
-        </View>
-
-        <View style={styles.codeSection}>
-          {roomCode ? (
-            <>
-              <Text style={styles.codeLabel}>ROOM CODE</Text>
-              <Text style={styles.codeValue}>{roomCode}</Text>
-              <Text style={styles.codeHint}>Players enter this code or scan the QR below</Text>
-              {(() => {
-                try {
-                  const { ip } = decodeRoomCode(roomCode);
-                  return (
-                    <Text style={styles.codeDiag}>
-                      Hosting on {ip}:7742 — this must match this phone's WiFi IP, and
-                      players must be on the same network.
-                    </Text>
-                  );
-                } catch { return null; }
-              })()}
-            </>
-          ) : (
-            // Non-blocking recommendation, not an error — the campaign is
-            // fully open and this device is fully the host (CampaignHost is
-            // a session/role concept, independent of
-            // NetworkHostAvailability). Only joining is unavailable right
-            // now; this updates on its own the moment a usable network
-            // appears (syncManager's network watch), with no action needed
-            // here and nothing to dismiss.
-            <View style={styles.noNetworkNotice}>
-              <Text style={styles.noNetworkTxt}>
-                {liveSession
-                  ? 'No local network is available. The session is started, but other players cannot join until a network appears. Enable Wi-Fi or a mobile hotspot.'
-                  : 'This campaign works offline: the DM dashboard, rules and encounters need no network. Start a live session when you want players to join.'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {Platform.OS !== 'web' && roomCode ? (
-          <View style={styles.qrContainer}>
-            <QRCode value={roomCode} size={160}
-              color={Colors.textPrimary} backgroundColor={Colors.surface} />
-          </View>
-        ) : null}
+        )}
 
         <Pressable style={styles.dmBtn} onPress={() => router.push('/dm/dashboard' as any)}>
           <Text style={styles.dmBtnTxt}>🎲 Open DM Dashboard</Text>
         </Pressable>
-        {LAN_SESSIONS_AVAILABLE && (liveSession ? (
-          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={confirmEnd} testID="campaign-end-live-session">
-            <Text style={[styles.dmBtnTxt, { color: Colors.red }]}>⏹ End Live Session</Text>
+        {LAN_SESSIONS_AVAILABLE && (inLiveSession ? (
+          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={() => router.push('/live' as any)} testID="campaign-open-live-table">
+            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>🛰 Open Live Table</Text>
           </Pressable>
         ) : (
-          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary, starting && { opacity: 0.6 }]} disabled={starting} onPress={() => { void beginLiveSession(); }} testID="campaign-host-session">
-            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>{starting ? 'Starting…' : '📡 Host Session'}</Text>
+          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={() => setHostOpen(true)} testID="campaign-host-live-session">
+            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>📡 Host Live Table</Text>
           </Pressable>
         ))}
-        {LAN_SESSIONS_AVAILABLE && (
-          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={() => setHostOpen(true)} testID="campaign-host-live-session">
-            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>🛰 Host Live Table (advanced)</Text>
-          </Pressable>
-        )}
         <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={confirmClose} testID="campaign-close">
           <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>↩ Close Campaign / Switch</Text>
         </Pressable>
       </View>
 
+      {/* While a live table runs: its room code, who is connected, and how to end it. */}
+      {inLiveSession && <LiveSessionStatus />}
+
       {/*
-        Per HOST_SESSION_FLOW_SPEC.md: "Create Campaign = persistent DM workspace. Host Session =
-        temporary live room." This campaign's own room code above is the legacy system; a Live
-        Session is the separate, newer Host/DM/Player layer (room code on a different port). This
-        is where that temporary room is started from inside an already-open campaign, pre-set to
-        Host + DM since a campaign is already in hand. Attaching THIS campaign's content to the
-        room is then done from the DM screen's own link-campaign action once hosting starts.
+        Create Campaign = persistent DM workspace; a live table = temporary room (src/session).
+        Hosting from inside an open campaign is pre-set to Host + DM; attaching this campaign's
+        content to the room is done from the live DM screen once hosting starts.
       */}
       <HostModal visible={hostOpen} onClose={() => setHostOpen(false)} nickname={liveNickname} initialRole="host+dm" />
 
@@ -833,31 +751,18 @@ function DmActiveView() {
         onUpdate={ids => save({ bannedPackIds: ids })}
       />
       <PartySection characterIds={activeCampaign.characterIds} />
-
-      {/* Only while a live session runs: an offline campaign is not hosting, so it offers no Stop Hosting. */}
-      {liveSession ? (
-        <Pressable style={styles.leaveBtn} onPress={confirmEnd} testID="campaign-stop-hosting">
-          <Text style={styles.leaveBtnTxt}>⏸ Stop Hosting</Text>
-        </Pressable>
-      ) : null}
-
     </ScrollView>
   );
 }
 
 // ── Player Active View ────────────────────────────────────────────────────────
 
-function PlayerActiveView() {
+function PlayerActiveView({ onJoinLive }: { onJoinLive: () => void }) {
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
   const leaveCampaign  = useCampaignStore(s => s.leaveCampaign);
   const assignCharacter = useCampaignStore(s => s.assignCharacterToCampaign);
-  const reconnectWithCode = useCampaignStore(s => s.reconnectWithCode);
-  const syncStatus     = useSyncStore(s => s.status);
   const characters     = useCharacterStore(s => s.characters);
   const [claimOpen, setClaimOpen] = useState(false);
-  const [reconnectOpen, setReconnectOpen] = useState(false);
-  const [reconnectCode, setReconnectCode] = useState('');
-  const [retrying, setRetrying] = useState(false);
 
   if (!activeCampaign) return null;
 
@@ -865,40 +770,16 @@ function PlayerActiveView() {
   const log    = activeCampaign.sessionLog ?? [];
   const myChar = characters.find(c => activeCampaign.characterIds.includes(c.id)) ?? null;
   const campaignId = activeCampaign.id;
-  const joinCode    = activeCampaign.joinCode;
 
   async function claim(characterId: string) {
-    // assignCharacterToCampaign already pushes the entity to the DM and announces
-    // the claimed character over sync, so we don't repeat those calls here.
     await assignCharacter(characterId, campaignId);
     setClaimOpen(false);
-  }
-
-  // Item 16 (LAN/session UX) — one tap, no retyping: the stored room code
-  // is almost always still correct (the connection dropped, not the DM's
-  // room), so reconnectWithCode(activeCampaign.joinCode) alone recovers
-  // the common case. The "Enter a new room code" flow below stays for the
-  // real edge case — the DM's IP actually changed (different network).
-  async function handleRetrySavedCode() {
-    setRetrying(true);
-    try {
-      await reconnectWithCode(joinCode);
-    } catch (e) {
-      showError('Reconnect failed', String(e));
-    } finally {
-      setRetrying(false);
-    }
   }
 
   function confirmLeave() {
     Alert.alert('Leave Campaign', 'You will leave this campaign. Continue?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Leave', style: 'destructive', onPress: async () => {
-          syncManager.claimCharacter(null);
-          syncManager.stopAll();
-          await leaveCampaign();
-        }
-      },
+      { text: 'Leave', style: 'destructive', onPress: () => { void leaveCampaign(); } },
     ]);
   }
 
@@ -906,70 +787,18 @@ function PlayerActiveView() {
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <CampaignPacksNote campaign={activeCampaign} />
 
-      {/* Status block */}
+      {/* A campaign joined through an older version's campaign sync: kept as a local record. */}
       <View style={styles.campaignCard}>
         <Text style={styles.campaignName}>{activeCampaign.name}</Text>
-        <View style={styles.syncRow}>
-          <SyncStatusDot />
-          <Text style={styles.campaignMeta}>
-            {syncStatus.connected
-              ? 'Connected to DM'
-              // lastError is only set once the client's own retry budget is
-              // exhausted (~3.5 minutes of backoff) — until then this stays
-              // "Reconnecting…" so the two states read differently instead
-              // of showing the same passive text for the whole window.
-              : syncStatus.lastError ? 'Connection lost' : 'Reconnecting…'}
+        <View style={styles.noNetworkNotice}>
+          <Text style={styles.noNetworkTxt}>
+            You joined this campaign with an older version of Grimoire. Live play now happens at a live table: ask your DM for the room code.
           </Text>
         </View>
-        {!syncStatus.connected && syncStatus.lastError && (
-          <Text style={styles.syncErrorTxt}>{syncStatus.lastError}</Text>
-        )}
-        {!syncStatus.connected && !reconnectOpen && (
-          <Pressable style={[styles.retryBtn, retrying && styles.retryBtnDisabled]} onPress={handleRetrySavedCode} disabled={retrying}>
-            <Text style={styles.retryBtnTxt}>{retrying ? 'Retrying…' : '🔄 Retry Connection'}</Text>
+        {LAN_SESSIONS_AVAILABLE && (
+          <Pressable style={[styles.dmBtn, styles.dmBtnSecondary]} onPress={onJoinLive} testID="campaign-player-join-live">
+            <Text style={[styles.dmBtnTxt, { color: Colors.textPrimary }]}>🗡 Join Live Session</Text>
           </Pressable>
-        )}
-        {!syncStatus.connected && (
-          reconnectOpen ? (
-            <View style={styles.reconnectBox}>
-              <Text style={styles.reconnectHint}>
-                Ask your DM for the current room code and enter it:
-              </Text>
-              <TextInput
-                style={styles.reconnectInput}
-                value={reconnectCode}
-                onChangeText={t => setReconnectCode(t.toUpperCase())}
-                placeholder="7-char code"
-                placeholderTextColor={Colors.textDim}
-                autoCapitalize="characters"
-                maxLength={7}
-              />
-              <View style={styles.reconnectRow}>
-                <Pressable
-                  style={[styles.reconnectBtn, reconnectCode.trim().length !== 7 && styles.reconnectBtnDisabled]}
-                  disabled={reconnectCode.trim().length !== 7}
-                  onPress={async () => {
-                    try {
-                      await reconnectWithCode(reconnectCode);
-                      setReconnectOpen(false);
-                      setReconnectCode('');
-                    } catch (e) {
-                      showError('Reconnect failed', String(e));
-                    }
-                  }}
-                >
-                  <Text style={styles.reconnectBtnTxt}>Reconnect</Text>
-                </Pressable>
-                <Pressable style={styles.reconnectCancel} onPress={() => { setReconnectOpen(false); setReconnectCode(''); }}>
-                  <Text style={styles.reconnectCancelTxt}>Cancel</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <Pressable style={styles.reEnterLink} onPress={() => setReconnectOpen(true)}>
-              <Text style={styles.reEnterTxt}>DM's room code changed? Enter a new one →</Text>
-            </Pressable>
-          )
         )}
       </View>
 
@@ -1024,7 +853,7 @@ function PlayerActiveView() {
               <Text style={styles.emptyNote}>You have no characters yet. Create one first.</Text>
             ) : (
               characters.map(c => (
-                <Pressable key={c.id} style={styles.pickRow} onPress={() => claim(c.id)}>
+                <Pressable key={c.id} style={styles.pickRow} onPress={() => { void claim(c.id); }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.partyName}>{c.identity.name || 'Unnamed'}</Text>
                     <Text style={styles.partySub}>Lv {c.identity.level} · {identityLabelsFor(c).class || '—'}</Text>
@@ -1218,14 +1047,14 @@ export default function CampaignsScreen() {
     }
   }, [action]);
 
-  useEffect(() => { loadCampaigns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadCampaigns(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (session?.nickname !== undefined) setLocalNick(session.nickname);
   }, [session?.nickname]);
 
   const handleNicknameChange = useCallback((n: string) => {
     setLocalNick(n);
-    setNickname(n);
+    void setNickname(n);
   }, [setNickname]);
 
   return (
@@ -1235,7 +1064,7 @@ export default function CampaignsScreen() {
       </View>
 
       {activeCampaign ? (
-        isDm ? <DmActiveView /> : <PlayerActiveView />
+        isDm ? <DmActiveView /> : <PlayerActiveView onJoinLive={() => setJoinLiveOpen(true)} />
       ) : (
         <NoCampaignView
           nickname={nickname}
@@ -1364,47 +1193,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.gold + '44',
     padding: Spacing.md, gap: Spacing.md,
   },
-  campaignHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
   campaignName:      { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  syncRow:           { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
   campaignMeta:      { fontSize: FontSize.sm, color: Colors.textSecondary },
-  syncErrorTxt:      { fontSize: FontSize.xs, color: Colors.red, lineHeight: 17, marginTop: 4 },
-  retryBtn: {
-    marginTop: Spacing.sm, alignSelf: 'flex-start',
-    backgroundColor: Colors.gold + '22', borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.gold + '66',
-    paddingHorizontal: Spacing.md, paddingVertical: 6,
-  },
-  retryBtnDisabled: { opacity: 0.5 },
-  retryBtnTxt:      { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.bold },
-  reEnterLink:       { marginTop: Spacing.sm, alignSelf: 'flex-start' },
-  reEnterTxt:        { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.bold },
-  reconnectBox:      { marginTop: Spacing.sm, gap: Spacing.xs },
-  reconnectHint:     { fontSize: FontSize.xs, color: Colors.textSecondary },
-  reconnectInput: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    fontSize: FontSize.lg, color: Colors.textPrimary, letterSpacing: 4,
-    textAlign: 'center', fontWeight: FontWeight.bold,
-  },
-  reconnectRow:      { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
-  reconnectBtn: {
-    flex: 1, backgroundColor: Colors.gold, borderRadius: Radius.md,
-    paddingVertical: Spacing.sm, alignItems: 'center',
-  },
-  reconnectBtnDisabled: { backgroundColor: Colors.goldDim },
-  reconnectBtnTxt:   { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.bg },
-  reconnectCancel:   { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  reconnectCancelTxt:{ fontSize: FontSize.sm, color: Colors.textSecondary },
-  codeSection:       { alignItems: 'center', gap: Spacing.xs },
-  codeLabel:         { fontSize: FontSize.xs, color: Colors.textDim, letterSpacing: 2 },
-  codeValue:         { fontSize: 36, fontWeight: FontWeight.bold, color: Colors.gold, letterSpacing: 8 },
-  codeHint:          { fontSize: FontSize.xs, color: Colors.textDim, textAlign: 'center' },
-  codeDiag:          { fontSize: FontSize.xs, color: Colors.textSecondary, textAlign: 'center', marginTop: 4, lineHeight: 16 },
   noNetworkNotice:   { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
   noNetworkTxt:      { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19 },
-  qrContainer:       { alignItems: 'center', padding: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.lg },
   dmBtn:             { backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
   dmBtnSecondary:    { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
   dmBtnTxt:          { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
@@ -1471,7 +1263,6 @@ const styles = StyleSheet.create({
   },
   primaryBtn:    { backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
   secondaryBtn:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  codeInput:     { textAlign: 'center', fontSize: FontSize.xl, letterSpacing: 8, fontWeight: FontWeight.bold },
   btnDisabled:   { opacity: 0.4 },
   primaryBtnTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   cancelBtn:     { alignItems: 'center', padding: Spacing.sm, flex: 1 },

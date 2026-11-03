@@ -344,7 +344,7 @@ function AddItemModal({
               />
               <Pressable
                 style={[addStyles.quickAddBtn, !qName.trim() && addStyles.quickAddBtnDisabled]}
-                onPress={handleQuickAdd}
+                onPress={() => { void handleQuickAdd(); }}
                 disabled={!qName.trim()}
               >
                 <Text style={addStyles.quickAddBtnTxt}>Create & Add to Bag</Text>

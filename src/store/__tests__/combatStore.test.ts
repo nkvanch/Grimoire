@@ -13,7 +13,6 @@ import { useCharacterStore, makeEmptyEntity } from '../characterStore';
 import * as combatRepo from '../../db/combatRepo';
 import { Entity } from '../../engine/types';
 import { applyCondition } from '../../engine/conditions';
-import { syncManager } from '../../sync/syncManager';
 import { setRandomSource } from '../../engine/dice';
 
 function entityAt(id: string, initiativeBonus: number): Entity {
@@ -474,65 +473,6 @@ describe('combatStore', () => {
     });
   });
 
-  // Player turn banner (item 8): combatStore pushes "whose turn is it" to
-  // connected players via syncManager on every state-changing action.
-  // syncManager.broadcastCombatTurn is itself a no-op unless this device's
-  // role is 'dm' with a live server (see syncManager.ts) — these tests spy
-  // on it directly rather than standing up a real server/client pair, since
-  // the actual transport is already covered by sync's own test suite; this
-  // file's job is proving combatStore calls it with the right payload at
-  // the right times.
-  describe('broadcastTurn (player live-play turn banner)', () => {
-    let broadcastSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      broadcastSpy = jest.spyOn(syncManager, 'broadcastCombatTurn').mockImplementation(() => {});
-    });
-
-    it('startCombat broadcasts the first actor as current', () => {
-      // Deterministic: single entity, so it's unambiguously first in initiative.
-      useCombatStore.getState().startCombat([entityAt('a', 10)], 'enc1');
-      expect(broadcastSpy).toHaveBeenCalledWith({ active: true, round: 1, currentEntityId: 'a', currentName: 'a' });
-    });
-
-    it('advanceTurn broadcasts the new current actor and round', () => {
-      useCombatStore.getState().startCombat([entityAt('a', 10), entityAt('b', 5)], 'enc1');
-      broadcastSpy.mockClear();
-      useCombatStore.getState().advanceTurn();
-      const { combat } = useCombatStore.getState();
-      const nowActing = combat.order[combat.turnIndex].entityId;
-      expect(broadcastSpy).toHaveBeenCalledWith({ active: true, round: combat.round, currentEntityId: nowActing, currentName: nowActing });
-    });
-
-    it('endCombat broadcasts active:false with no current actor', () => {
-      useCombatStore.getState().startCombat([entityAt('a', 10)], 'enc1');
-      broadcastSpy.mockClear();
-      useCombatStore.getState().endCombat();
-      expect(broadcastSpy).toHaveBeenCalledWith({ active: false, round: 0, currentEntityId: null, currentName: null });
-    });
-
-    it('removeFromEncounter broadcasts the re-anchored current actor when combat is active', () => {
-      useCombatStore.getState().startCombat([entityAt('a', 10), entityAt('b', 5)], 'enc1');
-      broadcastSpy.mockClear();
-      useCombatStore.getState().removeFromEncounter('b');
-      const { combat } = useCombatStore.getState();
-      expect(broadcastSpy).toHaveBeenCalledWith(expect.objectContaining({ currentEntityId: combat.order[combat.turnIndex]?.entityId ?? null }));
-    });
-
-    it('does not broadcast when removeFromEncounter runs with combat inactive', () => {
-      useCombatStore.setState({ entities: [entityAt('a', 10)] });
-      useCombatStore.getState().removeFromEncounter('a');
-      expect(broadcastSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── Closure 1: active-combat hydration race ─────────────────────────────
-  // hydrateCombatStateOnBoot is the exact function app/_layout.tsx's boot
-  // sequence now `await`s before releasing the boot screen — extracted out
-  // of that component specifically so it's testable here with a genuinely
-  // asynchronous loadCombatState (a manually-controlled Promise the test
-  // resolves on its own schedule), not a synchronously-resolved mock that
-  // could hide a real ordering bug.
   describe('hydrateCombatStateOnBoot (closure 1: active-combat hydration race)', () => {
     let loadSpy: jest.SpyInstance;
 

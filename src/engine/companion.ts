@@ -84,7 +84,7 @@ export function createCompanion(
   rules:    CampaignRules = DEFAULT_RULES,
 ): Entity {
   const base = makeEmptyEntity(companionId(owner.id, template.id), 'monster');
-  let companion: Entity = {
+  const companion: Entity = {
     ...base,
     identity: {
       ...base.identity,

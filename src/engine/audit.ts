@@ -22,8 +22,12 @@
 //   Ability scores: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
 //   Saving throws:  'save_str' | 'save_dex' | … | 'save_cha'
 //   Skills:         any SkillName e.g. 'perception', 'athletics'
+//   Hit points:     'hpMax'
+//   Attacks:        'attack:<key>' (to-hit) and 'damage:<key>' (flat damage bonus), where <key> is the
+//                   equipped weapon's instance id, its item id, or 'unarmed_strike' (see attackKey)
 // ============================================================================
 
+import { attackKey } from './attackKey';
 import { findBeastForm } from '../content/runtimeRules';
 import {
   Entity, Ability, SkillName, AuditEntry, AuditTrail, AuditSourceKind, ActiveEffect,
@@ -45,6 +49,11 @@ import { resolveCombine, resolveScaleFactor, applyScale } from './resolver';
  */
 export function explainValue(entity: Entity, stat: string): AuditTrail {
   const entries = buildEntries(entity, stat);
+  // Never an empty list for a number the sheet shows: with nothing contributing, say what the number is.
+  if (entries.length === 0) {
+    const shown = (entity.derived as unknown as Record<string, unknown>)[stat];
+    if (typeof shown === 'number') entries.push(entry('Nothing adds to or changes this number', shown, 'base', null));
+  }
   appendScaleEntry(entity, stat, entries);
   const calculated = entries.reduce((sum, e) => sum + e.value, 0);
   const override = appendDmOverrides(entity, stat, entries, calculated);
@@ -95,8 +104,65 @@ function buildEntries(entity: Entity, stat: string): AuditEntry[] {
     case 'proficiencyBonus': return buildProficiencyEntries(entity);
     case 'spellSaveDC':      return buildSpellSaveDcEntries(entity);
     case 'spellAttackBonus': return buildSpellAttackEntries(entity);
-    default:                 return [];
+    case 'hpMax':            return buildHpMaxEntries(entity);
   }
+
+  if (stat.startsWith('attack:')) return buildAttackPartEntries(entity, stat.slice('attack:'.length), 'bonusParts');
+  if (stat.startsWith('damage:')) return buildAttackPartEntries(entity, stat.slice('damage:'.length), 'damageParts');
+  return [];
+}
+
+export { attackKey } from './attackKey';
+
+/**
+ * HP maximum, as the stored maximum is built: hit dice at each level (the first at its maximum, then rolled or the
+ * average, as the rules said when the character levelled), the HP ability's modifier once per level, then whatever
+ * features and items add (Tough, Dwarven Toughness, a hit-die upgrade). The lines always add up to the stored maximum.
+ */
+function buildHpMaxEntries(entity: Entity): AuditEntry[] {
+  const hp = entity.resources.hp;
+  const applied = hp.bonusApplied ?? 0;
+  const base = hp.maximum - applied;
+  const entries: AuditEntry[] = [];
+
+  if (entity.kind === 'character' && entity.identity.level > 0) {
+    const level = entity.identity.level;
+    const conMod = modifier(effectiveAbilityScores(entity).con);
+    const conPart = conMod * level;
+    const dice = (entity.resources.hitDice.pools ?? [{ die: entity.resources.hitDice.die, total: entity.resources.hitDice.total }])
+      .filter(p => p.total > 0).map(p => `${p.total}d${p.die}`).join(' + ') || `d${entity.resources.hitDice.die}`;
+    entries.push(entry(`Hit dice (${dice}: the most at 1st level, then each level's roll or average)`, base - conPart, 'class', null));
+    entries.push(entry(`CON modifier (${conMod >= 0 ? '+' : ''}${conMod}) × ${level} level${level === 1 ? '' : 's'}`, conPart, 'base', null));
+  } else {
+    entries.push(entry(entity.kind === 'character' ? 'Hit points' : 'Stat block hit points', base, 'base', null));
+  }
+
+  // What features and items add, one line each when they simply add, so the source is named.
+  const adds = collectAllEffects(entity).filter(ae =>
+    ae.effect.target === 'max_hp' && ae.effect.operation === 'add' && typeof ae.effect.value === 'number' && ae.effect.value !== 0);
+  let listed = 0;
+  for (const ae of adds) {
+    const value = Math.trunc(ae.effect.value as number);
+    entries.push(entry(ae.sourceName, value, ae.sourceKind ?? 'base', ae.sourceId));
+    listed += value;
+  }
+  if (applied - listed !== 0) {
+    const tier = collectAllEffects(entity).some(ae => ae.effect.target === 'hit_die_tier');
+    entries.push(entry(tier ? 'Bigger hit dice (hit-die upgrade)' : 'Other features and items', applied - listed, tier ? 'class' : 'manual', null));
+  }
+  return entries;
+}
+
+/** An attack's to-hit or damage parts, recorded where the pipeline computed the number (AttackBonus.bonusParts). */
+function buildAttackPartEntries(entity: Entity, key: string, which: 'bonusParts' | 'damageParts'): AuditEntry[] {
+  const attack = entity.derived.attackBonuses.find(a => attackKey(a) === key)
+    ?? entity.derived.attackBonuses.find(a => a.id === key);
+  if (!attack) return [];
+  const parts = attack[which];
+  if (parts && parts.length > 0) return parts.map(p => entry(p.label, p.value, p.sourceKind, p.sourceId));
+  // Saved before parts were recorded: still say what the number is, until the next recompute fills them in.
+  const total = which === 'bonusParts' ? attack.bonus : attack.damageBonus;
+  return [entry(which === 'bonusParts' ? 'Attack bonus' : 'Damage bonus', total, 'base', null)];
 }
 
 // ── AC ────────────────────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ export const useEncounterStore = create<EncounterStore>((set, get) => ({
   loadEncounters: async () => {
     set({ isLoading: true });
     try {
-      let encounters = await loadAllEncounters();
+      const encounters = await loadAllEncounters();
       set({ encounters, isLoading: false });
     } catch (e) {
       console.error('[encounterStore] loadEncounters failed:', e);

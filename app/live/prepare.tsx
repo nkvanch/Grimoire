@@ -108,7 +108,7 @@ export default function PrepareScreen() {
     <LiveScreen title={p.name} subtitle={`Preparation revision ${p.campaignRevision} · offline-safe`} backTo="/live/prepare">
       <Btn label="← All campaigns" kind="ghost" onPress={() => { setCurrent(null); setForm(null); void refresh(); }} testID="prep-all" />
 
-      <Section title={`Encounters (${p.encounters.length})`} hint="Only the public projection (names and coarse state) is sent when you start one. Notes and hidden combatants stay here.">
+      <Section title={`Encounters (${p.encounters.length})`} hint="Only what players may see (names and how hurt they look) is sent when you start one. Notes and hidden combatants stay on this device.">
         {p.encounters.map(e => (
           <Card key={e.id} testID={`prep-encounter-${e.name}`}>
             <Body bold>{e.name}</Body>

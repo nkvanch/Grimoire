@@ -35,6 +35,7 @@ import { spellIdsOnEntity } from '../../content/spellRepo.types';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { AsiFeatPicker } from '../AsiFeatPicker';
 import { AuditModal } from './AuditModal';
+import { attackKey } from '../../engine/attackKey';
 import { HpModal } from './HpModal';
 import { HeroicInspirationPanel } from './HeroicInspirationPanel';
 import { CombatStatePanel } from './CombatStatePanel';
@@ -1108,6 +1109,8 @@ function TabCharacterInner({
     const modStr = ab.damageBonus >= 0 ? `+${ab.damageBonus}` : `${ab.damageBonus}`;
     return {
       itemId:      ab.id,
+      key:         attackKey(ab),
+      damageBonus: ab.damageBonus,
       name:        ab.name,
       attackBonus: ab.bonus,
       damage:      `${ab.damageDice}${ab.damageBonus !== 0 ? modStr : ''} ${ab.damageType}`.trim(),
@@ -1271,7 +1274,11 @@ function TabCharacterInner({
             {resources.hp.current}
           </Text>
           <Text style={styles.hpSep}>/</Text>
-          <Text style={styles.hpMax}>{resources.hp.maximum}</Text>
+          {/* The maximum explains itself (hit dice, CON × level, Tough…); the rest of the block is damage / heal. */}
+          <Pressable onPress={() => openAudit('hpMax', 'Hit Point Maximum')} hitSlop={8}
+            accessibilityRole="button" accessibilityLabel={`Hit point maximum ${resources.hp.maximum}. Show how it is worked out`} testID="hp-max-why">
+            <Text style={[styles.hpMax, styles.tappableNumber]}>{resources.hp.maximum}</Text>
+          </Pressable>
           {resources.hp.temp > 0 && (
             <Text style={styles.hpTemp}>  +{resources.hp.temp} tmp</Text>
           )}
@@ -1391,15 +1398,26 @@ function TabCharacterInner({
           <Text style={styles.emptyNote}>No weapons equipped</Text>
         ) : (
           weapons.map(w => (
-            <View key={w.itemId} style={styles.weaponRow}>
+            <View key={w.key} style={styles.weaponRow}>
               <View style={styles.weaponInfo}>
                 <Text style={styles.weaponName}>{w.name}</Text>
-                <Text style={styles.weaponDamage}>{w.damage}</Text>
+                {w.damageBonus !== 0 ? (
+                  <Pressable onPress={() => openAudit(`damage:${w.key}`, `${w.name} damage bonus`)} hitSlop={6}
+                    accessibilityRole="button" accessibilityLabel={`${w.name} damage ${w.damage}. Show how the bonus is worked out`}>
+                    <Text style={[styles.weaponDamage, styles.tappableNumber]}>{w.damage}</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.weaponDamage}>{w.damage}</Text>
+                )}
               </View>
               <View style={styles.weaponRight}>
-                <Text style={styles.weaponBonus}>
-                  {w.attackBonus >= 0 ? `+${w.attackBonus}` : String(w.attackBonus)}
-                </Text>
+                <Pressable onPress={() => openAudit(`attack:${w.key}`, `${w.name} to hit`)} hitSlop={6}
+                  accessibilityRole="button" accessibilityLabel={`${w.name} to hit ${w.attackBonus >= 0 ? '+' : ''}${w.attackBonus}. Show how it is worked out`}
+                  testID={`attack-why-${w.key}`}>
+                  <Text style={[styles.weaponBonus, styles.tappableNumber]}>
+                    {w.attackBonus >= 0 ? `+${w.attackBonus}` : String(w.attackBonus)}
+                  </Text>
+                </Pressable>
                 <View style={[styles.weaponBadge, w.isRanged && styles.weaponBadgeRanged]}>
                   <Text style={styles.weaponBadgeTxt}>{w.isRanged ? 'Ranged' : 'Melee'}</Text>
                 </View>
@@ -2027,6 +2045,8 @@ export const TabCharacter = memo(TabCharacterInner);
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  /** A number that opens its breakdown when tapped. */
+  tappableNumber: { textDecorationLine: 'underline', textDecorationStyle: 'dotted' },
   scroll:   { flex: 1 },
   content:  { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
 

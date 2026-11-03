@@ -12,3 +12,11 @@
 This file is the provenance root for the 5.5e content of the `grimoire.srd.5.2.1` pack. `scripts/verify-srd-5-2-1.ts` reads this PDF
 (through `pdftotext`) and compares what the pack carries against it; its last result is in `docs/audits/SRD_5_2_1_READINESS_AUDIT.md`.
 It makes no legal conclusion about any Grimoire content.
+
+## Extracted text
+
+`extracted/srd-text.txt.gz` is the plain text of the PDF above, made with
+`pdftotext -enc UTF-8 SRD_CC_v5.2.1.pdf - | gzip -9 > extracted/srd-text.txt.gz` (poppler 24.02).
+`src/content/__tests__/srdTextProvenance.test.ts` reads it to check that what the packs and the
+source tree carry is SRD text, not only SRD ids. Regenerate it only from the PDF whose hash is
+recorded above.

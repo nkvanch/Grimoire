@@ -158,6 +158,13 @@ function FeatureListEditor({ features, onChange }: {
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 
+/** The builder's four one-per-line text boxes as Background.characteristics, or undefined when all are empty. */
+export function characteristicsFromText(traits: string, ideals: string, bonds: string, flaws: string): Background['characteristics'] {
+  const lines = (t: string) => t.split('\n').map(l => l.trim()).filter(Boolean);
+  const c = { traits: lines(traits), ideals: lines(ideals), bonds: lines(bonds), flaws: lines(flaws) };
+  return c.traits.length + c.ideals.length + c.bonds.length + c.flaws.length > 0 ? c : undefined;
+}
+
 export default function BackgroundBuilderScreen() {
   const goBack   = useSafeGoBack('/(tabs)');
   const saveItem = useHomebrewStore(s => s.saveItem);
@@ -174,6 +181,11 @@ export default function BackgroundBuilderScreen() {
   const [newTool, setNewTool] = useState('');
   const [languages, setLanguages] = useState('');
   const [equipmentNote, setEquipmentNote] = useState('');
+  // Personality pickers creation offers for this background, one option per line (Background.characteristics).
+  const [traitsText, setTraitsText] = useState('');
+  const [idealsText, setIdealsText] = useState('');
+  const [bondsText,  setBondsText]  = useState('');
+  const [flawsText,  setFlawsText]  = useState('');
   const [features, setFeatures] = useState<DraftFeature[]>([]);
   const [pendingChoices, setPendingChoices] = useState<DraftChoice[]>([]);
   const [testOpen, setTestOpen] = useState(false);
@@ -187,6 +199,10 @@ export default function BackgroundBuilderScreen() {
     setName(editing.name);
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
+    setTraitsText((editing.characteristics?.traits ?? []).join('\n'));
+    setIdealsText((editing.characteristics?.ideals ?? []).join('\n'));
+    setBondsText((editing.characteristics?.bonds ?? []).join('\n'));
+    setFlawsText((editing.characteristics?.flaws ?? []).join('\n'));
     const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
     if (draft) {
       setSkills((draft.skills as SkillName[]) ?? []);
@@ -296,6 +312,7 @@ export default function BackgroundBuilderScreen() {
         features: editing.features, pendingChoices: editing.pendingChoices,
       } : {}),
       id, name: name.trim(), origin: cleanOrigin(origin), features: serializedFeatures.features, rulesetId,
+      characteristics: characteristicsFromText(traitsText, idealsText, bondsText, flawsText),
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, BACKGROUND_CHOICE_PREFIX),
       homebrewDraft: { skills, toolProfs, languages, equipmentNote, features, pendingChoices, traitOwners: serializedFeatures.owners },
     });
@@ -456,6 +473,25 @@ export default function BackgroundBuilderScreen() {
           Descriptive only -- backgrounds don't have a grant mechanism for starting
           gear the way classes do, so this shows as text rather than adding real items.
         </Text>
+
+        <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Personality (optional)</Text>
+        <Text style={styles.hint}>
+          Suggested traits, ideals, bonds and flaws, one per line. Character creation offers
+          them as pickers, the same way it does for official backgrounds.
+        </Text>
+        {([
+          ['Traits', traitsText, setTraitsText, 'I see omens in every event and action.'],
+          ['Ideals', idealsText, setIdealsText, 'Charity. I always try to help those in need. (Good)'],
+          ['Bonds',  bondsText,  setBondsText,  'I owe my life to the person who took me in.'],
+          ['Flaws',  flawsText,  setFlawsText,  'I am inflexible in my thinking.'],
+        ] as const).map(([label, value, onChange, placeholder]) => (
+          <View key={label} style={{ marginTop: Spacing.xs }}>
+            <Text style={styles.hint}>{label}</Text>
+            <TextInput style={[styles.input, styles.textArea]} value={value} onChangeText={onChange}
+              placeholder={placeholder} placeholderTextColor={Colors.textDim} multiline textAlignVertical="top"
+              accessibilityLabel={`${label}, one per line`} testID={`bg-personality-${label.toLowerCase()}`} />
+          </View>
+        ))}
 
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Special Feature(s)</Text>
         <Text style={styles.hint}>

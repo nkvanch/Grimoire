@@ -15,7 +15,7 @@ import { isFeatureSuspended } from './suspension';
 import { exhaustionSpeedPenalty } from './exhaustion';
 import {
   Entity, CampaignRules, DerivedStats, ActiveEffect,
-  Ability, SkillName, DERIVED_NUMERIC_KEYS, Sense, AttackBonus, AuditSourceKind,
+  Ability, SkillName, DERIVED_NUMERIC_KEYS, Sense, AttackBonus, AttackPart, AuditSourceKind,
 } from './types';
 import { tierHpBonus, hitDieTierFromEffects } from './hitDieTier';
 import { resolveEffectsForTarget, resolveBinary, resolveCombine, resolveExtraAttack, resolveScaleFactor, applyScale } from './resolver';
@@ -489,7 +489,7 @@ export function recomputeDerived(
     senses,
     movement,
     savingThrows:     resolveSavingThrows(applyAbilitySubstitutions(effectiveStats, allEffects, 'saving_throws'), entity.proficiencies.savingThrows, profBonus, allEffects, rules),
-    attackBonuses:    computeWeaponAttackBonuses(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'weapon_attacks'), profBonus, content.items),
+    attackBonuses:    computeWeaponAttackBonuses(entity, applyAbilitySubstitutions(effectiveStats, allEffects, 'weapon_attacks'), profBonus, content.items, abilitySubstitutionSources(effectiveStats, allEffects, 'weapon_attacks')),
     advantageStates,
     spellSaveDC:  entity.spellcasting
       ? abilityDC(profBonus, modifier(effectiveStats[entity.spellcasting.ability]))
@@ -796,10 +796,16 @@ function computeWeaponAttackBonuses(
   effectiveStats: Entity['stats'],
   profBonus:      number,
   homebrewItems:  readonly import('./types').Item[] = [],
+  substituted:    Partial<Record<Ability, { to: Ability; source: string }>> = {},
 ): AttackBonus[] {
   const strMod = modifier(effectiveStats.str);
   const dexMod = modifier(effectiveStats.dex);
   const result: AttackBonus[] = [];
+  /** "STR modifier", or "CHA modifier (Pact Blade, instead of STR)" when a feature swapped the ability in. */
+  const abilityLabel = (ab: 'str' | 'dex') => {
+    const sub = substituted[ab];
+    return sub ? `${sub.to.toUpperCase()} modifier (${sub.source}, instead of ${ab.toUpperCase()})` : `${ab.toUpperCase()} modifier`;
+  };
 
   for (const inst of entity.inventory.equipped) {
     // Re-audit A17: an attunement-required weapon contributes no attack
@@ -867,6 +873,8 @@ function computeWeaponAttackBonuses(
     // any specific named weapons a feature/race/background grants).
     const isProficient = isProficientWithWeapon(entity, def);
 
+    const abilityPart: AttackPart = { label: `${abilityLabel(ability)}${isFinesse ? ' (finesse: the better of STR and DEX)' : ''}`, value: mod, sourceKind: 'base', sourceId: null };
+    const magicPart: AttackPart[] = magicBonus !== 0 ? [{ label: `${def.name} (magic weapon)`, value: magicBonus, sourceKind: 'item', sourceId: inst.itemId }] : [];
     result.push({
       id:          inst.itemId,
       instanceId:  inst.id,
@@ -877,6 +885,14 @@ function computeWeaponAttackBonuses(
       damageBonus: mod + magicBonus,
       damageDice:  dice,
       damageType:  dmgType,
+      bonusParts:  [
+        abilityPart,
+        isProficient
+          ? { label: 'Proficiency bonus', value: profBonus, sourceKind: 'base', sourceId: null }
+          : { label: 'Not proficient with this weapon', value: 0, sourceKind: 'base', sourceId: null },
+        ...magicPart,
+      ],
+      damageParts: [abilityPart, ...magicPart],
     });
   }
 
@@ -903,10 +919,16 @@ function computeWeaponAttackBonuses(
     unarmedAbility = dexMod >= strMod ? 'dex' : 'str';
     unarmedMod = Math.max(strMod, dexMod);
   }
+  const unarmedAbilityPart: AttackPart = {
+    label: `${abilityLabel(unarmedAbility)}${hasMartialArts ? ' (Martial Arts: the better of STR and DEX)' : ''}`,
+    value: unarmedMod, sourceKind: hasMartialArts ? 'class' : 'base', sourceId: null,
+  };
   result.push({
     id: 'unarmed_strike', name: 'Unarmed Strike',
     bonus: profBonus + unarmedMod, type: 'melee', ability: unarmedAbility,
     damageBonus: unarmedMod, damageDice: unarmedDice, damageType: 'bludgeoning',
+    bonusParts: [unarmedAbilityPart, { label: 'Proficiency bonus', value: profBonus, sourceKind: 'base', sourceId: null }],
+    damageParts: [unarmedAbilityPart],
   });
 
   return result;
@@ -957,6 +979,25 @@ export function applyAbilitySubstitutions(
     if (stats[fx.substituteTo] > out[fx.substituteFrom]) out = { ...out, [fx.substituteFrom]: stats[fx.substituteTo] };
   }
   return out;
+}
+
+/** Which abilities applyAbilitySubstitutions swapped for `kind`, and the feature that did it, for the "why" lists. */
+export function abilitySubstitutionSources(
+  stats:   Entity['stats'],
+  effects: ActiveEffect[],
+  kind:    import('./types').AbilityUseKind,
+): Partial<Record<Ability, { to: Ability; source: string }>> {
+  let out = stats;
+  const sources: Partial<Record<Ability, { to: Ability; source: string }>> = {};
+  for (const ae of effects) {
+    const fx = ae.effect;
+    if (fx.type !== 'ability_substitute' || !fx.substituteFrom || !fx.substituteTo || !(fx.substituteFor ?? []).includes(kind)) continue;
+    if (stats[fx.substituteTo] > out[fx.substituteFrom]) {
+      out = { ...out, [fx.substituteFrom]: stats[fx.substituteTo] };
+      sources[fx.substituteFrom] = { to: fx.substituteTo, source: ae.sourceName };
+    }
+  }
+  return sources;
 }
 
 /** Computes saving throw bonus for all six abilities. */

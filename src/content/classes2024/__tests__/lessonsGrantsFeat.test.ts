@@ -6,7 +6,7 @@ import { applyPoolChoiceToEntity, replacePoolOption } from '../../../engine/leve
 import { DEFAULT_RULES } from '../../../store/characterStore';
 
 const setup = () => {
-  let e: any = toLevel(newChar('warlock'), 'warlock', 2);
+  const e: any = toLevel(newChar('warlock'), 'warlock', 2);
   const ch = e.choices.filter((c: any) => c.definition.id.includes('invocations_') && !c.resolved);
   return { e, id: ch[ch.length - 1].id as string };
 };

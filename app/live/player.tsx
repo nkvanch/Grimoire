@@ -146,7 +146,6 @@ export default function PlayerScreen() {
       <Card testID="player-status">
         <Row wrap>
           <Badge label={rt.status} tone={offline ? 'warn' : 'good'} />
-          <Badge label={`revision ${view?.revision ?? 0}`} />
           {view?.ended && <Badge label="session ended" tone="bad" />}
         </Row>
         {character && <Body bold>HP {character.summary.hp}/{character.summary.maxHp} · AC {character.summary.ac}</Body>}

@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { destinationsFor, DESTINATION_PATH, DESTINATION_LABEL } from '../../session/routing';
 import { PublicParticipant } from '../../session/types';
-import { encodeRoomCode } from '../../sync/discovery';
+import { encodeRoomCode } from '../../session/network';
 import { Section, Card, Btn, Row, Badge, Muted, Body } from './LiveUi';
 import { RoomCodeCard } from './RoomCodeCard';
 import { Colors, FontSize, FontWeight } from '../../theme';
@@ -27,7 +27,7 @@ function rolesOf(p: PublicParticipant): string {
  * A joined (non-Host) client doesn't generate a room code — only the Host's own device knows its
  * IP well enough to encode one directly. But `join()` stores `address` as the same "host:port"
  * shape the Host's own address uses (see runtime.ts), so the equivalent code can always be
- * recomputed from it: code and IP are a two-way mapping (`src/sync/discovery.ts`), not separate
+ * recomputed from it: code and IP are a two-way mapping (`src/session/network.ts`), not separate
  * identities. Per CAMPAIGN_DM_AUTHORITY_RULES.md §32, every connected state should show a room
  * code, not just the Host's.
  */

@@ -8,6 +8,7 @@
 //     compared and so nothing existing has to change yet.
 // Pure data in, pure data out: the provider never mutates a pack and never reaches into the stores.
 // ============================================================================
+import { plainText } from '../plainText';
 import type { MonsterTemplate } from '../monsters/types';
 import { conditionForRuleset } from '../conditions/resolve';
 import { is2024ItemId, baseItemId, editionItemId } from '../itemEditions';
@@ -126,8 +127,11 @@ export function packContentProvider(packs: readonly InstalledPack[], rulesetId?:
 
   // Spells keep every version: the 5.1 pack's shared record and the 5.2.1 pack's 2024 record share an id, so they are
   // grouped by id and resolved per ruleset instead of the later one replacing the earlier.
+  // Spell text is shown as plain text: Markdown left over from where some SRD 5.1 text was collected (links to another
+  // site, emphasis markers) is cleaned here, on the way in, without touching the signed pack file (content/plainText.ts).
   const spellVersions = new Map<string, Spell[]>();
-  for (const p of ordered) for (const s of ((p.homebrew?.spells ?? []) as unknown as Spell[])) {
+  for (const p of ordered) for (const raw of ((p.homebrew?.spells ?? []) as unknown as Spell[])) {
+    const s: Spell = { ...raw, description: plainText(raw.description), upcast: plainText(raw.upcast) };
     spellVersions.set(s.id, [...(spellVersions.get(s.id) ?? []), s]);
   }
   const last = <T,>(list: T[]): T | undefined => list[list.length - 1];

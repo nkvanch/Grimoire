@@ -24,7 +24,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GameId, RulesetId } from '../../engine/types';
-import { GAMES, RULESETS, gameIdForRuleset } from '../../content/rulesets';
+import { GAMES, RULESETS, gameIdForRuleset, isPlayableRuleset } from '../../content/rulesets';
 import { FilterSection, FilterChipRow } from '../FilterChipRow';
 import { Colors, Spacing, Radius, FontSize } from '../../theme';
 
@@ -52,10 +52,14 @@ export function GameRulesetPicker({
     knownGameId ?? defaultGameId,
   );
 
-  const gameOptions = Object.values(GAMES).map(g => ({ id: g.id, label: g.name }));
+  // Only the rulesets the engine can run are offered (content/rulesets.ts PLAYABLE_RULESET_IDS): tagging homebrew as
+  // Pathfinder or AD&D would promise something the app cannot do.
+  const playable = Object.values(RULESETS).filter(r => isPlayableRuleset(r.id));
+  const gameOptions = Object.values(GAMES).filter(g => playable.some(r => r.gameId === g.id)).map(g => ({ id: g.id, label: g.name }));
   const rulesetOptions = selectedGameId
-    ? Object.values(RULESETS).filter(r => r.gameId === selectedGameId).map(r => ({ id: r.id, label: r.name }))
+    ? playable.filter(r => r.gameId === selectedGameId).map(r => ({ id: r.id, label: r.name }))
     : [];
+  const unplayable = value !== undefined && valueKnown && !isPlayableRuleset(value);
 
   function handleGameChange(gameId: GameId | null) {
     setSelectedGameId(gameId ?? undefined);
@@ -68,6 +72,12 @@ export function GameRulesetPicker({
 
   return (
     <View style={styles.container}>
+      {unplayable && (
+        <Text style={styles.degradedBanner}>
+          This content is tagged {RULESETS[value!].name}, which Grimoire can't run — it is kept as it is. Pick a 5e
+          ruleset below to retag it.
+        </Text>
+      )}
       {!valueKnown && (
         <Text style={styles.degradedBanner}>
           This content's ruleset ("{value}") isn't in the registry — preserved as-is. Pick a new one below to

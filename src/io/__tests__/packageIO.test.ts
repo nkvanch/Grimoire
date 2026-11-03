@@ -159,6 +159,6 @@ describe('pickAndValidatePackage: a first-party content pack', () => {
     mockReadAsStringAsync.mockResolvedValue(JSON.stringify(damaged));
 
     const picked = await pickAndValidatePackage(new Set(['dnd5e-2014']), () => undefined);
-    expect(picked).toMatchObject({ kind: 'official', preview: { ok: false, problems: [expect.stringMatching(/content hash/)] } });
+    expect(picked).toMatchObject({ kind: 'official', preview: { ok: false, problems: [expect.stringMatching(/contents were changed or damaged/)] } });
   });
 });

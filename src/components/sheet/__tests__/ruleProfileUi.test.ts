@@ -12,6 +12,8 @@ describe('rule profile sheet integration', () => {
   it('builds Official and Custom sections from persisted loaded profiles', () => {
     const vm=rulesetPickerViewModel(entity,[profile,sameGame,otherGame]);
     expect(vm.official.some(rule=>rule.id==='dnd5e-2014')).toBe(true);
+    // only rulesets the engine can run: no 4e, 3.5e or AD&D to switch a 5e character to
+    expect(vm.official.map(rule=>rule.id).sort()).toEqual(['dnd5e-2014','dnd5e-2024']);
     expect(vm.custom.map(item=>item.id)).toEqual(['custom-free-edit','same-game']);
   });
   it('reflects live additions and edits without restart', () => {

@@ -14,11 +14,17 @@ import * as DocumentPicker from 'expo-document-picker';
 import { migrateEntity } from '../engine/multiclass';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { Entity } from '../engine/types';
+import { Campaign, Entity } from '../engine/types';
 import {
-  GrimoirePack, GrimoirePackHomebrew, createBackupPack, createContentPack,
+  GrimoirePack, GrimoirePackHomebrew, BackupCampaignData, createBackupPack, createContentPack,
   validateGrimoirePack, validatePackContents, countHomebrew,
 } from '../engine/backup';
+import { loadAllCampaigns, saveCampaign } from '../db/campaignRepo';
+import { loadAllEncounters, saveEncounter } from '../db/encounterRepo';
+import { loadCustomRuleProfiles, saveCustomRuleProfile } from '../db/customRuleProfileRepo';
+import { getSessionKv } from '../db/sessionDocRepo';
+import { PrepService, CampaignPrep } from '../session/prep';
+import { isPresetProfileId } from '../content/rulePresets';
 import { ExportAction, saveTextViaSAF } from './exportShare';
 import { EntityMeta } from '../db/entityRepo';
 
@@ -74,21 +80,71 @@ export function findHomebrewIdCollisions(
 }
 
 /**
+ * Everything a DM keeps on this device apart from characters and homebrew:
+ * campaigns, prepared encounters, the user's own Custom Rule Profiles (never
+ * the built-in presets, which every install already has), and the live-table
+ * preparation saved for each campaign.
+ */
+export async function collectCampaignBackupData(): Promise<BackupCampaignData> {
+  const prep = new PrepService(getSessionKv());
+  const livePrep: CampaignPrep[] = [];
+  for (const { campaignId } of await prep.list()) {
+    const doc = await prep.load(campaignId);
+    if (doc) livePrep.push(doc);
+  }
+  return {
+    campaigns:          await loadAllCampaigns(),
+    preparedEncounters: await loadAllEncounters(),
+    customRuleProfiles: (await loadCustomRuleProfiles()).filter(p => !isPresetProfileId(p.id)),
+    livePrep,
+  };
+}
+
+/**
+ * The campaigns as they should be saved on this device. A campaign records its
+ * DM as a device id, and a new phone has a new one, so a campaign the backup's
+ * own device ran is handed to this device; otherwise restoring onto a new
+ * phone would turn the DM's own campaigns into ones they merely joined.
+ */
+export function campaignsForThisDevice(campaigns: Campaign[], backupDeviceId: string | null, thisDeviceId: string | null): Campaign[] {
+  if (!backupDeviceId || !thisDeviceId || backupDeviceId === thisDeviceId) return campaigns;
+  return campaigns.map(c => (c.dmDeviceId === backupDeviceId ? { ...c, dmDeviceId: thisDeviceId } : c));
+}
+
+/**
+ * Writes a backup's campaign data back to this device. Records with the same
+ * id are replaced, as restored characters are. The caller reloads the stores
+ * afterwards so the screens show what was restored.
+ */
+export async function restoreCampaignBackupData(
+  data: BackupCampaignData,
+  devices: { backupDeviceId: string | null; thisDeviceId: string | null } = { backupDeviceId: null, thisDeviceId: null },
+): Promise<void> {
+  for (const campaign of campaignsForThisDevice(data.campaigns ?? [], devices.backupDeviceId, devices.thisDeviceId)) await saveCampaign(campaign);
+  for (const encounter of data.preparedEncounters ?? []) await saveEncounter(encounter);
+  for (const profile of data.customRuleProfiles ?? [])  if (!isPresetProfileId(profile.id)) await saveCustomRuleProfile(profile);
+  const prep = new PrepService(getSessionKv());
+  for (const doc of data.livePrep ?? [])                await prep.restore(doc);
+}
+
+/**
  * Exports the given characters plus whichever homebrew content they actually
  * reference to a .grimoire-pack file, then opens the OS share sheet. The
  * caller decides which characters/homebrew to include — see the Settings
  * screen for "back up everything" vs. a future per-character export.
  */
 export async function exportBackup(
-  characters: Entity[],
-  homebrew:   GrimoirePackHomebrew,
-  deviceId:   string | null,
+  characters:   Entity[],
+  homebrew:     GrimoirePackHomebrew,
+  deviceId:     string | null,
+  campaignData: BackupCampaignData,
 ): Promise<void> {
   const pack = createBackupPack(
     characters.map(c => (c.kind === 'character' ? withRequiredPacks(c, installedOfficialPacks()) : c)),
     homebrew,
     deviceId,
     Constants.expoConfig?.version ?? '1.0.0',
+    campaignData,
   );
 
   const json     = JSON.stringify(pack, null, 2);

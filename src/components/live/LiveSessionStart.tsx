@@ -16,7 +16,7 @@ import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { useCharacterStore } from '../../store/characterStore';
 import { EntityAdapter } from '../../session/entityAdapter';
 import { parseAddress, SESSION_PORT } from '../../session/lanTransport';
-import { decodeRoomCode } from '../../sync/discovery';
+import { decodeRoomCode } from '../../session/network';
 import { Capability, PeekResult } from '../../session/types';
 import { StoredIdentity } from '../../session/peer';
 import { checkCampaignCompatibility, CompatibilityIssue } from '../../engine/campaignCompatibility';

@@ -85,7 +85,7 @@
     <tr><td><code>src/store/</code></td><td>zustand stores: characters (with undo, redo and timeline), campaigns, combat, encounters, homebrew, sync status.</td></tr>
     <tr><td><code>src/db/</code></td><td>SQLite schema and one small repository per table.</td></tr>
     <tr><td><code>src/session/</code></td><td>The live-session layer: an authoritative host, peers, roles, per-viewer projections, transports.</td></tr>
-    <tr><td><code>src/sync/</code></td><td>The older campaign sync, which still runs alongside the session layer.</td></tr>
+    <tr><td><code>src/utils/</code></td><td>Small shared helpers, such as the <code>deepDiff</code>/<code>deepMerge</code> pair the stores and the encounter tools use.</td></tr>
     <tr><td><code>src/io/</code></td><td>Export and import: character JSON, <code>.grimoire-pack</code> files, PDF, Markdown and text.</td></tr>
     <tr><td><code>src/platform/</code></td><td>Shims that let the same code run in the browser and in the desktop shell.</td></tr>
     <tr><td><code>assets/packs/</code></td><td>The two signed SRD packs the app installs on first launch.</td></tr>
@@ -128,7 +128,7 @@
     <li><span class="n">2</span><span><span class="where">src/engine/*.ts</span><span class="what">The updater calls engine functions that take an Entity and return a new Entity. Nothing is mutated in place.</span></span></li>
     <li><span class="n">3</span><span><span class="where">src/engine/pipeline.ts: recomputeDerived(entity, rules)</span><span class="what">Collects every active effect from features, equipped items, conditions and overrides, resolves them per target (bonuses stack, <code>set</code> picks a winner, <code>scale</code> applies last), and rebuilds <code>derived</code> and the action cards.</span></span></li>
     <li><span class="n">4</span><span><span class="where">src/store/characterStore.ts</span><span class="what">The store pushes an undo entry, schedules a save to SQLite, writes a timeline entry and sends a patch to any live-session peers.</span></span></li>
-    <li><span class="n">5</span><span><span class="where">src/engine/audit.ts: explainValue(entity, stat)</span><span class="what">When the player taps AC, the same contributions are rebuilt as a list of labelled entries. The "why" screen and the number come from the same effects.</span></span></li>
+    <li><span class="n">5</span><span><span class="where">src/engine/audit.ts: explainValue(entity, stat)</span><span class="what">When the player taps AC, the same contributions are rebuilt as a list of labelled entries. The "why" screen and the number come from the same effects. Weapon to-hit and damage record their parts where the pipeline computes them, and action cards list which of their numbers have a breakdown.</span></span></li>
   </ol>
   <p>Campaign rules (point buy, level caps, rest lengths, crit rules) arrive as a <code>CampaignRules</code> value passed into the engine, not as global switches, which is why one device can hold characters under different house rules.</p>
 
@@ -140,6 +140,7 @@
     <li><strong>Install order</strong> (<code>src/content/officialPackService.ts</code>): envelope, manifest, content hash, record validation, signature, dependency resolution, then activation. A forged signature is always refused. An unsigned or unknown-key pack needs the user's explicit confirmation. The bundled packs must be validly signed.</li>
     <li><strong>Resolution.</strong> The content provider (<code>src/content/provider/</code>) merges installed packs by id, and the user's homebrew wins over a pack record with the same id.</li>
   </ul>
+  <p>What the packs and the source tree may contain is checked against the <em>text</em> of the two SRDs, not only their ids: <code>src/content/__tests__/srdTextProvenance.test.ts</code> reads the SRD text extracted from the PDFs in <code>third_party/wotc/srd</code>. See <a href="https://github.com/nkvanch/Grimoire/blob/main/docs/SRD_EDITION.md">SRD_EDITION.md</a>.</p>
   <p>Packs are rebuilt with <code>npx tsx scripts/build-srd-packs.ts</code>. Without the private signing key, which is not in the repository, a rebuilt pack whose content is unchanged keeps its committed signature.</p>
 
   <h2 id="storage">Storage</h2>
@@ -148,12 +149,13 @@
 
   <h2 id="live">Live play over the LAN</h2>
   <p>Live play is direct device-to-device TCP on the local network. Messages are newline-delimited JSON. A room code is the host's IPv4 address written as 7 characters from a 32-character alphabet without 0, O, 1, I or L, so it is a convenience, not a secret.</p>
-  <p>Two layers exist side by side:</p>
+  <p>All of it is in <code>src/session/</code>, on port 7743:</p>
   <ul>
-    <li><strong><code>src/session/</code></strong> (port 7743). <code>SessionHost</code> is the authoritative state machine. Participants hold capabilities (<code>host</code>, <code>dm</code>, <code>player</code>), each authenticated by a per-participant token, and every operation is checked against them. Each viewer receives a projection of the state built for them, so DM-only data never reaches a player's device. A DM's change to the character itself (<code>dm.request_change</code>) is a request the player accepts, edits or declines, while fight consequences on the tracker, such as hit points and conditions, the DM applies directly. Transports are pluggable: in-memory and loopback ones drive the tests.</li>
-    <li><strong><code>src/sync/</code></strong> (port 7742). The older campaign sync, where the device that created the campaign is both host and DM, and entity patches are relayed between devices.</li>
+    <li><code>SessionHost</code> is the authoritative state machine. Participants hold capabilities (<code>host</code>, <code>dm</code>, <code>player</code>), each authenticated by a per-participant token, and every operation is checked against them. Each viewer receives a projection of the state built for them, so DM-only data never reaches a player's device. A DM's change to the character itself (<code>dm.request_change</code>) is a request the player accepts, edits or declines, while fight consequences on the tracker, such as hit points and conditions, the DM applies directly. Transports are pluggable: in-memory and loopback ones drive the tests.</li>
+    <li>Room codes and the local address come from <code>src/session/network.ts</code>; the port is in <code>src/session/ports.ts</code>.</li>
   </ul>
-  <p>Neither layer encrypts traffic yet, so live play is for networks you trust. <code>scripts/e2e/</code> runs real sessions against a phone over <code>adb</code>, with a Node "table" playing the other seats and a proxy that cuts the link on demand.</p>
+  <p>Alpha 0.2.3 also had an older campaign sync (<code>src/sync/</code>, port 7742) in which the campaign's device was both host and DM. It is removed: the campaign screen's one Host button starts a live table.</p>
+  <p>Traffic is not encrypted yet, so live play is for networks you trust. <code>scripts/e2e/</code> runs real sessions against a phone over <code>adb</code>, with a Node "table" playing the other seats and a proxy that cuts the link on demand.</p>
 
   <h2 id="platforms">Android, browser and desktop</h2>
   <ul>
@@ -183,10 +185,9 @@ npm run lint         # ESLint with typed rules</code></pre>
   <h2 id="edges">Rough edges</h2>
   <p>Honest notes for anyone about to read the code:</p>
   <ul>
-    <li>There is no CI yet. Type-check and tests pass on <code>main</code>; <code>npm run lint</code> still reports errors.</li>
+    <li>CI (<code>.github/workflows/ci.yml</code>) runs the type-check, ESLint and Jest on every push and pull request. Lint has no errors; it still reports warnings.</li>
     <li>The engine is meant to be pure, but a few engine files import constants from <code>src/store/</code>. Do not copy that pattern.</li>
     <li>The release scripts (APK build, Maestro runs) are PowerShell and assume Windows.</li>
-    <li>Two live-play layers exist, as described above.</li>
     <li>Many files carry long comments that name past audit findings. They explain why code looks the way it does, so read them before "simplifying".</li>
     <li>The database has no schema version yet. Changes are additive, and older saved data is upgraded when it loads.</li>
   </ul>
