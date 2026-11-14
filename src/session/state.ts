@@ -269,10 +269,13 @@ function effectForPlayer(effect: LiveEffect, viewer: Viewer): LiveEffect | null 
  * placeholder (never null) so every existing name-is-a-string call site stays correct; hpState/
  * ac/exactHp are simply omitted (they were already optional) rather than null'd.
  */
+/** A combatant's name as the whole table may read it: the real one only when the DM has shown it. */
+export const publicCombatantName = (c: LiveCombatant): string => (c.visibility.name ? c.name : 'Unknown Creature');
+
 function combatantForPlayer(c: LiveCombatant): LiveCombatant {
   return {
     id: c.id,
-    name: c.visibility.name ? c.name : 'Unknown Creature',
+    name: publicCombatantName(c),
     visibility: c.visibility,
     ...(c.visibility.hpState && c.hpState ? { hpState: c.hpState } : {}),
     ...(c.visibility.ac && c.ac !== undefined ? { ac: c.ac } : {}),

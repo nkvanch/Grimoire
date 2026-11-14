@@ -6,8 +6,12 @@
 //                       "17 = 10 base + 3 DEX modifier + 2 Chain Shirt + 2 Shield"
 // When isDm=true, shows an [Override] button on each scalar stat.
 import { useState } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Entity, CampaignRules, AuditEntry } from '../../engine/types';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { Entity, CampaignRules, AuditEntry, Ability } from '../../engine/types';
+import { setAbilityTotal } from '../../engine/abilityTotal';
+import { Alert } from '../../utils/alert';
 import { explainValue } from '../../engine/audit';
 import { hasActiveOverride } from '../../engine/dmOverride';
 import { DmOverrideModal } from './DmOverrideModal';
@@ -39,13 +43,27 @@ interface Props {
   deviceId:   string;
   onUpdate:   (updated: Entity) => void;
   onClose:    () => void;
+  /** For an ability score: offer to set its total right here (abilityTotal.ts). */
+  canSetTotal?: boolean;
 }
+
+const ABILITY_STATS = new Set<string>(['str', 'dex', 'con', 'int', 'wis', 'cha']);
 
 export function AuditModal({
   entity, stat, label, rules, isDm,
-  campaignId, deviceId, onUpdate, onClose,
+  campaignId, deviceId, onUpdate, onClose, canSetTotal,
 }: Props) {
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [totalText, setTotalText] = useState('');
+  const settable = !!canSetTotal && !!stat && ABILITY_STATS.has(stat);
+  function applyTotal() {
+    const n = parseInt(totalText, 10);
+    if (!stat || Number.isNaN(n)) return;
+    const result = setAbilityTotal(entity, stat as Ability, n);
+    if (result.entity !== entity) onUpdate(result.entity);
+    if (!result.ok) Alert.alert(`Not set to ${n}`, result.reason);
+    setTotalText('');
+  }
   const [mode, setMode] = useState<'technical' | 'plain'>('technical');
 
   const trail    = stat ? explainValue(entity, stat) : null;
@@ -127,6 +145,27 @@ export function AuditModal({
               </ScrollView>
             )}
 
+            {settable && (
+              <View style={styles.setRow}>
+                <Text style={styles.setLabel}>Set the total</Text>
+                <TextInput
+                  testID="audit-set-total"
+                  accessibilityLabel={`New total for ${label}`}
+                  style={styles.setInput}
+                  value={totalText}
+                  onChangeText={setTotalText}
+                  onSubmitEditing={applyTotal}
+                  keyboardType="number-pad"
+                  placeholder={String(total)}
+                  placeholderTextColor={Colors.textDim}
+                />
+                <Pressable style={styles.setBtn} onPress={applyTotal} accessibilityRole="button">
+                  <Text style={styles.setBtnTxt}>Set</Text>
+                </Pressable>
+              </View>
+            )}
+            {settable && <Text style={styles.setHint}>Bonuses from race, class and items stay included; this number is the total.</Text>}
+
             {isDm && (
               <Pressable style={styles.overrideBtn} onPress={() => setOverrideOpen(true)}>
                 <Text style={styles.overrideBtnTxt}>⚡ DM Override</Text>
@@ -158,6 +197,15 @@ export function AuditModal({
 }
 
 const styles = StyleSheet.create({
+  setRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
+  setLabel: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold },
+  setInput: {
+    width: 72, minHeight: 44, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
+    backgroundColor: Colors.bg, color: Colors.textPrimary, fontSize: FontSize.md, textAlign: 'center',
+  },
+  setBtn:    { minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center' },
+  setBtnTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
+  setHint:   { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   backdrop: {
     flex: 1, backgroundColor: '#000000bb',
     justifyContent: 'center', alignItems: 'center', padding: Spacing.lg,

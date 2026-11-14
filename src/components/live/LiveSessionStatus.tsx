@@ -14,7 +14,7 @@ import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { destinationsFor, DESTINATION_PATH, DESTINATION_LABEL } from '../../session/routing';
 import { PublicParticipant } from '../../session/types';
 import { encodeRoomCode } from '../../sync/discovery';
-import { Section, Card, Btn, Row, Badge, Muted, Body } from './LiveUi';
+import { Section, Card, Btn, Row, Badge, Muted, Body, TrustedNetworkNotice } from './LiveUi';
 import { RoomCodeCard } from './RoomCodeCard';
 import { Colors, FontSize, FontWeight } from '../../theme';
 
@@ -69,9 +69,11 @@ export function LiveSessionStatus({ onOpenPrepare }: { onOpenPrepare?: () => voi
         {!!rt.roomCode && <RoomCodeCard code={rt.roomCode} />}
         {isHost && !rt.roomCode && !!rt.address && <Body bold>Others join at {rt.address}</Body>}
         {isHost && !rt.address && <Muted>No local network right now. You can prepare, but others cannot join yet.</Muted>}
+        {isHost && rt.unprotected > 0 && <Muted>{rt.unprotected === 1 ? '1 device in this room is' : `${rt.unprotected} devices in this room are`} not protected: its connection is plain, so anyone on the network can read it.</Muted>}
 
         {!!joinedCode && <Text style={{ color: Colors.gold, fontSize: FontSize.lg, fontWeight: FontWeight.bold, letterSpacing: 4 }}>Room: {joinedCode}</Text>}
         {!isHost && !!rt.address && <Muted>Connected to {rt.address}</Muted>}
+        {!isHost && rt.status === 'connected' && <Muted>{rt.sealed ? 'Protected connection: no one on the network can read or change it.' : 'Connection not protected: this room does not support protection.'}</Muted>}
         {!isHost && host && <Muted>Host: {host.nickname}{host.connected ? '' : ' (disconnected)'}</Muted>}
 
         {participants.length > 0 && (
@@ -87,6 +89,8 @@ export function LiveSessionStatus({ onOpenPrepare }: { onOpenPrepare?: () => voi
         <Muted>Session revision {rt.view?.revision ?? 0}</Muted>
       </Card>
 
+      <TrustedNetworkNotice />
+
       {dests.length === 0 && (
         <Card tone="warn"><Body bold>Waiting for the Host to assign you a role.</Body>
           <Muted>You asked for DM. The Host approves DM access from their Host screen.</Muted></Card>
@@ -99,7 +103,10 @@ export function LiveSessionStatus({ onOpenPrepare }: { onOpenPrepare?: () => voi
         <Btn label="DM preparation (offline)" kind="ghost" onPress={() => (onOpenPrepare ? onOpenPrepare() : router.push('/live/prepare'))} testID="live-open-prepare" />
       </Section>
 
-      {rt.status === 'disconnected' && rt.mode === 'joined' && (
+      {rt.keyChange && (
+        <Btn label="Trust this room anyway" kind="danger" onPress={() => { void getSessionRuntime().trustRoomKey(); }} testID="live-trust-room" />
+      )}
+      {rt.status === 'disconnected' && rt.mode === 'joined' && !rt.keyChange && (
         <Btn label="Reconnect" kind="ghost" onPress={() => { void getSessionRuntime().reconnect(); }} testID="live-reconnect" />
       )}
       <View style={{ marginTop: 5 }}>

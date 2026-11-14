@@ -131,16 +131,27 @@ export function packContentProvider(packs: readonly InstalledPack[], rulesetId?:
     spellVersions.set(s.id, [...(spellVersions.get(s.id) ?? []), s]);
   }
   const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
+  // Class tags a pack adds to spells another pack carries (`rules.spellClassAdditions.byClass`): the SRD pack cannot name a class that
+  const addedTags = new Map<string, string[]>();
+  for (const p of ordered) {
+    const byClass = (p as { rules?: { spellClassAdditions?: { byClass?: Record<string, string[]> } } }).rules?.spellClassAdditions?.byClass ?? {};
+    for (const [classId, ids] of Object.entries(byClass)) for (const id of ids) addedTags.set(id, [...(addedTags.get(id) ?? []), classId]);
+  }
+  // A spell with no class list is in every class's pool already, so it is left alone.
+  const tagged = (s: Spell | undefined): Spell | undefined => {
+    const add = s && s.classes && s.classes.length > 0 ? addedTags.get(s.id) : undefined;
+    return s && add ? { ...s, classes: [...new Set([...(s.classes ?? []), ...add])] } : s;
+  };
   const resolveSpell = (versions: Spell[], target?: RulesetId): Spell | undefined => {
     const shared = last(versions.filter(v => !v.rulesetId));
-    if (!target) return shared ?? last(versions);
-    return last(versions.filter(v => v.rulesetId === target)) ?? shared;
+    if (!target) return tagged(shared ?? last(versions));
+    return tagged(last(versions.filter(v => v.rulesetId === target)) ?? shared);
   };
   const spellsFor = (target?: RulesetId): Spell[] =>
     [...spellVersions.values()].map(v => resolveSpell(v, target)).filter((s): s is Spell => !!s);
   const spellIndex: Spell[] = [...spellVersions.values()].map(versions => {
     const base = resolveSpell(versions) as Spell;
-    const classes = [...new Set(versions.flatMap(v => v.classes ?? []))];
+    const classes = [...new Set([...versions.flatMap(v => v.classes ?? []), ...(addedTags.get(base.id) ?? [])])];
     return classes.length > 0 ? { ...base, classes } : base;
   });
   // Items are shared across rulesets (a Longsword is a Longsword): every installed pack's, merged by id.

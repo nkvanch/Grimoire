@@ -3,7 +3,8 @@
 // file and hands its text to the import screen, which validates it and asks the player to confirm exactly as for a file picked from
 // the device, so a download is never installed by this panel.
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
 import { downloadText, parseCatalog, catalogStatus, checkPackUrl, CatalogStatus } from '../content/packDownload';
 import { installedOfficialPacks } from '../content/officialPackService';
 import { getMeta, setMeta } from '../db/appMetaRepo';

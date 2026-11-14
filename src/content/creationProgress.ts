@@ -80,7 +80,7 @@ export const SPELLS_AT_L1: Record<string, { cantrips: number; spells: number }> 
   druid:      { cantrips: 2, spells: 0 },
   ranger:     { cantrips: 0, spells: 0 },
   paladin:    { cantrips: 0, spells: 0 },
-  artificer:  { cantrips: 0, spells: 0 },
+  artificer:  { cantrips: 2, spells: 0 },
 };
 
 export type CreationSpellPicks = { cantrips: string[]; spells: string[] };

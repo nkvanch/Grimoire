@@ -14,8 +14,10 @@
 // filters are also not offered: not structured fields on Spell at all.
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Modal, View, Text, Pressable, TextInput, StyleSheet, ScrollView, SectionList,
+  View, Text, StyleSheet, ScrollView, SectionList,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Entity, Spell, CharClass, matchesRuleset } from '../../engine/types';
 import { spellRepo } from '../../content/spellRepo';

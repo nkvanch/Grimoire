@@ -2,6 +2,7 @@ import { SessionRuntime, RuntimeDeps, useSessionRuntime } from '../runtime';
 import { InMemoryNetwork } from '../memoryTransport';
 import { LoopbackNetwork } from '../loopbackTransport';
 import { InMemoryKv } from '../kv';
+import { RoomKeyChangedError } from '../sealed';
 import { SessionPeer } from '../peer';
 import { PrepService } from '../prep';
 import { SessionHost } from '../host';
@@ -174,5 +175,43 @@ describe('SessionRuntime reports the player character', () => {
     await tick(net);
     expect(watcherCb).not.toBeNull();
     await rt.leave();
+  });
+});
+
+describe('SessionRuntime and a room whose key changed', () => {
+  it('does not keep retrying, offers the choice, and joins once the person trusts the new key', async () => {
+    const net = new InMemoryNetwork();
+    const kv = new InMemoryKv();
+    const host = new SessionRuntime(deps(net, new InMemoryKv()));
+    await host.startHosting({ nickname: 'Hosty' });
+    await tick(net);
+
+    let attempts = 0;
+    const joiner = new SessionRuntime({
+      ...deps(net, kv),
+      newId: (() => { let k = 0; return () => `joiner${++k}`; })(),   // not the host's ids
+      sealedClient: () => ({
+        async connect() {
+          attempts++;
+          if (attempts === 1) throw new RoomKeyChangedError('10.0.0.5:7743', 'bmV3LWtleQ==');
+          return net.client('device').connect();
+        },
+      }),
+    });
+    await joiner.join({ host: '10.0.0.5', nickname: 'Pat', wants: ['player'] });
+    await new Promise(r => setTimeout(r, 1200));   // longer than the first retry delay
+    expect(attempts).toBe(1);
+    expect(useSessionRuntime.getState().keyChange).toBe(true);
+    expect(useSessionRuntime.getState().error).toMatch(/key has changed/);
+
+    await joiner.trustRoomKey();
+    await tick(net);
+    await tick(net);
+    expect(attempts).toBe(2);
+    expect(useSessionRuntime.getState().keyChange).toBe(false);
+    expect(useSessionRuntime.getState().status).toBe('connected');
+    expect(await kv.get('sealed/room/10.0.0.5:7743')).toEqual({ key: 'bmV3LWtleQ==' });
+    await joiner.leave();
+    await host.leave();
   });
 });

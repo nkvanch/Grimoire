@@ -6,7 +6,8 @@
 // shortcuts to them and redirects the old `?view=library|packages` links.
 import { useListColumns } from '../../src/platform/layout';
 import { useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { useCustomRuleProfileStore } from '../../src/store/customRuleProfileStore';

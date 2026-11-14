@@ -22,9 +22,9 @@
 import {
   Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, Issue, SpellList,
 } from './types';
-import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
+import { ContentCacheType, HomebrewContent } from './contentRecords';
 import { GrimoirePack, GrimoirePackHomebrew } from './backup';
-import { deepDiff } from '../sync/diff';
+import { deepDiff } from './diff';
 
 export type ConflictResolution = 'keep_local' | 'replace' | 'copy';
 

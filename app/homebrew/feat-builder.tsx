@@ -10,9 +10,10 @@
 // AsiFeatPicker.tsx already knows how to resolve generically for any Feat.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, Entity, Feat, RulesetId, FEAT_CHOICE_PREFIX } from '../../src/engine/types';
@@ -27,6 +28,8 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal } from '../../src/components/homebrew/TraitEditor';
 import { toId, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/content/traitCompiler';
@@ -38,8 +41,12 @@ import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
 import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileFeatFields } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeLosslessChoices, LosslessDraftChoice } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 
@@ -74,6 +81,7 @@ export default function FeatBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,         setName]         = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [prerequisite, setPrerequisite] = useState('');
   const [source,       setSource]       = useState('Homebrew');
   const [sourceLink,   setSourceLink]   = useState('');
@@ -107,6 +115,7 @@ export default function FeatBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setRulesetId(editing.rulesetId);
     setPrerequisite(editing.prerequisite ?? '');
     setSource(editing.source);
@@ -172,21 +181,16 @@ export default function FeatBuilderScreen() {
     const feature = (editing && (!traitTouched || (trait.effectKind === 'none' && !!trait.mechanicsSummary)))
       ? editing.feature
       : buildTraitFeature(trait, { idPrefix: id, sourceKind: 'feat', sourceRefId: id, level: null }).feature;
-    return mergeHomebrewDefinition(editing, {
-      id,
-      name: name.trim(),
-      prerequisite: prerequisite.trim() || null,
-      description: description.trim(),
-      source: source.trim() || 'Homebrew',
-      origin: cleanOrigin(source.trim() && source.trim() !== 'Homebrew' || sourceLink.trim() ? { name: source.trim() === 'Homebrew' ? '' : source.trim(), link: sourceLink } : undefined),
-      feature: { ...feature, id: `feat_${id}`, description: description.trim() },
-      abilityChoice: abilityChoiceOn
-        ? { options: abilityOptions, amount: parseInt(abilityAmount, 10) || 1, grantsSaveProficiency: grantsSaveProf }
-        : undefined,
-      skillChoice: skillPicks.length > 0 ? { picks: skillPicks } : undefined,
+    // The fields that follow from the builder's inputs are compiled in content/homebrewCompile.ts (shared with the desktop app).
+    const fields = compileFeatFields({
+      name, prerequisite, source, sourceLink, description, trait,
+      abilityChoice: abilityChoiceOn ? { options: abilityOptions, amount: abilityAmount, grantsSaveProficiency: grantsSaveProf } : null,
+      skillPicks, rulesetId,
+    }, id, feature);
+    return withPictures(pictures, mergeHomebrewDefinition(editing, {
+      ...fields,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, FEAT_CHOICE_PREFIX),
-      rulesetId,
-    });
+    } as Feat));
   }
 
   // Read-only test on a disposable level-1 scratch entity — no save, no
@@ -234,6 +238,7 @@ export default function FeatBuilderScreen() {
     try {
       await saveItem('feat', feat);
       usePendingSelectionStore.getState().setPending('feat_picker', feat.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[feat-builder] save failed:', e);
@@ -242,6 +247,10 @@ export default function FeatBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildFeat(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -254,8 +263,9 @@ export default function FeatBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Field label="Name *">
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
             placeholder="Feat name" placeholderTextColor={Colors.textDim} />
         </Field>
 

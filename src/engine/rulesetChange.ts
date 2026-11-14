@@ -54,7 +54,7 @@ import { getClassLevels } from './multiclass';
 import { getSubclassEntryMerged } from '../content/subclasses/subclassBrowse';
 import { resolveSpellById, resolveItemById } from '../content/contentResolution';
 import { collectTypedContentRefs } from './packDiagnostics';
-import { DERIVED_LABELS } from '../components/sheet/derivedStatLabels';
+import { DERIVED_LABELS } from './derivedStatLabels';
 import { RULESETS, gameIdForRuleset, gameLabel } from '../content/rulesets';
 
 export type RulesetChangeContentType =

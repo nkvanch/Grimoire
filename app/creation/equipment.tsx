@@ -14,7 +14,9 @@
 // the same multi-item choice.
 import { itemsForRuleset } from '../../src/content/itemEditions';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -30,6 +32,7 @@ import { ItemPickerModal } from '../../src/components/ItemPickerModal';
 import { Alert } from '../../src/utils/alert';
 import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 /** Marks equipmentVisited in notes JSON. */
 function markVisited(entity: Entity): Entity {
@@ -502,7 +505,7 @@ export default function EquipmentScreen() {
           <Pressable style={styles.backdrop} onPress={() => setAddFlow('closed')}>
             <Pressable style={[styles.menuSheet, { paddingBottom: scrollBottomPadding(insets.bottom, Spacing.md) }]} onPress={e => e.stopPropagation()}>
               <Text style={styles.menuTitle}>Create Simple Custom Item</Text>
-              <TextInput style={styles.input} value={scName} onChangeText={setScName} placeholder="Item name" placeholderTextColor={Colors.textDim} />
+              <TextInput {...NAME_INPUT} style={styles.input} value={scName} onChangeText={setScName} placeholder="Item name" placeholderTextColor={Colors.textDim} />
               <TextInput style={styles.input} value={scProps} onChangeText={setScProps} placeholder="Properties (comma-separated, optional)" placeholderTextColor={Colors.textDim} />
               <TextInput style={[styles.input, styles.inputMulti]} value={scDesc} onChangeText={setScDesc} placeholder="Description (optional)" placeholderTextColor={Colors.textDim} multiline />
               <Pressable style={[styles.nextBtn, !scName.trim() && styles.nextBtnDisabled]} disabled={!scName.trim()} onPress={() => { void handleCreateSimpleCustom(); }}>

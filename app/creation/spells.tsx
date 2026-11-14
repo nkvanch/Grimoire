@@ -10,7 +10,9 @@ import { grantEntitlements, grantEntitlement, revokeEntitlementsFromChoice } fro
 //   2. Content-based — pull cantrips/level-1 spells straight from the content DB
 //      and write the picks into entity.spellcasting.cantrips / .known.
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';

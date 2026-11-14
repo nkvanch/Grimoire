@@ -1,6 +1,7 @@
 import type { Background, ChoiceDefinition, DraftTrait, Feature, Grant, Item, LevelEntry, ResourceGrant } from './types';
 import { buildTraitFeature } from '../content/traitCompiler';
 import type { DraftChoice } from '../content/choiceDefinitionCompiler';
+import type { FeaturePoolOwner } from '../content/featurePoolChoice';
 import { definitionToDraftChoice, draftChoiceToDefinition } from '../content/choiceDefinitionCompiler';
 
 export type LosslessDraftChoice = DraftChoice & { originalChoice?: ChoiceDefinition };
@@ -19,10 +20,12 @@ function mergePool(original: ChoiceDefinition['pool'], edited: ChoiceDefinition[
   return edited.map(option => ({ ...originals.get(String(option.value ?? option.id)), ...option }));
 }
 
-function serializeDraft(draft: LosslessDraftChoice, prefix: string): ChoiceDefinition {
-  const compiled = draftChoiceToDefinition(draft, prefix);
+function serializeDraft(draft: LosslessDraftChoice, prefix: string, owner?: FeaturePoolOwner): ChoiceDefinition {
+  const compiled = draftChoiceToDefinition(draft, prefix, owner);
   const original = draft.originalChoice;
   if (!original) return compiled;
+  // no option pool to merge: what the editor holds is the choice, over any member of the original it does not know
+  if (draft.kind === 'asi' || draft.kind === 'spell' || draft.kind === 'feature_pool') return { ...original, ...compiled };
   const baselineDraft = definitionToDraftChoice(original, prefix);
   if (!baselineDraft) return original;
   const result: ChoiceDefinition = { ...original };
@@ -38,16 +41,16 @@ function serializeDraft(draft: LosslessDraftChoice, prefix: string): ChoiceDefin
 }
 
 export function serializeLosslessChoices(
-  original: ChoiceDefinition[] | undefined, drafts: LosslessDraftChoice[], prefix: string,
+  original: ChoiceDefinition[] | undefined, drafts: LosslessDraftChoice[], prefix: string, owner?: FeaturePoolOwner,
 ): ChoiceDefinition[] | undefined {
   const draftByOriginal = new Map(drafts.filter(d => d.originalChoice).map(d => [d.originalChoice!.id, d]));
   const kept = (original ?? []).flatMap(choice => {
     const representable = definitionToDraftChoice(choice, prefix) !== null;
     if (!representable) return [choice];
     const draft = draftByOriginal.get(choice.id);
-    return draft ? [serializeDraft(draft, prefix)] : [];
+    return draft ? [serializeDraft(draft, prefix, owner)] : [];
   });
-  const added = drafts.filter(d => !d.originalChoice).map(d => serializeDraft(d, prefix));
+  const added = drafts.filter(d => !d.originalChoice).map(d => serializeDraft(d, prefix, owner));
   const result = [...kept, ...added];
   return result.length > 0 ? result : undefined;
 }
@@ -61,12 +64,12 @@ export function hydrateLeveledChoices(
 
 export function serializeLeveledChoices(
   original: { level: number; choices: ChoiceDefinition[] }[] | undefined,
-  drafts: LeveledLosslessDraftChoice[], id: string,
+  drafts: LeveledLosslessDraftChoice[], id: string, owner?: FeaturePoolOwner,
 ): { level: number; choices: ChoiceDefinition[] }[] | undefined {
   const levels = new Set([...(original ?? []).map(x => x.level), ...drafts.map(x => x.level)]);
   const groups = [...levels].sort((a, b) => a - b).flatMap(level => {
     const old = original?.find(x => x.level === level)?.choices;
-    const choices = serializeLosslessChoices(old, drafts.filter(x => x.level === level), id + '_l' + level + '_');
+    const choices = serializeLosslessChoices(old, drafts.filter(x => x.level === level), id + '_l' + level + '_', owner);
     return choices ? [{ level, choices }] : [];
   });
   return groups.length > 0 ? groups : undefined;
@@ -81,6 +84,7 @@ export function mergeSubclassEntries(
   choices: LeveledLosslessDraftChoice[],
   hpDie: LevelEntry['hpDie'],
   subclassId: string,
+  owner?: FeaturePoolOwner,
 ): LevelEntry[] {
   const levels = new Set([...(original ?? []).map(e => e.level), ...featureEdits.map(e => e.level), ...choices.map(c => c.level)]);
   return [...levels].sort((a, b) => a - b).map(level => {
@@ -96,7 +100,7 @@ export function mergeSubclassEntries(
       // Missing edit means intentional removal; untouched originals are supplied as identity edits by the builder hydrator.
     }
     for (const edit of edits.filter(e => !e.originalFeatureId)) retained.push(...edit.grants);
-    const serializedChoices = serializeLosslessChoices(old?.choices, choices.filter(c => c.level === level), subclassId + '_l' + level + '_') ?? [];
+    const serializedChoices = serializeLosslessChoices(old?.choices, choices.filter(c => c.level === level), subclassId + '_l' + level + '_', owner) ?? [];
     return { ...(old ?? { level, choices: [], grants: [] }), level, hpDie, grants: retained, choices: serializedChoices };
   });
 }

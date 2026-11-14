@@ -19,7 +19,10 @@
 // combatant's row), same as every other "disclosed, not simulated"
 // mechanic already in this app.
 import { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, CampaignRules, DraftTrait, DurationTracker } from '../../engine/types';
 import { newDraftTrait, TraitEditorModal } from '../homebrew/TraitEditor';
 import { grantCustomFeature } from './AddCustomFeatureModal';
@@ -45,6 +48,8 @@ export function DmRulingModal({ visible, entities, rules, onApply, onCancel }: P
   const [step, setStep] = useState<Step>('editing');
   const [duration, setDuration] = useState<DurationTracker | null>(null);
   const [roundsText, setRoundsText] = useState('');
+  // Closing with edits asks first (src/hooks/useDiscardGuard.ts); an explicit Discard does not.
+  const close = closeAsking(useEdited(() => ({ draft, duration, roundsText }), visible), onCancel);
 
   useEffect(() => {
     if (visible) {
@@ -73,8 +78,8 @@ export function DmRulingModal({ visible, entities, rules, onApply, onCancel }: P
     const rounds = parseInt(roundsText, 10);
     const roundsValid = !isNaN(rounds) && rounds >= 1;
     return (
-      <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-        <Pressable style={styles.backdrop} onPress={onCancel}>
+      <Modal visible transparent animationType="fade" onRequestClose={close}>
+        <Pressable style={styles.backdrop} onPress={close}>
           <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
             <Text style={styles.title}>How long — {draft.name || 'New Ruling'}?</Text>
             <Text style={styles.targetSummary}>
@@ -136,8 +141,8 @@ export function DmRulingModal({ visible, entities, rules, onApply, onCancel }: P
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
+    <Modal visible transparent animationType="fade" onRequestClose={close}>
+      <Pressable style={styles.backdrop} onPress={close}>
         <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
           <Text style={styles.title}>{draft.name || 'New Ruling'}</Text>
           <Text style={styles.durationSummary}>Duration: {durationLabel}</Text>

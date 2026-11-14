@@ -8,7 +8,7 @@
 // ============================================================================
 import type { AbilityEffect, ActionCard, CampaignRules, Entity, Feature, OutcomeKey, OutcomeOffer } from './types';
 import { applyAbilityEffects } from './combat';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 
 const KEYS: OutcomeKey[] = ['hit', 'miss', 'success', 'failure'];
 const LABEL: Record<OutcomeKey, string> = { hit: 'It hit', miss: 'It missed', success: 'The save succeeded', failure: 'The save failed' };

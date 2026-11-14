@@ -2,12 +2,17 @@
 // About & Legal — SRD 5.1 attribution (required by the CC-BY-4.0 license,
 // see docs/ROADMAP_1.0.md Phase 1 Step 1.5), plus a short "what is this app"
 // note and a link to the source document.
-import { View, Text, Pressable, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useSafeGoBack } from '../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../src/theme';
 
 const SRD_URL = 'https://dnd.wizards.com/resources/systems-reference-document';
+// app.json is the one place the version is set (the Android build and the public export take it from there).
+const VERSION = Constants.expoConfig?.version ?? 'unknown';
+const BUILD = Constants.expoConfig?.android?.versionCode;
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -31,6 +36,7 @@ export default function AboutScreen() {
           Character sheets, homebrew content, and campaign sync all stay on
           your devices — nothing is collected or sent anywhere.
         </Text>
+        <Text style={styles.body} testID="app-version">Version {VERSION}{BUILD ? ` (build ${BUILD})` : ''}</Text>
       </Section>
 
       <Section title="Content License">
@@ -74,6 +80,13 @@ export default function AboutScreen() {
           Wizards of the Coast. Dungeons &amp; Dragons and its logo are
           trademarks of Wizards of the Coast LLC, and their use here is
           purely descriptive.
+        </Text>
+      </Section>
+
+      <Section title="Fonts">
+        <Text style={styles.body}>
+          The PDF character sheet uses Cormorant Garamond, EB Garamond, Outfit, JetBrains Mono, Space Grotesk and Inter. Each is
+          copyright its own authors and is used under the SIL Open Font License 1.1.
         </Text>
       </Section>
 

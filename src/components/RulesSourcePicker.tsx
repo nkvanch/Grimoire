@@ -5,7 +5,8 @@
 //   Official         - the pre-written 5e (2014) / 5.5e (2024) rule sets (content/rulePresets.ts)
 // Whatever is chosen decides the character's ruleset (and rule-profile overlay), and the content
 // pickers then suggest that ruleset's content first (content/rulesetSuggestion.ts).
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { useRouter } from 'expo-router';
 import { RulesetId } from '../engine/types';
 import { useCustomRuleProfileStore } from '../store/customRuleProfileStore';

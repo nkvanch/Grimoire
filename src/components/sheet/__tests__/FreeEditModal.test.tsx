@@ -87,7 +87,8 @@ describe('FreeEditModal', () => {
     const t = setup({ ...makeEmptyEntity('fe3'), stats: { ...makeEmptyEntity('fe3').stats, str: 30 } });
     act(() => { t.inputs()[0].props.onChangeText('99'); });
     act(() => { t.inputs()[0].props.onEndEditing({ nativeEvent: { text: '99' } }); });
-    expect(t.applied[t.applied.length - 1].stats.str).toBe(30);
+    // the field is the total now: the base is already at its highest, so nothing is applied and the field shows the real value
+    expect(t.applied).toHaveLength(0);
     expect(t.inputs()[0].props.value).toBe('30');
   });
 

@@ -5,15 +5,18 @@
 // (app/dm/encounter.tsx), which owns runtime ActiveEncounter state — see
 // PreparedEncounter's own doc comment in engine/types.ts.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { Alert } from '../../src/utils/alert';
 import { useEncounterStore } from '../../src/store/encounterStore';
+import { parsePreparedEncounterFile, pickPreparedEncounterText } from '../../src/io/preparedEncounterFile';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { PreparedEncounter, EncounterStatus } from '../../src/engine/types';
 import { activeSession } from '../../src/engine/session';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const STATUS_FILTERS: { id: EncounterStatus | 'all'; label: string }[] = [
   { id: 'all',       label: 'All' },
@@ -90,6 +93,8 @@ export default function EncounterLibraryScreen() {
   const setStatus = useEncounterStore(s => s.setEncounterStatus);
   const deleteEncounter = useEncounterStore(s => s.deleteEncounterPermanently);
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
+  const campaigns = useCampaignStore(s => s.campaigns);
+  const saveEncounterDraft = useEncounterStore(s => s.saveEncounterDraft);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<EncounterStatus | 'all'>('all');
@@ -117,6 +122,19 @@ export default function EncounterLibraryScreen() {
     router.push({ pathname: '/dm/encounter-builder', params: { id: encounter.id } } as any);
   }
 
+  // A prepared fight exported by the desktop app (or another device); never overwrites one already here.
+  async function handleImport() {
+    try {
+      const text = await pickPreparedEncounterText();
+      if (text === null) return;
+      const fight = parsePreparedEncounterFile(text, new Set(campaigns.map(c => c.id)));
+      await saveEncounterDraft(fight);
+      Alert.alert('Imported', `"${fight.name}" is in the library${fight.campaignId ? '' : ' as a template (its campaign is not on this device)'}.`);
+    } catch (e: any) {
+      Alert.alert('That file could not be imported', e?.message ?? String(e));
+    }
+  }
+
   function confirmDelete(encounter: PreparedEncounter) {
     Alert.alert('Delete Encounter', `Permanently delete "${encounter.name}"? This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -141,9 +159,14 @@ export default function EncounterLibraryScreen() {
         {creating
           ? <View style={{ width: 60 }} />
           : (
-            <Pressable style={styles.newBtnCompact} onPress={() => setCreating(true)}>
-              <Text style={styles.newBtnCompactTxt}>+ New</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+              <Pressable style={styles.newBtnCompact} onPress={() => { void handleImport(); }} accessibilityLabel="Import a prepared fight">
+                <Text style={styles.newBtnCompactTxt}>⇩ Import</Text>
+              </Pressable>
+              <Pressable style={styles.newBtnCompact} onPress={() => setCreating(true)}>
+                <Text style={styles.newBtnCompactTxt}>+ New</Text>
+              </Pressable>
+            </View>
           )}
       </View>
 
@@ -170,7 +193,7 @@ export default function EncounterLibraryScreen() {
 
       {creating && (
         <View style={styles.createRow}>
-          <TextInput
+          <TextInput {...NAME_INPUT}
             style={styles.createInput}
             value={newName}
             onChangeText={setNewName}

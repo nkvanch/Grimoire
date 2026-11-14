@@ -2,6 +2,41 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.4 alpha
+
+Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.4-alpha).
+
+Same signing key as 0.2.3, so it installs over 0.2.0 to 0.2.3 as a normal update and keeps your characters.
+
+### New
+
+- A PDF character sheet, two pages, in three looks: Illuminated, Astrolabe and Ledger.
+- A character info page on the sheet, a portrait for each character, and renaming a character after creation.
+- Setting an ability score by its total, and customising an item you own (its name, description, uses and what it does to ability scores). An official item becomes your own homebrew copy.
+- Modes: a feature or an item can switch between ways it works, chosen on the sheet.
+- Pictures for homebrew content, an icon and a large picture, shown in the Compendium and your library. Big photos are shrunk to fit.
+- Builders can ask the player for skills, an ability improvement or feat, spells, or a pick from a feature pool, and a class can say what it grants when taken as a second class.
+- Multiclassing checks the ability scores each class needs, with Overrule for tables that allow it. Overrule also lets you use a card with no slot left, a spent resource or an action already used, and go past the attunement limit.
+- House rules apply: feats can be switched off, and failed death saves can carry over until a long rest.
+- The Compendium shows each entry's details: a class or subclass lists its features by level, an item its cost, weight, properties and features. Each row says which edition it is from.
+- Leaving a builder or closing an editing pop-up with unsaved changes asks before discarding them.
+- About & Legal shows the app version.
+- Live sessions between devices are encrypted, and each device remembers the room it joined so another device cannot pretend to be it later. The app still says to use live play only on networks you trust.
+
+### Fixed
+
+- Maximum hit points now follow Constitution whatever changes it, an item, a mode, a feature or a condition, not only improvements and feats. Characters saved before are put right when they load.
+- An item that sets an ability score, like a Belt of Giant Strength, gives exactly that score.
+- The Defense fighting style reads the armor you wear instead of asking, and Archery and Dueling now count on your weapon attacks.
+- Critical Hit is offered only on attack rolls, not on healing or saving throw spells.
+- Buttons and text boxes are named for screen readers.
+- Pop-ups no longer put their buttons under the Android navigation bar.
+- Name boxes no longer autocorrect invented names.
+- Character creation: starting hit points are right, SRD casters get their spell choices, and the Skills step says where an already trained skill came from.
+- A skill check uses the same ability scores as the passive scores, overrides included.
+- Healing no longer clears failed death saves when that house rule is on.
+- On narrow phones the sheet's controls wrap instead of running off the screen.
+
 ## 0.2.3 alpha
 
 Released 12 October 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.3-alpha).

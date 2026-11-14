@@ -83,11 +83,11 @@ describe('1. Simple martial (Fighter-shaped, no spells)', () => {
 
     // REST: a long rest fully heals HP (rest.ts step 1 — verified in rest.test.ts).
     e = takeRest(e, 'long', DEFAULT_RULES);
-    expect(e.resources.hp).toEqual({ current: 30, maximum: 30, temp: 0 });
+    expect(e.resources.hp).toEqual({ current: 30, maximum: 30, temp: 0, conModApplied: 0 });
 
     // EXPORT/IMPORT: HP survives a real serialize/parse round trip.
     const { entity: reloaded } = await reload(e);
-    expect(reloaded.resources.hp).toEqual({ current: 30, maximum: 30, temp: 0 });
+    expect(reloaded.resources.hp).toEqual({ current: 30, maximum: 30, temp: 0, conModApplied: 0 });
   });
 });
 

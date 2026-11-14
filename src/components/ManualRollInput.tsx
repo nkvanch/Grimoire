@@ -5,7 +5,8 @@
 // Pure leaf component: knows nothing about diceLogStore or any modal's own
 // state — it just hands the caller a DiceRoll via onSubmit.
 import { useState } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
 import { DiceRoll } from '../engine/types';
 import { manualRoll } from '../engine/dice';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';

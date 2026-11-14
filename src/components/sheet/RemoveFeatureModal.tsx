@@ -5,7 +5,9 @@
 // rule as every other preview modal (simulate()), and reuses
 // featureGrantRows.ts's buildFeatureGrantRows (shared with the later
 // add-custom-feature modal) for the diff.
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
 import { removeFeature } from '../../engine/leveling';
 import { simulate } from '../../engine/simulate';

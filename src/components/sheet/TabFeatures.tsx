@@ -1,10 +1,12 @@
 // app/sheet/TabFeatures.tsx
 // Tab 4 — Features grouped by source, plus spells if applicable.
 import { useState, memo } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, FeatureInstance, ActionCard, CampaignRules, RulesetId } from '../../engine/types';
 import { resolveChoice, applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity } from '../../engine/leveling';
-import { recomputeDerived } from '../../engine/pipeline';
+import { recomputeDerived, OBSERVED_SITUATIONALS } from '../../engine/pipeline';
 import { eligibleExpertiseOptions, eligibleToolOptions, eligibleLanguageOptions } from '../../engine/choiceEligibility';
 import { Alert } from '../../utils/alert';
 import { AsiFeatPicker } from '../AsiFeatPicker';
@@ -28,6 +30,8 @@ import { TOOL_CATEGORY_LABELS, TOOL_CATEGORY_ORDER } from '../../content/tools';
 import { LANGUAGE_CATEGORY_LABELS, LANGUAGE_CATEGORY_ORDER } from '../../content/languages';
 import { ALL_SKILL_OPTIONS } from '../../content/skills';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { ModeSwitch } from './ModeSwitch';
+import { setFeatureMode } from '../../engine/featureModes';
 
 const SOURCE_ORDER = ['race','class','subclass','background','feat','item','spell','condition','campaign','manual'] as const;
 const SOURCE_LABELS: Record<string, string> = {
@@ -236,7 +240,9 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
       }
     }
   }
-  const situationalItems = Array.from(situationalById.entries()).map(([id, v]) => ({ id, ...v }));
+  const situationalItems = Array.from(situationalById.entries())
+    .filter(([id]) => !OBSERVED_SITUATIONALS[id])   // the engine answers these itself (worn armor for Defense)
+    .map(([id, v]) => ({ id, ...v }));
 
   function answerSituational(id: string, value: boolean | undefined) {
     if (!rules || !onEntityUpdate) return;
@@ -525,11 +531,16 @@ function TabFeaturesInner({ entity, rules, onEntityUpdate }: {
       {SOURCE_ORDER.filter(k => groups.has(k)).map(kind => (
         <CollapsibleGroup key={kind} title={SOURCE_LABELS[kind] ?? kind}>
           {groups.get(kind)!.map(f => (
-            <FeatureRow
-              key={f.id}
-              feature={f}
-              onRemove={canResolve ? setRemovingFeatureId : undefined}
-            />
+            <View key={f.id}>
+              <FeatureRow
+                feature={f}
+                onRemove={canResolve ? setRemovingFeatureId : undefined}
+              />
+              {canResolve && rules && onEntityUpdate && (
+                <ModeSwitch feature={f} entity={entity} modeKey={f.id}
+                  onSet={(key, modeId) => onEntityUpdate(recomputeDerived(setFeatureMode(entity, key, modeId), rules))} />
+              )}
+            </View>
           ))}
         </CollapsibleGroup>
       ))}

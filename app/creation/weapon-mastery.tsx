@@ -1,7 +1,8 @@
 // app/creation/weapon-mastery.tsx
 // kinds whose mastery property the character can use. The same panel lives on the Features tab afterwards (the rules let you
 // swap one after each Long Rest).
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { WeaponMasteryPanel } from '../../src/components/sheet/WeaponMasteryPanel';

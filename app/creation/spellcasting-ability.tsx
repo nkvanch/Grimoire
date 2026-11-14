@@ -6,7 +6,8 @@
 // nothing ever presented it to the player, so the feature was genuinely
 // incomplete, not just unpolished.
 import { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { resolveChoice } from '../../src/engine/leveling';

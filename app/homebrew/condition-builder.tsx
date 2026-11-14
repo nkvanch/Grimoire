@@ -15,9 +15,10 @@
 // applyGrant() — the Test button below previews it the same way.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -26,8 +27,11 @@ import { validateRace } from '../../src/engine/homebrewValidator';
 import { Alert } from '../../src/utils/alert';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
-import { toId, disambiguateId, buildTraitFeature, TraitListEditor } from '../../src/components/homebrew/TraitEditor';
+import { toId, disambiguateId, TraitListEditor } from '../../src/components/homebrew/TraitEditor';
+import { compileConditionFields } from '../../src/content/homebrewCompile';
 import { ALL_CONDITIONS } from '../../src/content/conditions/index';
 import { applyCondition } from '../../src/engine/conditions';
 import { simulate } from '../../src/engine/simulate';
@@ -38,6 +42,9 @@ import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPick
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 export default function ConditionBuilderScreen() {
   const goBack   = useSafeGoBack('/(tabs)/homebrew');
@@ -49,6 +56,7 @@ export default function ConditionBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [description, setDescription] = useState('');
   const [traits,       setTraits]     = useState<DraftTrait[]>([]);
@@ -72,6 +80,7 @@ export default function ConditionBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setDescription(editing.description);
@@ -90,25 +99,8 @@ export default function ConditionBuilderScreen() {
     // never touched, keep its original features verbatim instead of
     // compiling the still-empty hydration placeholder into [] — a rename-
     // only save must not silently strip every mechanical effect.
-    let features: Condition['features'];
-    if (editing && !traitsTouched) {
-      features = editing.features;
-    } else {
-      features = [];
-      const usedIds = new Set<string>();
-      for (const t of traits) {
-        const { feature, extraFeatures } = buildTraitFeature(t, { idPrefix: id, sourceKind: 'condition', sourceRefId: id, level: null, usedIds });
-        features.push(feature, ...(extraFeatures ?? []));
-        usedIds.add(feature.id);
-      }
-    }
-    return mergeHomebrewDefinition(editing, {
-      id,
-      name: name.trim(), origin: cleanOrigin(origin),
-      description: description.trim(),
-      features,
-      rulesetId,
-    });
+    const keptFeatures = editing && !traitsTouched ? editing.features : undefined;
+    return withPictures(pictures, mergeHomebrewDefinition(editing, compileConditionFields({ name, origin, description, traits, rulesetId }, id, keptFeatures)));
   }
 
   // Read-only test on a disposable level-1 scratch entity — no save, no real
@@ -146,6 +138,7 @@ export default function ConditionBuilderScreen() {
     setSaving(true);
     try {
       await saveItem('condition', cond);
+      leave();
       goBack();
     } catch (e) {
       console.error('[condition-builder] save failed:', e);
@@ -154,6 +147,10 @@ export default function ConditionBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildCondition(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -167,8 +164,9 @@ export default function ConditionBuilderScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <View style={styles.field}>
+          <PictureField value={pictures} onChange={setPictures} />
           <Text style={styles.fieldLabel}>Name *</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
             placeholder="Condition name" placeholderTextColor={Colors.textDim} />
         </View>
 

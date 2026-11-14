@@ -44,13 +44,13 @@ describe('applyStatModifiers', () => {
     expect(applyStatModifiers(base, effects).str).toBe(12);
   });
 
-  it('applies a "set" effect as a new base, then stacks "add" on top', () => {
+  it('a "set" is the final score: an "add" on the same ability is ignored', () => {
     const base = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
     const effects = [
       { effect: { type: 'stat_modifier', target: 'str', operation: 'set', value: 19, condition: null } as Effect, sourceName: 'belt', sourceId: 'x', appliedAt: 0 },
       { effect: { type: 'stat_modifier', target: 'str', operation: 'add', value: 1, condition: null } as Effect, sourceName: 'asi', sourceId: 'y', appliedAt: 1 },
     ];
-    expect(applyStatModifiers(base, effects).str).toBe(20);
+    expect(applyStatModifiers(base, effects).str).toBe(19);
   });
 
   it('picks the highest of two competing "set" effects, regardless of collection order (order-independence bug fix)', () => {
@@ -73,7 +73,7 @@ describe('applyStatModifiers', () => {
       { effect: { type: 'stat_modifier', target: 'str', operation: 'add', value: 1, condition: null } as Effect, sourceName: 'D', sourceId: 'D', appliedAt: 3 },
     ];
     const expected = applyStatModifiers(base, effects).str;
-    expect(expected).toBe(22); // 19 (highest set) + 2 + 1
+    expect(expected).toBe(19); // the highest set; the adds are ignored
     for (let i = 0; i < 5; i++) {
       const shuffled = [...effects].sort(() => Math.random() - 0.5);
       expect(applyStatModifiers(base, shuffled).str).toBe(expected);

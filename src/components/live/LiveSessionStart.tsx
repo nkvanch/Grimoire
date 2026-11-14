@@ -10,7 +10,9 @@
 // unaffected by where it's mounted.
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, Modal, KeyboardAvoidingView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { View, Text, KeyboardAvoidingView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { useRouter } from 'expo-router';
 import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { useCharacterStore } from '../../store/characterStore';
@@ -21,7 +23,7 @@ import { Capability, PeekResult } from '../../session/types';
 import { StoredIdentity } from '../../session/peer';
 import { checkCampaignCompatibility, CompatibilityIssue } from '../../engine/campaignCompatibility';
 import { loadInstalledPacks, InstalledPack } from '../../db/packRegistryRepo';
-import { Chip, Field, Row, Muted, Card, Badge, Body } from './LiveUi';
+import { Chip, Field, Row, Muted, Card, Badge, Body, TrustedNetworkNotice } from './LiveUi';
 import { Alert } from '../../utils/alert';
 import { E2E_ENABLED } from '../../session/e2e';
 import { QrScannerModal } from '../QrScannerModal';
@@ -142,6 +144,7 @@ export function HostModal({ visible, onClose, nickname, initialRole }: { visible
         <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
           <Text style={m.title}>Host Campaign</Text>
           <Muted>The Host runs the connection. Hosting does NOT make you the DM unless you choose Host + DM.</Muted>
+          <TrustedNetworkNotice />
           <Row wrap>
             <Chip label="Host only" active={hostRole === 'host'} onPress={() => setHostRole('host')} testID="live-role-host" />
             <Chip label="Host + DM" active={hostRole === 'host+dm'} onPress={() => setHostRole('host+dm')} testID="live-role-hostdm" />
@@ -301,6 +304,7 @@ export function JoinModal({ visible, onClose, nickname }: { visible: boolean; on
               <>
                 <Text style={m.title}>Join Session</Text>
                 <Muted>Enter the Host's 7-character room code, or scan the QR they're showing.</Muted>
+                <TrustedNetworkNotice />
                 <Field label="Room code" value={code} onChangeText={t => setCode(t.toUpperCase().slice(0, 7))}
                   placeholder="K7M4XQP" autoCapitalize="characters" maxLength={7} testID="live-address" />
                 {Platform.OS !== 'web' && (

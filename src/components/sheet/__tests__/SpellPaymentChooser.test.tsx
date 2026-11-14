@@ -1,6 +1,7 @@
 jest.mock('react-native/Libraries/Modal/Modal', () => ({ __esModule: true, default: ({ children }: { children: React.ReactNode }) => children }));
 import React from 'react';
 import { useSpellPayment } from '../SpellPaymentChooser';
+import { Pressable } from '../../AccessibleControls';
 import { makeEmptyEntity } from '../../../store/characterStore';
 import { slotsFromCountArray } from '../../../content/classes/spellSlotTables';
 import { ActionCard } from '../../../engine/types';
@@ -22,14 +23,14 @@ describe('payment chooser', () => {
     act(() => { renderer = create(<Harness />); });
     act(() => api.requestPayment(card, undefined, commit));
     expect(commit).not.toHaveBeenCalled();
-    let buttons = renderer.root.findAll((node: { props: Record<string, unknown> }) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function');
+    let buttons = renderer.root.findAllByType(Pressable);   // each button once (the wrapper, not also the react-native Pressable inside it)
     const staleCommit = buttons[1].props.onPress;
     act(() => buttons[2].props.onPress());
     act(() => staleCommit());
     expect(commit).not.toHaveBeenCalled();
     expect(JSON.stringify(entity)).toBe(before);
     act(() => api.requestPayment(card, undefined, commit));
-    buttons = renderer.root.findAll((node: { props: Record<string, unknown> }) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function');
+    buttons = renderer.root.findAllByType(Pressable);   // each button once (the wrapper, not also the react-native Pressable inside it)
     const choose = buttons[1].props.onPress;
     act(() => { choose(); choose(); });
     expect(commit).toHaveBeenCalledTimes(1);

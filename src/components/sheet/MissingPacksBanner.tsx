@@ -3,7 +3,8 @@
 // and one it needs is not installed (removed, or the character came from another device), the sheet says so and offers the
 // install when the pack ships with the app. Nothing is shown with the built-in catalog (no packs installed) or when all are there.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import type { Entity } from '../../engine/types';
 import { installedOfficialPacks } from '../../content/officialPackService';
 import { mergeRequiredPacks, requiredPacksFor, packShortfalls, describeShortfall } from '../../content/requiredPacks';

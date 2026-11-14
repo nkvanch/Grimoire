@@ -2,7 +2,8 @@
 // A campaign names the content packs its ruleset needs (Campaign.requiredPacks). A player who has not installed one is told, with
 // the install when the pack ships with the app. Shown only when packs are the official content and something is missing.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import type { Campaign } from '../engine/types';
 import { installedOfficialPacks } from '../content/officialPackService';
 import { packShortfalls, describeShortfall, mergeRequiredPacks } from '../content/requiredPacks';

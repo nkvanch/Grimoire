@@ -103,6 +103,17 @@ describe('the shipped app, packs only', () => {
       expect(druid.features.some(f => f.name === 'Wild Shape: Wolf')).toBe(true);
     });
 
+    it('starts a new character from no hit points, so the first level gives the die plus Constitution and nothing more', () => {
+      const p = getOfficialContentProvider()!;
+      // fighter d10, Constitution 14 (+2): 12 at the first level. It was 22 while creation began from a placeholder of 10.
+      const first = createCharacter(p, { id: 'hp1', name: 'HP', classId: 'fighter', raceId: 'human', backgroundId: 'acolyte', stats, level: 1 }, DEFAULT_RULES);
+      expect(first.resources.hp.maximum).toBe(12);
+      expect(first.resources.hp.current).toBe(12);
+      // wizard d6, Constitution 14: 8
+      const wizard = createCharacter(p, { id: 'hp2', name: 'HP', classId: 'wizard', raceId: 'human', backgroundId: 'acolyte', stats, level: 1 }, DEFAULT_RULES);
+      expect(wizard.resources.hp.maximum).toBe(8);
+    });
+
     it('builds the sample character from the packs', () => {
       const demo = buildDemoCharacter(DEFAULT_RULES);
       expect(demo.identity.classId).toBe('fighter');

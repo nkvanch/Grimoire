@@ -6,12 +6,15 @@ import { recomputeDerived } from '../../src/engine/pipeline';
 //   'replacement' — opens extra skills so you never lose a pick
 //   'warn'        — stay on class list; warn inline when you'll lose picks
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { resolveChoice } from '../../src/engine/leveling';
 import { skillOverlapMode } from '../../src/engine/houseRules';
+import { skillProficiencySource } from '../../src/engine/skillCheck';
+import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { ChoiceOption, SkillName } from '../../src/engine/types';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
@@ -37,6 +40,13 @@ export default function SkillsScreen() {
   const allSkillChoices      = draft ? draft.choices.filter(c => c.definition.kind === 'skill') : [];
   const pendingSkillChoices  = allSkillChoices.filter(c => !c.resolved);
   const resolvedSkillChoices = allSkillChoices.filter(c =>  c.resolved);
+
+  // Where an already-trained skill came from (the species, background, class or feat), not always "background".
+  const sourceNames = draft ? identityLabelsFor(draft) : null;
+  const trainedFrom = (skill: SkillName) => {
+    const from = draft && sourceNames ? skillProficiencySource(draft, skill, sourceNames) : null;
+    return from ? `From ${from}` : 'Already proficient';
+  };
 
   const alreadyTrained = draft
     ? Object.entries(draft.skills.skills)
@@ -346,7 +356,7 @@ export default function SkillsScreen() {
                   ]}>
                     {SKILL_LABELS[opt.label.toLowerCase().replace(/ /g, '_')] ?? opt.label}
                   </Text>
-                  {isAlreadyTrained && <Text style={styles.alreadyTag}>From background</Text>}
+                  {isAlreadyTrained && <Text style={styles.alreadyTag}>{trainedFrom(opt.value as SkillName)}</Text>}
                   {opt.isReplacement && !isAlreadyTrained && (
                     <Text style={styles.replacementTag}>Replacement</Text>
                   )}

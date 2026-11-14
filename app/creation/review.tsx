@@ -1,7 +1,8 @@
 // app/creation/review.tsx
 // Step 9: Summary review before saving.
 // Shows the final computed character and lets the player confirm or go back.
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';

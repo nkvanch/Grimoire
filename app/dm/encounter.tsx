@@ -1,14 +1,16 @@
 // app/dm/encounter.tsx
 // Initiative tracker + combat encounter manager (DM only).
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { LEGENDARY_ACTIONS_RESOURCE_ID } from '../../src/engine/ruleset/dnd5e';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, Modal,
+  View, Text, ScrollView, StyleSheet,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Alert } from '../../src/utils/alert';
+import { pinGate, STEP_OPERATIONS } from '../../src/store/pinningService';
 import { useCombatStore }    from '../../src/store/combatStore';
 import { useCampaignStore }  from '../../src/store/campaignStore';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -202,7 +204,7 @@ function QuickPanel({ entity, rules, onUpdate, onRuling, onClose }: QuickPanelPr
       if (updated !== entity) onUpdate(updated, entity.identity.name + ': used ' + card.name);
     });
   }
-  const legendaryPool = entity.resources.custom.find(r => r.id === 'legendary_actions');
+  const legendaryPool = entity.resources.custom.find(r => r.id === LEGENDARY_ACTIONS_RESOURCE_ID);
   const legendaryCards = legendaryPool
     ? entity.features
         .filter(f => f.activation?.resourceCost?.resourceId === 'legendary_actions')
@@ -1113,6 +1115,9 @@ export default function EncounterScreen() {
   // call that was always a no-op here, since the entity isn't in `entities`
   // yet for it to update).
   function addPartyMember(c: Entity) {
+    // a combatant is worked out automatically: a pinned character whose pinned content cannot be had waits until it is pinned again (LIFE-004)
+    const refusal = pinGate(c, STEP_OPERATIONS.derivedStats);
+    if (refusal) { Alert.alert(`${c.identity.name} could not join`, refusal); return; }
     useCombatStore.getState().addToRoster(c);
   }
 

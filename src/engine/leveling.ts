@@ -19,7 +19,7 @@ import { getProgressionForClass } from '../content/classes/progressions';
 import { WARLOCK_SLOTS } from '../content/classes/spellSlotTables';
 import { itemMatchesConstraint } from '../content/items/itemBrowse';
 import type { ItemIndexEntry } from '../content/itemRepo.types';
-import { hpMinHalfDie, bonusFeatEveryLevel } from './houseRules';
+import { hpMinHalfDie, bonusFeatEveryLevel, featsEnabled } from './houseRules';
 import { getClassLevels, syncLegacyIdentity, multiclassProficienciesFor } from './multiclass';
 import { initializeEntitlementInputs, grantEntitlement, grantEntitlements, revokeEntitlementsFromChoice, revokeSpellEntitlementFromChoice, revokeResourceSource, recomputeResourceMaximums } from './entitlements';
 import { generateItemInstanceId } from './inventory';
@@ -53,9 +53,14 @@ export function applyGrant(
 
     case "feature": {
       const f = grant.value as FeatureInstance;
+      // An upgrade replaces the earlier record with the new definition; members of the earlier record the new one does not set (one this
+      // build does not know, written by another app version) are carried over rather than dropped.
+      const upgraded = f.upgradeOf ? entity.features.find(x => x.id === f.upgradeOf) : undefined;
+      const carried = upgraded ? Object.fromEntries(Object.entries(upgraded).filter(([k]) => !(k in f))) : {};
       let next: Entity = {
         ...entity,
         features: [...(f.upgradeOf ? entity.features.filter(x => x.id !== f.upgradeOf) : entity.features), {
+          ...carried,
           ...f,
           source: f.source ?? { kind: "class", refId: classId ?? entity.identity.classId },
           level:  atLevel,
@@ -188,6 +193,12 @@ export function applyGrant(
         && e.sourceKind === upgradeSource.kind && e.sourceId === upgradeSource.id
         && e.choiceId === upgradeSource.choiceId
       ));
+      // the contribution this replaces keeps whatever else is written on it (members this app does not know are kept, not rebuilt)
+      const previousContribution = (entity.entitlements ?? []).find(e => (
+        e.kind === 'resource_upgrade' && e.key === u.resourceId
+        && e.sourceKind === upgradeSource.kind && e.sourceId === upgradeSource.id
+        && e.choiceId === upgradeSource.choiceId
+      ));
       const otherAmount = withoutSameContribution
         .filter(e => e.kind === 'resource_upgrade' && e.key === u.resourceId)
         .reduce((sum, e) => sum + (e.amount ?? 0), 0);
@@ -200,6 +211,7 @@ export function applyGrant(
         entitlements: withoutSameContribution,
       };
       return recomputeResourceMaximums(grantEntitlement(withBase, {
+        ...previousContribution,
         kind: 'resource_upgrade', key: u.resourceId, amount,
         sourceKind: upgradeSource.kind, sourceId: upgradeSource.id, choiceId: upgradeSource.choiceId,
       }));
@@ -338,7 +350,8 @@ export function applyGrant(
       const newSlots = {} as typeof entity.spellcasting.slots;
       tiers.forEach((t, i) => {
         const total = slots[i] ?? 0;
-        newSlots[t] = { total, used: Math.max(0, Math.min(entity.spellcasting!.slots[t]?.used ?? 0, total)) };
+        // spread, so a member of the tier this build does not know of stays
+        newSlots[t] = { ...entity.spellcasting!.slots[t], total, used: Math.max(0, Math.min(entity.spellcasting!.slots[t]?.used ?? 0, total)) };
       });
       return {
         ...entity,
@@ -514,6 +527,7 @@ function addHitDie(hitDice: Entity['resources']['hitDice'], die: number): Entity
     ? pools.map((p, i) => i === idx ? { ...p, total: p.total + 1, remaining: p.remaining + 1 } : p)
     : [...pools, { die, total: 1, remaining: 1 }];
   return {
+    ...hitDice,
     die,
     total:     nextPools.reduce((sum, p) => sum + p.total, 0),
     remaining: nextPools.reduce((sum, p) => sum + p.remaining, 0),
@@ -568,38 +582,6 @@ export function recalculateAllHP(entity: Entity, rules: CampaignRules, hpAbility
 
 // ── reconcileConHp ─────────────────────────────────────────────────────────────
 
-/**
- * PHB "Beyond 1st Level": when your Constitution modifier increases, your hit
- * point maximum increases by 1 for each level you have attained (and the reverse
- * if it drops). Call this after a PERMANENT Constitution change (an ASI or a
- * feat) to adjust max HP by (Δ CON modifier × level) WITHOUT recomputing rolled
- * HP from scratch — so a character who rolled HP keeps those rolls.
- *
- * `prev` = entity before the change, `next` = entity after. Current HP moves
- * with maximum so the increase isn't "lost" as if the character were damaged.
- */
-export function reconcileConHp(prev: Entity, next: Entity): Entity {
-  const level = next.identity.level;
-  if (level <= 0) return next;
-
-  const prevCon = effectiveAbilityScores(prev).con;
-  const nextCon = effectiveAbilityScores(next).con;
-  const delta   = modifier(nextCon) - modifier(prevCon);
-  if (delta === 0) return next;
-
-  const hpDelta = delta * level;
-  return {
-    ...next,
-    resources: {
-      ...next.resources,
-      hp: {
-        ...next.resources.hp,
-        maximum: Math.max(1, next.resources.hp.maximum + hpDelta),
-        current: Math.max(0, next.resources.hp.current + hpDelta),
-      },
-    },
-  };
-}
 
 // ── reapplyResolvedAsi ─────────────────────────────────────────────────────────
 
@@ -709,14 +691,13 @@ export function applyAsiToEntity(
     .map(([ab, n]) => `${ab}+${n}`)
     .join(',') || 'no_change';
 
-  let updated: Entity = {
+  const updated: Entity = {
     ...entity,
     stats: newStats,
     choices: entity.choices.map(c =>
       c.id === choiceId ? { ...c, resolved: true, selections: [label] } : c
     ),
   };
-  updated = reconcileConHp(entity, updated);
   return recomputeDerived(updated, rules);
 }
 
@@ -756,7 +737,6 @@ export function applyFeatToEntity(
   for (const choice of pendingChoices ?? []) {
     updated = queueChoice(updated, choice, grantedAt, featFeature.id, { kind: 'feature', id: featFeature.id });
   }
-  updated = reconcileConHp(entity, updated);
   return recomputeDerived(updated, rules);
 }
 
@@ -1408,7 +1388,7 @@ export function replaceSpellChoiceSelection(
   const sc = entity.spellcasting;
   if (!sc) throw new Error('This character does not cast spells.');
   if (sc.cantrips.includes(newSpellId) || sc.known.includes(newSpellId) || sc.prepared.includes(newSpellId)) throw new Error('You already know that spell.');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   const { spellMatchesChoice } = require('../content/spellChoiceFilter') as typeof import('../content/spellChoiceFilter');
   const next = spellRepo.getIndex().find(sp => sp.id === newSpellId);
   const ownClassId = choice.definition.forClassId ?? entity.identity.classId;
@@ -1758,11 +1738,11 @@ export function applyLanguageChoiceToEntity(
  * `spell_slots` applyGrant case already uses. */
 function preserveUsedSlots(prev: SpellSlots | undefined, next: SpellSlots): SpellSlots {
   const tiers = ['1','2','3','4','5','6','7','8','9'] as const;
-  const result = {} as SpellSlots;
+  const result = { ...prev } as SpellSlots;   // a member of the map that is not a tier stays
   tiers.forEach(t => {
     const total = next[t]?.total ?? 0;
     const used  = Math.max(0, Math.min(prev?.[t]?.used ?? 0, total));
-    result[t] = { total, used };
+    result[t] = { ...prev?.[t], total, used };   // spread: a member of the tier this build does not know of stays
   });
   return result;
 }
@@ -1877,7 +1857,7 @@ export function levelUpClass(
   // Bonus feat house rule — keyed by TOTAL character level (unique per
   // level-up event regardless of which class advanced), not the per-class
   // level, which two different classes could otherwise collide on.
-  if (bonusFeatEveryLevel(rules)) {
+  if (bonusFeatEveryLevel(rules) && featsEnabled(rules)) {
     const bonusId = 'bonus_feat_lvl';
     if (!updated.choices.some(c => c.id === `${bonusId}_${characterLevelAfter}`)) {
       updated = queueChoice(updated, {

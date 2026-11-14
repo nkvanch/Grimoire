@@ -3,10 +3,12 @@
 // uses an action and a bonus action), card effects (temp HP, heal from damage taken, a per-target effect), auras for allies and a few
 // derived-stat rules. Every field is optional and compiles onto whatever effect kind the trait already has (traitCompiler.ts).
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { Ability, DraftTrait, DraftRider } from '../../engine/types';
 import { hasAdvancedFields } from '../../content/traitCompiler';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { NAME_INPUT } from '../nameInput';
 
 type Props = { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void };
 
@@ -46,7 +48,7 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
   const [open, setOpen] = useState(hasAdvancedFields(trait));
   const riders = trait.riders ?? [];
   const updateRider = (id: string, patch: Partial<DraftRider>) => set({ riders: riders.map(r => (r.localId === id ? { ...r, ...patch } : r)) });
-  const hasPool = trait.effectKind === 'resource_ability' || trait.limitedUse;
+  const hasPool = trait.effectKind === 'resource_ability' || trait.limitedUse || !!trait.spendsResourceId?.trim();
 
   return (
     <View style={styles.panel}>
@@ -62,7 +64,7 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
           <Text style={styles.section}>RIDERS ON ATTACKS AND SPELLS</Text>
           {riders.map(r => (
             <View key={r.localId} style={styles.rider}>
-              <TextInput style={styles.input} value={r.name} onChangeText={v => updateRider(r.localId, { name: v })} placeholder="Rider name (e.g. Searing Strike)" placeholderTextColor={Colors.textDim} />
+              <TextInput {...NAME_INPUT} style={styles.input} value={r.name} onChangeText={v => updateRider(r.localId, { name: v })} placeholder="Rider name (e.g. Searing Strike)" placeholderTextColor={Colors.textDim} />
               <Text style={styles.label}>Rides</Text>
               <Chips options={RIDER_ON} value={r.on} onPick={k => updateRider(r.localId, { on: k })} />
               <View style={styles.row}>
@@ -115,7 +117,7 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
               value={trait.healFromDamageTurnsBack ?? '1'} onPick={k => set({ healFromDamageTurnsBack: k })}
             />
           )}
-          <TextInput style={styles.input} value={trait.trackEffectName ?? ''} onChangeText={v => set({ trackEffectName: v })} placeholder="Puts this effect on a target (e.g. Marked)" placeholderTextColor={Colors.textDim} />
+          <TextInput {...NAME_INPUT} style={styles.input} value={trait.trackEffectName ?? ''} onChangeText={v => set({ trackEffectName: v })} placeholder="Puts this effect on a target (e.g. Marked)" placeholderTextColor={Colors.textDim} />
           {!!trait.trackEffectName?.trim() && (
             <>
               <Toggle label="Add up the damage the target takes" value={!!trait.trackRecords} onPress={() => set({ trackRecords: !trait.trackRecords })} />

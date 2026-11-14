@@ -4,9 +4,11 @@
 // creator's PDF). Shared by every homebrew builder; the value is saved on the content as `origin` (see ContentOrigin).
 // ============================================================================
 import React from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { TextInput } from '../AccessibleControls';
 import type { ContentOrigin } from '../../engine/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { NAME_INPUT } from '../nameInput';
 
 export function OriginFields({ value, onChange }: { value: ContentOrigin | undefined; onChange: (next: ContentOrigin | undefined) => void }) {
   const name = value?.name ?? '';
@@ -18,7 +20,7 @@ export function OriginFields({ value, onChange }: { value: ContentOrigin | undef
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>Source (optional)</Text>
-      <TextInput style={styles.input} value={name} onChangeText={v => update({ name: v })}
+      <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={v => update({ name: v })}
         placeholder="Where it came from: book, creator or post title" placeholderTextColor={Colors.textDim} />
       <TextInput style={styles.input} value={link} onChangeText={v => update({ link: v })}
         placeholder="Link (optional)" placeholderTextColor={Colors.textDim} autoCapitalize="none" autoCorrect={false} keyboardType="url" />

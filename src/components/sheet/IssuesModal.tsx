@@ -3,7 +3,9 @@
 // HomebrewTestModal.tsx's shell (backdrop/sheet/rows/Close-only), since
 // this is display-only the same way: nothing here mutates the character,
 // there's nothing to confirm.
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Issue } from '../../engine/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 

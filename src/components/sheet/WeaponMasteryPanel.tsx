@@ -2,7 +2,9 @@
 // mastery property does, and lets the player change the picks (the rules let you swap one after each
 // Long Rest; the app doesn't track rests for this, so the choice is the player's to honor).
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity } from '../../engine/types';
 import {
   weaponMasteryCapacity, masteredWeaponIds, eligibleMasteryWeapons, setWeaponMasteryPicks,

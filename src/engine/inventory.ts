@@ -6,7 +6,8 @@
 // definition via itemRepo, which is I/O and stays in the UI layer).
 import { Entity, Item, ItemInstance, CampaignRules, Feature } from './types';
 import { recomputeDerived } from './pipeline';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
+import { ATTUNEMENT } from './ruleset/dnd5e';
 import { hydrateItemInstanceDefinitionFacts, generateItemInstanceId } from './itemMechanics';
 import { applyGrant } from './leveling';
 
@@ -125,11 +126,9 @@ export { itemRequiresAttunement, isStatefulItem } from './itemMechanics';
 
 export function attunementCap(entity: Entity): number {
   const ids = new Set(entity.features.map(f => f.id));
-  let cap = 3;
-  if (ids.has('magic_item_master')) cap = 6;
-  else if (ids.has('magic_item_savant')) cap = 5;
-  else if (ids.has('magic_item_adept')) cap = 4;
-  if (ids.has('feat_mystic_conflux')) cap += 1;
+  const set = ATTUNEMENT.setBy.find(([id]) => ids.has(id));
+  let cap = set ? set[1] : ATTUNEMENT.base;
+  for (const [id, add] of ATTUNEMENT.addBy) if (ids.has(id)) cap += add;
   return cap;
 }
 
@@ -151,11 +150,11 @@ export function countAttuned(entity: Entity): number {
  * see ItemInstance's own doc comment); falls back to the first `itemId`
  * match otherwise (legacy callers).
  */
-export function toggleAttunement(entity: Entity, itemId: string, instanceId?: string): Entity {
+export function toggleAttunement(entity: Entity, itemId: string, instanceId?: string, /** Overrule (ADR-015): one more item is attuned past the limit. */ overrule = false): Entity {
   const inst = findInstance(entity.inventory.equipped, itemId, instanceId)
             ?? findInstance(entity.inventory.carried, itemId, instanceId);
   if (!inst) return entity;
-  if (!inst.attuned && countAttuned(entity) >= attunementCap(entity)) return entity;
+  if (!inst.attuned && !overrule && countAttuned(entity) >= attunementCap(entity)) return entity;
   // Flip by reference, not itemId — otherwise two instances sharing an
   // itemId (e.g. an infused and uninfused copy) would both flip from one
   // toggle call, silently double-spending the attunement cap.

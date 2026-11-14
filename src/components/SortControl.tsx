@@ -5,7 +5,8 @@
 // the shared default-picker-UX mock: search + Filters button on one row,
 // Sort on its own row directly below.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { SortOption } from '../content/contentQuery';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 

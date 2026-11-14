@@ -3,14 +3,26 @@
 // (HP mode, level cap, table rules, ability score cap, house rules) lives in
 // Campaign Settings instead (app/creation/rules.tsx) — moved there since
 // those are campaign concerns, not app-level ones. This screen links to it.
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useSafeGoBack } from '../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../src/theme';
+import { SHEET_THEMES, DEFAULT_SHEET_THEME, type SheetTheme } from '../src/io/characterSheetPdf';
+import { savedSheetTheme, SHEET_THEME_KEY } from '../src/io/exportShare';
+import { setMeta } from '../src/db/appMetaRepo';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(tabs)');
+  // The look of the exported PDF character sheet. Shown at once, saved in the background; a failed save leaves the old choice in force.
+  const [sheetTheme, setSheetTheme] = useState<SheetTheme>(DEFAULT_SHEET_THEME);
+  useEffect(() => { savedSheetTheme().then(setSheetTheme); }, []);
+  const chooseSheetTheme = (id: SheetTheme) => {
+    setSheetTheme(id);
+    setMeta(SHEET_THEME_KEY, id).catch(e => console.error('[settings] could not save the PDF sheet style:', e));
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -34,6 +46,25 @@ export default function SettingsScreen() {
           </View>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
+      </Section>
+
+      <Section title="PDF Character Sheet">
+        {SHEET_THEMES.map(t => (
+          <Pressable
+            key={t.id}
+            testID={`sheet-theme-${t.id}`}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: sheetTheme === t.id }}
+            style={styles.linkRow}
+            onPress={() => chooseSheetTheme(t.id)}
+          >
+            <View style={styles.linkText}>
+              <Text style={styles.optionLabel}>{t.label}</Text>
+              <Text style={styles.optionDesc}>{t.hint}</Text>
+            </View>
+            <View style={[styles.radio, sheetTheme === t.id && styles.radioOn]} />
+          </Pressable>
+        ))}
       </Section>
 
       <Section title="Data">
@@ -103,4 +134,6 @@ const styles = StyleSheet.create({
   optionLabel: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   optionDesc:  { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
   chevron:     { fontSize: FontSize.lg, color: Colors.textSecondary },
+  radio:       { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: Colors.textSecondary },
+  radioOn:     { borderColor: Colors.gold, backgroundColor: Colors.gold },
 });

@@ -31,7 +31,7 @@
 // matches the spec's own allowance for "required vs optional" — pool
 // references are treated as optional/unbundled, not required.
 import { Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, SpellList } from './types';
-import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
+import { ContentCacheType, HomebrewContent } from './contentRecords';
 
 export type DependencyRef = { type: ContentCacheType; id: string };
 

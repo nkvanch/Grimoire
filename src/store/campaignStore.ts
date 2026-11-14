@@ -11,7 +11,9 @@ import { getMeta, setMeta } from '../db/appMetaRepo';
 import { useSessionStore } from './sessionStore';
 import { syncManager } from '../sync/syncManager';
 import { deepMerge } from '../sync/diff';
-import { DEFAULT_RULES } from './characterStore';
+import { DEFAULT_RULES, useCharacterStore } from './characterStore';
+import { campaignAdmission } from '../engine/campaignLock';
+import { RULESET_REVISION } from '../engine/ruleset/dnd5eOperations';
 
 // Persisted (via the generic app_meta key/value store — no schema change
 // needed) so a reconnect after any app restart or foreground transition can
@@ -201,7 +203,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       notes:        '',
       createdAt:    Date.now(),
       ...(opts.description?.trim() ? { description: opts.description.trim() } : {}),
-      ...(opts.rulesetId ? { rulesetId: opts.rulesetId } : {}),
+      ...(opts.rulesetId ? { rulesetId: opts.rulesetId, rulesetRevision: RULESET_REVISION[opts.rulesetId] ?? '1' } : {}),
       ...(opts.bannedPackIds && opts.bannedPackIds.length > 0 ? { bannedPackIds: opts.bannedPackIds } : {}),
       // The content packs this campaign's ruleset needs, so a player who joins can be told what they lack (content/requiredPacks.ts).
       ...(requiredFor(opts.rulesetId).length > 0 ? { requiredPacks: requiredFor(opts.rulesetId) } : {}),
@@ -296,6 +298,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     if (!campaign) throw new Error(`Campaign ${campaignId} not found.`);
 
     if (!campaign.characterIds.includes(characterId)) {
+      // a campaign locked to a ruleset admits only characters of it (LIFE-004)
+      const character = useCharacterStore.getState().characters.find(c => c.id === characterId);
+      const refusal = character ? campaignAdmission(campaign, character) : '';
+      if (refusal) throw new Error(refusal);
       const updated: Campaign = {
         ...campaign,
         characterIds: [...campaign.characterIds, characterId],

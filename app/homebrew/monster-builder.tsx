@@ -14,9 +14,10 @@
 // commit/plan notes for why.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -28,9 +29,12 @@ import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { AbilityScoreGrid, TraitListEditor, buildTraitFeature } from '../../src/components/homebrew/TraitEditor';
 import { toId, disambiguateId } from '../../src/content/traitCompiler';
+import { compileMonsterFields } from '../../src/content/homebrewCompile';
 import { officialMonsters } from '../../src/content/runtimeRules';
 import { PickOrCustom } from '../../src/components/homebrew/PickOrCustom';
 import { spawnMonster } from '../../src/engine/monsterFactory';
@@ -39,6 +43,9 @@ import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTe
 import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 // Read-only test: unlike every other homebrew builder, a monster isn't
 // GRANTED onto a scratch character — it IS its own entity. So there's no
@@ -118,6 +125,7 @@ export default function MonsterBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,      setName]      = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [cr,        setCr]        = useState<number>(1);
   const [size,      setSize]      = useState<MonsterTemplate['size']>('medium');
@@ -150,6 +158,7 @@ export default function MonsterBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setCr(editing.cr);
@@ -219,50 +228,17 @@ export default function MonsterBuilderScreen() {
       ...monsters.filter(m => m.id !== editing?.id).map(m => m.id),
     ]);
     const id = editing?.id ?? disambiguateId(toId(name) || 'homebrew_monster', takenMonsterIds);
-    const features: Feature[] = [];
-    const resources: ResourceGrant[] = [];
-    const usedIds = new Set<string>();
-    for (const t of traits) {
-      // Re-audit A05: an untouched trait hydrated from an existing compiled
-      // Feature (localId 't_<original id>', set at hydration above) passes
-      // through verbatim rather than being recompiled from its still-
-      // "effectKind: none" placeholder — a save that never actually opened
-      // this trait must not silently discard its real effects.
-      const originalFeature = editing?.features.find(f => `t_${f.id}` === t.localId);
-      if (originalFeature && !touchedTraitIds.has(t.localId)) {
-        features.push(originalFeature);
-        usedIds.add(originalFeature.id);
-        continue;
-      }
-      const { feature, resource, extraFeatures, extraResources } = buildTraitFeature(t, { idPrefix: id, sourceKind: 'campaign', sourceRefId: id, level: null, usedIds });
-      features.push(feature, ...(extraFeatures ?? []));
-      if (resource) resources.push(resource);
-      resources.push(...(extraResources ?? []));
-    }
-
-    return mergeHomebrewDefinition(editing, {
-      id,
-      name: name.trim(), origin: cleanOrigin(origin),
-      cr,
-      size,
-      type: type.trim(),
-      alignment: alignment.trim(),
-      stats: {
-        str: parseInt(stats.str, 10) || 10, dex: parseInt(stats.dex, 10) || 10, con: parseInt(stats.con, 10) || 10,
-        int: parseInt(stats.int, 10) || 10, wis: parseInt(stats.wis, 10) || 10, cha: parseInt(stats.cha, 10) || 10,
-      },
-      hp: { dice: hpDice.trim(), average: parseInt(hpAverage, 10) || 1 },
-      ac: { value: parseInt(acValue, 10) || 10, source: acSource.trim() },
-      speed: parseInt(speed, 10) || 0,
-      features,
-      savingThrows,
-      skills: editing?.skills ?? {},
-      senses: senses.trim() ? senses.split(',').map(s => s.trim()).filter(Boolean) : [],
-      languages: languages.trim() ? languages.split(',').map(l => l.trim()).filter(Boolean) : [],
-      legendaryActions: legendaryActions.trim() ? parseInt(legendaryActions, 10) : undefined,
-      resources: resources.length > 0 ? resources : editing?.resources,
-      rulesetId,
+    // Re-audit A05: an untouched trait hydrated from an existing compiled Feature (localId 't_<original id>', set at hydration above)
+    // passes through verbatim rather than being recompiled from its still-"effectKind: none" placeholder.
+    const compiled = compileMonsterFields({
+      name, origin, cr, size, type, alignment, stats, hpDice, hpAverage, acValue, acSource, speed, savingThrows, senses, languages,
+      legendaryActions, traits, rulesetId,
+    }, id, {
+      featureFor: t => touchedTraitIds.has(t.localId) ? undefined : editing?.features.find(f => `t_${f.id}` === t.localId),
+      skills: editing?.skills,
+      resources: editing?.resources,
     });
+    return withPictures(pictures, mergeHomebrewDefinition(editing, compiled));
   }
 
   function runTest() {
@@ -294,6 +270,7 @@ export default function MonsterBuilderScreen() {
     setSaving(true);
     try {
       await saveItem('monster', monster);
+      leave();
       goBack();
     } catch (e) {
       console.error('[monster-builder] save failed:', e);
@@ -302,6 +279,10 @@ export default function MonsterBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildMonster(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -314,8 +295,9 @@ export default function MonsterBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Field label="Name *">
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
             placeholder="Monster name" placeholderTextColor={Colors.textDim} />
         </Field>
 

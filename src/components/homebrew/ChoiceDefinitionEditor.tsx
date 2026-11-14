@@ -16,13 +16,17 @@
 // for DraftTrait/Feature.
 import { useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import {
   AuthorableChoiceKind, PoolMode, DraftChoice,
   newDraftChoice, validateDraftChoice, registryFor, categoryOrderFor, idsForCategories,
-  poolSizeForDraft,
+  poolSizeForDraft, hasOptionPool,
 } from '../../content/choiceDefinitionCompiler';
+import { TraitListEditor } from './TraitEditor';
+import type { ChoiceReplacePolicy } from '../../engine/types';
 import { TOOL_CATEGORY_LABELS } from '../../content/tools';
 import { LANGUAGE_CATEGORY_LABELS } from '../../content/languages';
 import { SafeBottomView } from '../SafeBottomView';
@@ -32,10 +36,14 @@ import { styles as traitStyles } from './TraitEditor';
 export type { DraftChoice, AuthorableChoiceKind, PoolMode };
 export { newDraftChoice };
 
-const KIND_LABELS: Record<AuthorableChoiceKind, string> = {
-  expertise: 'Expertise', tool: 'Tool Proficiency', language: 'Language',
+export const CHOICE_KIND_LABELS: Record<AuthorableChoiceKind, string> = {
+  expertise: 'Expertise', tool: 'Tool Proficiency', language: 'Language', skill: 'Skill Proficiency',
+  asi: 'Ability Improvement or Feat', spell: 'Spell', feature_pool: 'Feature Pool',
 };
-const KIND_ORDER: AuthorableChoiceKind[] = ['expertise', 'tool', 'language'];
+const KIND_ORDER: AuthorableChoiceKind[] = ['skill', 'expertise', 'tool', 'language', 'asi', 'spell'];
+/** The spell lists a spell choice can name; none picked is the character's own list. */
+const SPELL_LISTS = ['any', 'bard', 'cleric', 'druid', 'paladin', 'ranger', 'sorcerer', 'warlock', 'wizard'];
+const REPLACE_LABELS: Record<'' | ChoiceReplacePolicy['timing'], string> = { '': 'Never', level_up: 'On a level up', rest: 'After a rest', long_rest: 'After a long rest' };
 
 const POOL_MODE_LABELS: Record<PoolMode, string> = {
   all: 'All eligible options',
@@ -53,9 +61,19 @@ function allPoolNote(kind: AuthorableChoiceKind): string {
   return 'Any normally-selectable language not already known — secret languages (Thieves\' Cant, Druidic) are excluded from this default pool; use a restricted list to include them explicitly.';
 }
 
-function summarizeDraft(draft: DraftChoice): string {
+export function summarizeDraftChoice(draft: DraftChoice): string {
   const count = parseInt(draft.count, 10) || 0;
-  const kindLabel = KIND_LABELS[draft.kind];
+  const kindLabel = CHOICE_KIND_LABELS[draft.kind];
+  if (draft.kind === 'asi') return kindLabel;
+  if (draft.kind === 'feature_pool') {
+    const n = (draft.options ?? []).length;
+    return `Choose ${count || '?'} of ${n} option${n === 1 ? '' : 's'}`;
+  }
+  if (draft.kind === 'spell') {
+    const lists = draft.spellLists?.length ? draft.spellLists.map(l => (l === 'any' ? 'any list' : l)).join(', ') : 'own list';
+    const levels = draft.spellLevels?.length ? draft.spellLevels.map(l => (l === 0 ? 'cantrips' : `level ${l}`)).join(', ') : 'any castable level';
+    return `Choose ${count || '?'} · ${lists} · ${levels}`;
+  }
   const poolLabel =
     draft.poolMode === 'all' ? 'any eligible' :
     draft.poolMode === 'category' ? (draft.categories.length > 0
@@ -67,12 +85,14 @@ function summarizeDraft(draft: DraftChoice): string {
 
 // ── Editor modal — configures ONE ChoiceDefinition ─────────────────────────
 
-export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, onDelete }: {
+export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, onDelete, allowPools }: {
   draft: DraftChoice | null;
   visible: boolean;
   onChange: (d: DraftChoice) => void;
   onDone: () => void;
   onDelete: () => void;
+  /** Offer Feature Pool (options that are traits): a class's or subclass's own choices. */
+  allowPools?: boolean;
 }) {
   if (!draft) return null;
   const set = (patch: Partial<DraftChoice>) => onChange({ ...draft, ...patch });
@@ -87,8 +107,10 @@ export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, 
     if (kind === draft!.kind) return;
     // Pool selections don't carry meaning across kinds (a tool id isn't a
     // language id) — reset rather than risk a stale, silently-wrong pool.
-    onChange({ ...draft!, kind, poolMode: 'all', categories: [], restrictedIds: [] });
+    onChange({ ...draft!, kind, poolMode: 'all', categories: [], restrictedIds: [], ...(kind === 'asi' ? { count: '1' } : {}) });
   }
+  const kinds = allowPools || draft.kind === 'feature_pool' ? [...KIND_ORDER, 'feature_pool' as const] : KIND_ORDER;
+  const toggleIn = <T,>(list: T[] | undefined, v: T): T[] => ((list ?? []).includes(v) ? (list ?? []).filter(x => x !== v) : [...(list ?? []), v]);
 
   function toggleCategory(cat: string) {
     const active = draft!.categories.includes(cat);
@@ -118,24 +140,86 @@ export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, 
 
             <Text style={traitStyles.fieldLabel}>Choice Type</Text>
             <View style={traitStyles.chipWrap}>
-              {KIND_ORDER.map(k => (
+              {kinds.map(k => (
                 <Pressable key={k} style={[traitStyles.chip, draft.kind === k && traitStyles.chipActive]} onPress={() => setKind(k)}>
-                  <Text style={[traitStyles.chipTxt, draft.kind === k && traitStyles.chipTxtActive]}>{KIND_LABELS[k]}</Text>
+                  <Text style={[traitStyles.chipTxt, draft.kind === k && traitStyles.chipTxtActive]}>{CHOICE_KIND_LABELS[k]}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <View style={traitStyles.rowInline}>
+            {draft.kind !== 'asi' && <View style={traitStyles.rowInline}>
               <Text style={traitStyles.inlineLabel}>Choose:</Text>
               <TextInput style={[traitStyles.input, traitStyles.smallInput]} value={draft.count}
                 onChangeText={v => set({ count: v })} keyboardType="number-pad" />
-            </View>
+            </View>}
+            {draft.kind === 'asi' && <Text style={traitStyles.effectNote}>An Ability Score Improvement, or a feat where the table's rules allow one.</Text>}
 
             <Text style={traitStyles.fieldLabel}>Prompt (optional)</Text>
             <TextInput style={traitStyles.input} value={draft.prompt} onChangeText={v => set({ prompt: v })}
               placeholder="Shown to the player — defaults to a generic prompt if left blank"
               placeholderTextColor={Colors.textDim} />
 
+            {draft.kind === 'spell' && (
+              <View style={styles.poolPanel}>
+                <Text style={traitStyles.effectGroupLabel}>From the spell list of</Text>
+                <View style={traitStyles.chipWrap}>
+                  {SPELL_LISTS.map(l => {
+                    const active = (draft.spellLists ?? []).includes(l);
+                    return (
+                      <Pressable key={l} style={[traitStyles.chip, active && traitStyles.chipActive]}
+                        onPress={() => set({ spellLists: l === 'any' ? (active ? [] : ['any']) : toggleIn(draft.spellLists, l).filter(x => x !== 'any') })}>
+                        <Text style={[traitStyles.chipTxt, active && traitStyles.chipTxtActive]}>{l === 'any' ? 'Any spell' : l.charAt(0).toUpperCase() + l.slice(1)}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={traitStyles.effectNote}>None picked: the character's own class list.</Text>
+                <Text style={traitStyles.effectGroupLabel}>Spell levels</Text>
+                <View style={traitStyles.chipWrap}>
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => {
+                    const active = (draft.spellLevels ?? []).includes(l);
+                    return (
+                      <Pressable key={l} style={[traitStyles.chip, active && traitStyles.chipActive]} onPress={() => set({ spellLevels: toggleIn(draft.spellLevels, l) })}>
+                        <Text style={[traitStyles.chipTxt, active && traitStyles.chipTxtActive]}>{l === 0 ? 'Cantrip' : String(l)}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={traitStyles.effectNote}>None picked: level 1 up to what the character can cast.</Text>
+              </View>
+            )}
+
+            {draft.kind === 'feature_pool' && (
+              <View style={styles.poolPanel}>
+                <Text style={traitStyles.effectGroupLabel}>Options</Text>
+                <TraitListEditor
+                  traits={(draft.options ?? []).map(o => o.trait)}
+                  excludeKinds={['resource_ability', 'spell_grant']}
+                  onChange={traits => set({ options: traits.map(t => ({ trait: t, minLevel: (draft.options ?? []).find(o => o.trait.localId === t.localId)?.minLevel ?? '' })) })}
+                />
+                {(draft.options ?? []).map(o => (
+                  <View key={o.trait.localId} style={traitStyles.rowInline}>
+                    <Text style={[traitStyles.inlineLabel, { flex: 1 }]} numberOfLines={1}>{o.trait.name || 'Option'}: from level</Text>
+                    <TextInput style={[traitStyles.input, traitStyles.smallInput]} value={o.minLevel} keyboardType="number-pad" placeholder="1"
+                      placeholderTextColor={Colors.textDim} accessibilityLabel={`Level ${o.trait.name} needs`}
+                      onChangeText={v => set({ options: (draft.options ?? []).map(x => (x.trait.localId === o.trait.localId ? { ...x, minLevel: v } : x)) })} />
+                  </View>
+                ))}
+                <Text style={traitStyles.effectGroupLabel}>Can a held option be swapped?</Text>
+                <View style={traitStyles.chipWrap}>
+                  {(Object.keys(REPLACE_LABELS) as ('' | ChoiceReplacePolicy['timing'])[]).map(t => {
+                    const active = (draft.replaceTiming ?? '') === t;
+                    return (
+                      <Pressable key={t || 'never'} style={[traitStyles.chip, active && traitStyles.chipActive]} onPress={() => set({ replaceTiming: t })}>
+                        <Text style={[traitStyles.chipTxt, active && traitStyles.chipTxtActive]}>{REPLACE_LABELS[t]}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {hasOptionPool(draft.kind) && <>
             <Text style={traitStyles.fieldLabel}>Eligible Pool</Text>
             <View style={traitStyles.chipWrap}>
               {poolModes.map(m => (
@@ -192,6 +276,7 @@ export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, 
             {draft.poolMode !== 'all' && (
               <Text style={styles.poolSizeNote}>Pool size: {poolSize}</Text>
             )}
+            </>}
 
             {errors.length > 0 && (
               <View style={styles.errorPanel}>
@@ -219,10 +304,11 @@ export function ChoiceDefinitionEditorModal({ draft, visible, onChange, onDone, 
 
 // ── List of choices + add flow ──────────────────────────────────────────────
 
-export function ChoiceDefinitionListEditor({ choices, onChange, addLabel }: {
+export function ChoiceDefinitionListEditor({ choices, onChange, addLabel, allowPools }: {
   choices: DraftChoice[];
   onChange: (choices: DraftChoice[]) => void;
   addLabel?: string;
+  allowPools?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -248,8 +334,8 @@ export function ChoiceDefinitionListEditor({ choices, onChange, addLabel }: {
         return (
           <Pressable key={c.localId} style={traitStyles.traitCard} onPress={() => setOpenId(c.localId)}>
             <View style={{ flex: 1 }}>
-              <Text style={traitStyles.traitCardName}>{KIND_LABELS[c.kind]} choice{invalid ? ' ⚠' : ''}</Text>
-              <Text style={traitStyles.traitCardMeta}>{summarizeDraft(c)}</Text>
+              <Text style={traitStyles.traitCardName}>{CHOICE_KIND_LABELS[c.kind]} choice{invalid ? ' ⚠' : ''}</Text>
+              <Text style={traitStyles.traitCardMeta}>{summarizeDraftChoice(c)}</Text>
             </View>
             <Text style={traitStyles.traitCardCaret}>{'>'}</Text>
           </Pressable>
@@ -265,6 +351,7 @@ export function ChoiceDefinitionListEditor({ choices, onChange, addLabel }: {
         onChange={updateChoice}
         onDone={() => setOpenId(null)}
         onDelete={() => open && deleteChoice(open.localId)}
+        allowPools={allowPools}
       />
     </View>
   );

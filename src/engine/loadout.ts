@@ -23,7 +23,7 @@
 import { Entity, Item, CampaignRules, Loadout } from './types';
 import { equipItem, unequipItem } from './inventory';
 import { recomputeDerived } from './pipeline';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 
 function genId(): string {
   return `loadout_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;

@@ -5,7 +5,9 @@
 // Reuses the shared <AsiFeatPicker> in feat-only mode so prerequisite gating and
 // the "take anyway" override behave exactly as they do on level-up.
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { AsiFeatPicker } from '../../src/components/AsiFeatPicker';

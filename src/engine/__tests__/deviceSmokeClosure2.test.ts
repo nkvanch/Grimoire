@@ -37,7 +37,8 @@ describe('device smoke closure pass 2', () => {
 
   it('CON set override resizes max/current HP by modifier delta, preserves damage, drives future HP, and reverses', () => {
     const base = makeEmptyEntity('con-hp'); base.identity.level = 2; base.stats.con = 10; base.resources.hp = { maximum: 20, current: 12, temp: 0 };
-    const overridden = applyDmOverride(base, { campaignId: 'c', entityId: base.id, dmDeviceId: 'd', stat: 'con', operation: 'set', value: 18, label: 'Blessing', expiry: 'manual' }, DEFAULT_RULES);
+    const loaded = recomputeDerived(base, DEFAULT_RULES);   // loaded first, as the app does: max HP then follows CON from here
+    const overridden = applyDmOverride(loaded, { campaignId: 'c', entityId: base.id, dmDeviceId: 'd', stat: 'con', operation: 'set', value: 18, label: 'Blessing', expiry: 'manual' }, DEFAULT_RULES);
     expect(overridden.resources.hp).toMatchObject({ maximum: 28, current: 20 });
     const leveled = applyHP(overridden, 8, 'fixed', 3, DEFAULT_RULES);
     expect(leveled.resources.hp.maximum - overridden.resources.hp.maximum).toBe(9);

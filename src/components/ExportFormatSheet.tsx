@@ -2,7 +2,9 @@
 // Shared PDF/TXT/MD format picker, used by the homebrew Library screen and
 // the character sheet header. Same Modal + backdrop-Pressable + sheet-Pressable
 // idiom as FreeEditModal.tsx/AuditModal.tsx/DmOverrideModal.tsx.
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { Platform } from 'react-native';
 import { ExportFormat, ExportAction } from '../io/exportShare';
 import { ExportKind, exportFormatsFor } from '../io/exportFormats';

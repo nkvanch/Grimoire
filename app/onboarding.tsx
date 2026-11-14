@@ -4,7 +4,8 @@
 // the real engine pipeline — see src/engine/demoCharacter.ts).
 // docs/ROADMAP_1.0.md Phase 3.3.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { setMeta } from '../src/db/appMetaRepo';
 import { useCharacterStore } from '../src/store/characterStore';

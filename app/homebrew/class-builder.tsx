@@ -4,15 +4,15 @@
 //           Spellcasting → Per-Level Features → ASI Levels → Save
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { CharClass, Ability, DraftTrait, Entity, RulesetId, ChoiceDefinition } from '../../src/engine/types';
 import {
-  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice,
+  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice, CHOICE_KIND_LABELS, summarizeDraftChoice,
 } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { draftChoiceToDefinition, definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
@@ -22,6 +22,8 @@ import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { mergeItemIndex, resolveItemById } from '../../src/content/contentResolution';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { poolChoicesBefore } from '../../src/content/classes/knownResources';
 import { newDraftTrait, TraitEditorModal, COMMON_TOOLS, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
@@ -33,8 +35,12 @@ import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
 import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileClassFields, multiclassNeedsDraft } from '../../src/content/homebrewCompile';
 import { hydrateLeveledChoices, serializeLeveledChoices, LeveledLosslessDraftChoice } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -117,6 +123,7 @@ export default function ClassBuilderScreen() {
 
   // ── Basics
   const [name,        setName]        = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [hitDie,      setHitDie]      = useState<4|6|8|10|12>(8);
   const [hpAbility,   setHpAbility]   = useState<Ability>('con');
@@ -129,6 +136,14 @@ export default function ClassBuilderScreen() {
   const [armorProfs,  setArmorProfs]  = useState<string[]>([]);
   const [weaponProfs, setWeaponProfs] = useState<string[]>([]);
   const [toolProfs,   setToolProfs]   = useState<string[]>([]);
+  // What taking the class as a second class grants (the reduced multiclassing table).
+  const [mcArmor,   setMcArmor]   = useState<string[]>([]);
+  const [mcWeapons, setMcWeapons] = useState<string[]>([]);
+  const [mcTools,   setMcTools]   = useState('');
+  // The abilities needed to take the class with another (all, or any one), compiled to multiclassPrerequisites.
+  const [mcNeeds,   setMcNeeds]   = useState<Ability[]>([]);
+  const [mcNeedMin, setMcNeedMin] = useState('13');
+  const [mcNeedAny, setMcNeedAny] = useState(false);
   const [newTool,     setNewTool]     = useState('');
 
   // ── Starting Equipment
@@ -184,6 +199,7 @@ export default function ClassBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setHitDie(editing.hitDie as 4|6|8|10|12);
@@ -193,6 +209,10 @@ export default function ClassBuilderScreen() {
     setArmorProfs(editing.armorProfs ?? []);
     setWeaponProfs(editing.weaponProfs ?? []);
     setToolProfs(editing.toolProfs ?? []);
+    setMcArmor(editing.multiclassProficiencies?.armor ?? []);
+    setMcWeapons(editing.multiclassProficiencies?.weapons ?? []);
+    setMcTools((editing.multiclassProficiencies?.tools ?? []).join(', '));
+    { const n = multiclassNeedsDraft(editing.multiclassPrerequisites); setMcNeeds(n.abilities); setMcNeedMin(String(n.minimum)); setMcNeedAny(n.any); }
     setStartingEquipment(
       (editing.startingEquipment ?? []).map(id => {
         // Bug fix (architecture review C9): this used to concat official +
@@ -337,33 +357,20 @@ export default function ClassBuilderScreen() {
       ...homebrewClasses.filter(c => c.id !== editing?.id).map(c => c.id),
     ]);
     const id = editing?.id ?? disambiguateId(toId(name) || 'homebrew_class', takenClassIds);
-    const levelChoices = serializeLeveledChoices(editing?.levelChoices, levelChoicesList, id);
-    return mergeHomebrewDefinition(editing, {
-      id,
-      name:        name.trim(), origin: cleanOrigin(origin),
-      hitDie,
+    const levelChoices = serializeLeveledChoices(editing?.levelChoices, levelChoicesList, id, { sourceKind: 'class', sourceRefId: id, classId: id });
+    // What follows from the builder's inputs is compiled in content/homebrewCompile.ts (shared with the desktop app).
+    const fields = compileClassFields({
+      name, origin, hitDie, hpAbility, description, savingThrows, armorProfs, weaponProfs, toolProfs,
+      multiclassArmor: mcArmor, multiclassWeapons: mcWeapons,
+      multiclassTools: mcTools.split(',').map(t => t.trim()).filter(Boolean),
+      multiclassNeeds: mcNeeds, multiclassNeedsMinimum: Number(mcNeedMin), multiclassNeedsAny: mcNeedAny,
+      startingEquipment: startingEquipment.map(i => i.id), equipmentNotes, isCaster, spellAbilities: spellAbilities,
+      spellStyle, spellPrepPolicy, spellStartLevel, spellSource, levelFeatures, asiLevels, rulesetId,
+    }, id);
+    return withPictures(pictures, mergeHomebrewDefinition(editing, {
+      ...fields,
       features:    editing?.features ?? [],
-      description: description.trim() || undefined,
-      savingThrows:            savingThrows.length > 0 ? savingThrows : undefined,
-      armorProfs:              armorProfs.length > 0   ? armorProfs   : undefined,
-      weaponProfs:             weaponProfs.length > 0  ? weaponProfs  : undefined,
-      toolProfs:               toolProfs.length > 0    ? toolProfs    : undefined,
-      startingEquipment:       startingEquipment.length > 0 ? startingEquipment.map(i => i.id) : undefined,
-      equipmentNotes:          equipmentNotes.trim() || undefined,
-      hpAbility:               hpAbility !== 'con' ? hpAbility : undefined,
-      spellcastingAbility:     isCaster && spellAbilities.length === 1 ? spellAbilities[0] : undefined,
-      spellcastingAbilityOptions: isCaster && spellAbilities.length >= 2 ? spellAbilities : undefined,
-      spellcastingStyle:       isCaster ? spellStyle   : undefined,
-      spellPreparationPolicy:  isCaster && spellPrepPolicy !== 'known' ? spellPrepPolicy : undefined,
-      spellcastingStartLevel:  isCaster && startLvl > 1 ? startLvl : undefined,
-      spellListSource:         isCaster && spellSource.startsWith('list:') ? { kind: 'list' as const, listId: spellSource.slice(5) }
-                               : isCaster && spellSource.startsWith('class:') ? { kind: 'class' as const, classId: spellSource.slice(6) }
-                               : undefined,
-      asiLevels:               JSON.stringify(asiLevels) !== JSON.stringify(DEFAULT_ASI_LEVELS)
-                                 ? asiLevels : undefined,
-      levelFeatures:           levelFeatures.length > 0 ? levelFeatures : undefined,
       levelChoices,
-      rulesetId,
       // Re-audit A39: this builder has no UI to author or edit either field
       // (both are import-only — an imported advanced class's full hand-
       // authored progression, or its PHB multiclass proficiency package).
@@ -374,8 +381,11 @@ export default function ClassBuilderScreen() {
       // intentionally change either, so no touched/dirty tracking is needed
       // here (unlike the trait-editor fields above).
       rawProgression:           editing?.rawProgression,
-      multiclassProficiencies:  editing?.multiclassProficiencies,
-    });
+      // The builder authors armor, weapons and tools; languages an imported package carried are kept as they were.
+      multiclassProficiencies:  fields.multiclassProficiencies || editing?.multiclassProficiencies?.languages?.length
+        ? { ...(fields.multiclassProficiencies ?? {}), ...(editing?.multiclassProficiencies?.languages?.length ? { languages: editing.multiclassProficiencies.languages } : {}) }
+        : undefined,
+    } as CharClass));
   }
 
   // Read-only test: reuses getProgressionForClass() — the SAME compile
@@ -468,6 +478,7 @@ export default function ClassBuilderScreen() {
       // SAVE-AND-ADD-1: tell class.tsx's class picker which class to
       // navigate to on return. No-op for any other caller.
       usePendingSelectionStore.getState().setPending('class_picker', cls.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[class-builder] save failed:', e);
@@ -495,6 +506,10 @@ export default function ClassBuilderScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildHomebrewClass(), editing?.id);
+  const leave = useLeaveGuard(edited);
+
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
@@ -515,8 +530,9 @@ export default function ClassBuilderScreen() {
         {/* ── 1. Basics ─────────────────────────────────────────────────── */}
         <SectionHeader title="Basics" n={1} />
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Text style={styles.fieldLabel}>Class Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Runesmith" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />
@@ -647,6 +663,61 @@ export default function ClassBuilderScreen() {
             <Text style={styles.inlineAddTxt}>Add</Text>
           </Pressable>
         </View>
+
+        {/* ── 3a. As a second class ──────────────────────────────── */}
+        <View style={styles.divider} />
+        <Text style={styles.fieldLabel}>When taken as a second class</Text>
+        <Text style={styles.hint}>
+          What a character who already has another class gains from this one. The multiclassing rules give a reduced set;
+          leave it empty to grant nothing.
+        </Text>
+        <View style={styles.chipRow}>
+          {ARMOR_PROFS.map(p => {
+            const active = mcArmor.includes(p);
+            return (
+              <Pressable key={p} style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setMcArmor(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
+                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+              </Pressable>
+            );
+          })}
+          {WEAPON_PROFS.map(p => {
+            const active = mcWeapons.includes(p);
+            return (
+              <Pressable key={p} style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setMcWeapons(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
+                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <TextInput style={styles.input} value={mcTools} onChangeText={setMcTools}
+          placeholder="Tools, separated by commas" placeholderTextColor={Colors.textDim} />
+        <Text style={styles.fieldLabel}>Abilities needed</Text>
+        <Text style={styles.hint}>
+          The scores a character needs to take this class with another, or to leave it for another. None picked: it asks for nothing.
+        </Text>
+        <View style={styles.chipRow}>
+          {(['str', 'dex', 'con', 'int', 'wis', 'cha'] as Ability[]).map(a => {
+            const active = mcNeeds.includes(a);
+            return (
+              <Pressable key={a} style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setMcNeeds(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])}>
+                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{a.toUpperCase()}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {mcNeeds.length > 0 && (
+          <View style={styles.chipRow}>
+            <TextInput style={[styles.input, { width: 64 }]} value={mcNeedMin} onChangeText={setMcNeedMin} keyboardType="number-pad" accessibilityLabel="Minimum score" />
+            {mcNeeds.length > 1 && ([false, true] as const).map(any => (
+              <Pressable key={String(any)} style={[styles.chip, mcNeedAny === any && styles.chipActive]} onPress={() => setMcNeedAny(any)}>
+                <Text style={[styles.chipTxt, mcNeedAny === any && styles.chipTxtActive]}>{any ? 'Any one' : 'All of them'}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* ── 3b. Starting Equipment ───────────────────────────── */}
         <View style={styles.divider} />
@@ -868,7 +939,7 @@ export default function ClassBuilderScreen() {
             placeholder="Lv"
             placeholderTextColor={Colors.textDim}
           />
-          <TextInput
+          <TextInput {...NAME_INPUT}
             style={[styles.input, { flex: 1 }]}
             value={addName}
             onChangeText={setAddName}
@@ -898,8 +969,8 @@ export default function ClassBuilderScreen() {
               {levelChoicesList.filter(c => c.level === lvl).map(c => (
                 <Pressable key={c.localId} style={styles.featureItem} onPress={() => setOpenChoiceId(c.localId)}>
                   <View style={styles.featureItemBody}>
-                    <Text style={styles.featureItemName}>{c.kind === 'expertise' ? 'Expertise' : c.kind === 'tool' ? 'Tool Proficiency' : 'Language'} choice</Text>
-                    <Text style={styles.featureItemDesc} numberOfLines={1}>Choose {c.count}</Text>
+                    <Text style={styles.featureItemName}>{CHOICE_KIND_LABELS[c.kind]} choice</Text>
+                    <Text style={styles.featureItemDesc} numberOfLines={1}>{summarizeDraftChoice(c)}</Text>
                   </View>
                   <Pressable style={styles.featureDeleteBtn} onPress={() => deleteLevelChoice(c.localId)} hitSlop={8}>
                     <Text style={styles.featureDeleteTxt}>✕</Text>
@@ -996,6 +1067,7 @@ export default function ClassBuilderScreen() {
         onChange={updateLevelChoice}
         onDone={() => setOpenChoiceId(null)}
         onDelete={() => openChoiceId && deleteLevelChoice(openChoiceId)}
+        allowPools
       />
 
     </KeyboardAvoidingView>

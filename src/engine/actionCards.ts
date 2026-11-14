@@ -33,6 +33,7 @@ import { wildShapeLimits, eligibleWildShapeForms, wildShapeOptions } from './wil
 import { isFeatureSuspended } from './suspension';
 import { spellRangeOverride, spellDamageBonus, spellDamageTypeOverride, spellDamageDieOverride } from './spellModifiers';
 import { masteryPropertyFor } from './weaponMastery';
+import { COUNTS_AS_LARGE_FEATURE_IDS, SPELL_CARD_KEYWORDS } from './ruleset/dnd5e';
 
 // ── Large-creature weapon dice (house rule) ──────────────────────────
 
@@ -68,7 +69,7 @@ export function isLargeCreature(entity: Entity, races: readonly Race[] = officia
       if (size) return size === 'Large';
     }
   }
-  return entity.features.some(f => f.id === 'skeleton_giant_remains');
+  return entity.features.some(f => COUNTS_AS_LARGE_FEATURE_IDS.includes(f.id));
 }
 
 /**
@@ -696,28 +697,12 @@ function classifySpell(spell: Spell): ActionCardType {
   const name = spell.name.toLowerCase();
   const desc = spell.description.toLowerCase();
 
-  if (name.includes('heal') || name.includes('cure') || name.includes('restoration')) return 'healing';
-
-  // Control keywords
-  if (
-    desc.includes('paralyz') || desc.includes('charm') || desc.includes('frighten') ||
-    desc.includes('banish') || desc.includes('sleep') || desc.includes('incapacitat') ||
-    desc.includes('restrain') || desc.includes('stun')
-  ) return 'control';
-
-  // Damage keywords in name or having damage dice
-  if (
-    desc.includes('damage') ||
-    name.includes('bolt') || name.includes('blast') || name.includes('fire') ||
-    name.includes('lightning') || name.includes('frost') || name.includes('thunder')
-  ) return 'damage';
-
-  // Buffs
-  if (
-    name.includes('bless') || name.includes('haste') || name.includes('shield') ||
-    name.includes('stoneskin') || name.includes('mage armor') || name.includes('invisib') ||
-    desc.includes('bonus') || desc.includes('advantage')
-  ) return 'buff';
+  const any = (text: string, words: readonly string[]) => words.some(w => text.includes(w));
+  const k = SPELL_CARD_KEYWORDS;
+  if (any(name, k.healingName)) return 'healing';
+  if (any(desc, k.controlDescription)) return 'control';
+  if (any(desc, k.damageDescription) || any(name, k.damageName)) return 'damage';
+  if (any(name, k.buffName) || any(desc, k.buffDescription)) return 'buff';
 
   return 'utility';
 }

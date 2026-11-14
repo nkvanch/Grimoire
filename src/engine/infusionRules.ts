@@ -1,3 +1,11 @@
+import type { Feature } from './types';
+
+export const CHOOSE_DAMAGE_TYPE = '__CHOOSE_DAMAGE_TYPE__';
+
+/** True when applying the feature needs the player to pick a damage type first. */
+export const asksForDamageType = (feature: Feature | undefined | null): boolean =>
+  !!feature?.effects.some(e => e.target === CHOOSE_DAMAGE_TYPE);
+
 export function maxInfusedItems(artificerLevel: number): number {
   if (artificerLevel >= 18) return 6;
   if (artificerLevel >= 14) return 5;

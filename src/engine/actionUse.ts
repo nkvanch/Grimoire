@@ -1,10 +1,10 @@
 import { isFeatureAvailable, isSpellPreparationLegal, resolveSpellCastingContexts, CardGenOptions } from './actionCards';
 import { officialClasses } from '../content/runtimeRules';
 import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, AttackSequenceUse } from './types';
-import { applyAbilityEffects, castConcentrationSpell, markActionSlotUsed, startWildShape } from './combat';
+import { applyAbilityEffects, castConcentrationSpell, markActionSlotUsed, startWildShape, isDead } from './combat';
 import { eligibleWildShapeForms } from './wildShapeForms';
 import { recordPendingOutcomes } from './outcomes';
-import { legalSpellPaymentOptions, commitSpellPayment, SpellPaymentOption } from './spellPayment';
+import { legalSpellPaymentOptions, commitSpellPayment, SpellPaymentOption, hasLegalSpellPayment } from './spellPayment';
 import { recomputeDerived } from './pipeline';
 import { spellRepo } from '../content/spellRepo';
 
@@ -119,6 +119,38 @@ import { spellRepo } from '../content/spellRepo';
  * exactly as legal or illegal as the SAME card used standalone, just without
  * re-spending the Action.
  */
+/**
+ * Overrule (the desktop's ADR-015): a stop in the rules the person may go past, each with the meaning the desktop gives "anyway":
+ * - no_slot: the spell is cast and no slot is spent;
+ * - spent_resource: the ability is used and what is left is spent, never below none;
+ * - action_used: the turn's action, bonus action or reaction already used stays used.
+ */
+export type CardOverrule = 'no_slot' | 'spent_resource' | 'action_used';
+const ECONOMY: Record<string, string> = { action: 'Action', bonus_action: 'Bonus Action', reaction: 'Reaction' };
+
+/** The stops in the way of using `card` that a person may overrule. Empty when nothing stands, or when something stands that cannot be
+ *  overruled (death, a resource or spellcasting the character does not have); a card with activation options is not offered it. */
+export function cardOverrulable(entity: Entity, card: ActionCard): { id: CardOverrule; reason: string }[] {
+  if (isDead(entity) || card.activation.options?.length) return [];
+  const out: { id: CardOverrule; reason: string }[] = [];
+  const t = entity.turnState;
+  const type = card.activation.actionType;
+  const usedSlot = (k?: string) => !!t && (k === 'action' ? t.actionUsed : k === 'bonus_action' ? t.bonusActionUsed : k === 'reaction' ? t.reactionUsed : false);
+  if (type && type in ECONOMY && (usedSlot(type) || usedSlot(card.activation.alsoCosts))) {
+    out.push({ id: 'action_used', reason: `Your ${ECONOMY[usedSlot(type) ? type : card.activation.alsoCosts!]} is already used this turn.` });
+  }
+  const cost = card.activation.resourceCost;
+  if (cost?.resourceId === 'spell_slots') {
+    if (!entity.spellcasting) return [];
+    if (!hasLegalSpellPayment(entity.spellcasting, cost.spellSlotTier ?? 1)) out.push({ id: 'no_slot', reason: `No spell slot of level ${cost.spellSlotTier ?? 1} or higher is left.` });
+  } else if (cost) {
+    const res = entity.resources.custom.find(r => r.id === cost.resourceId);
+    if (!res) return [];
+    if (res.current < cost.quantity) out.push({ id: 'spent_resource', reason: `${res.name}: ${res.current} of ${res.maximum} left.` });
+  }
+  return out;
+}
+
 export function applyActionCardUse(
   entity: Entity, card: ActionCard, rules: CampaignRules, chosenOption?: ActivationOption, selectedPayment?: SpellPaymentOption,
   bypassSpellPreparation?: boolean, selectedSpellCastingContext?: SpellCastingContext,
@@ -126,6 +158,8 @@ export function applyActionCardUse(
   bypassIncapacitated?: boolean,
   castMode?: 'ritual',
   attackSequence?: AttackSequenceUse,
+  /** What the person chose to go past (cardOverrulable); nothing else is set aside. */
+  overrule?: ReadonlySet<CardOverrule>,
 ): Entity {
   let updated = entity;
   const isRitual = castMode === 'ritual';
@@ -181,8 +215,9 @@ export function applyActionCardUse(
   // skips only the "already used this turn" gate, rather than pretending a
   // ritual/chained attack is a 'passive' feature (which used to also be true
   // here, an architecturally sloppier way to reach the same result).
-  const availabilityActivation = { ...card.activation, options: undefined, resourceCost: cost };
-  if (!isFeatureAvailable({ activation: availabilityActivation }, entity, bypassIncapacitated, bypassActionEconomy).available) return entity;
+  const costOverruled = !!cost && !!overrule?.has(cost.resourceId === 'spell_slots' ? 'no_slot' : 'spent_resource');
+  const availabilityActivation = { ...card.activation, options: undefined, resourceCost: costOverruled ? null : cost };
+  if (!isFeatureAvailable({ activation: availabilityActivation }, entity, bypassIncapacitated, bypassActionEconomy || !!overrule?.has('action_used')).available) return entity;
   const classDefs = content.classDefs ?? officialClasses();
 
   // Wild Shape's picker: the chosen form is revalidated against the character now, not trusted from when the card was shown, and a
@@ -270,14 +305,16 @@ export function applyActionCardUse(
     if (cost.resourceId === 'spell_slots') {
       if (!updated.spellcasting) return entity;
       const legal = legalSpellPaymentOptions(updated.spellcasting, cost.spellSlotTier ?? 1);
-      const payment = selectedPayment ?? (legal.length === 1 ? legal[0] : null);
-      if (!payment || !legal.some(o => o.kind === payment.kind && o.tier === payment.tier)) return entity;
-      const paid = commitSpellPayment(updated, payment);
-      if (paid === updated) return entity;
-      updated = paid;
+      if (legal.length > 0 || !costOverruled) {   // overruled with no slot left: cast, and no slot is spent
+        const payment = selectedPayment ?? (legal.length === 1 ? legal[0] : null);
+        if (!payment || !legal.some(o => o.kind === payment.kind && o.tier === payment.tier)) return entity;
+        const paid = commitSpellPayment(updated, payment);
+        if (paid === updated) return entity;
+        updated = paid;
+      }
     } else {
       const res = updated.resources.custom.find(r => r.id === cost.resourceId);
-      if (!res || res.current < cost.quantity) return entity;
+      if (!res || (res.current < cost.quantity && !costOverruled)) return entity;   // overruled: what is left is spent, never below none
       updated = {
         ...updated,
         resources: {

@@ -13,7 +13,8 @@
 // do not infer from display strings"). This component only enforces the
 // selection-count mechanics (cap at N, dedupe, counter), not domain rules.
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 import { SafeBottomView } from './SafeBottomView';
 

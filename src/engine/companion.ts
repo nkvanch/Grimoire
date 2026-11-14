@@ -11,7 +11,7 @@
 // as DmOverride/WildShapeState — never a frozen snapshot.
 // ============================================================================
 import { Entity, CampaignRules, Ability, Feature } from './types';
-import { makeEmptyEntity, DEFAULT_RULES } from '../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from './defaults';
 import { recomputeDerived } from './pipeline';
 
 /**

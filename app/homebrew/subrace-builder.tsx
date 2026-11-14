@@ -8,9 +8,9 @@
 // race-builder.tsx's editId lookup, which searches homebrewRaces only).
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -25,6 +25,8 @@ import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPick
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import {
   newDraftSubrace, buildSubrace, AbilityScoreGrid, TraitListEditor,
@@ -35,8 +37,12 @@ import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
 import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileSubraceFields } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeDraftTraits, serializeLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 export default function SubraceBuilderScreen() {
   const goBack   = useSafeGoBack('/(tabs)');
@@ -73,6 +79,7 @@ export default function SubraceBuilderScreen() {
   const [parentSearch, setParentSearch] = useState('');
   const [parentId, setParentId] = useState<string | null>(parentIdParam ?? null);
   const [name, setName] = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [abiBonuses, setAbiBonuses] = useState<Record<Ability, string>>({
     str: '', dex: '', con: '', int: '', wis: '', cha: '',
@@ -90,6 +97,7 @@ export default function SubraceBuilderScreen() {
     if (!editing) return;
     setParentId(editing.parentId);
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
@@ -115,17 +123,7 @@ export default function SubraceBuilderScreen() {
   async function handleSave() {
     if (!name.trim() || !parentId || saving) return;
     setSaving(true);
-    const draft = { ...newDraftSubrace(name.trim()), abiBonuses, traits };
-    const compiled = buildSubrace(draft, parentId);
-    const originalDraft = editing?.homebrewDraft as (Record<string, unknown> & { traitOwners?: any[] }) | undefined;
-    const generatedIds = compiled.features.filter(f => f.id.endsWith('_asi')).map(f => f.id);
-    const generated = compiled.features.filter(f => generatedIds.includes(f.id));
-    const serializedTraits = serializeDraftTraits({ originalFeatures: editing?.features ?? [], originalResources: editing?.resources,
-      originalDrafts: (originalDraft?.traits as DraftTrait[] | undefined) ?? [], editedDrafts: traits, idPrefix: compiled.id,
-      sourceKind: 'race', sourceRefId: compiled.id, generatedFeatures: generated, generatedIds, owners: originalDraft?.traitOwners });
-    const subrace = { ...compiled, rulesetId, origin: cleanOrigin(origin), features: serializedTraits.features, resources: serializedTraits.resources.length ? serializedTraits.resources : undefined,
-      pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, RACE_CHOICE_PREFIX),
-      homebrewDraft: { abiBonuses, traits, pendingChoices, traitOwners: serializedTraits.owners } };
+    const subrace = compileSubraceFields({ name, abiBonuses, traits, pendingChoices, origin, rulesetId }, parentId, editing);
     // A standalone subrace keeps the editId (if editing) so re-saving
     // updates the same record rather than minting a new one — buildSubrace
     // derives an id from the name, which would drift if the name changed.
@@ -141,11 +139,12 @@ export default function SubraceBuilderScreen() {
         })
       : subrace;
     try {
-      await saveItem('subrace', finalSubrace);
+      await saveItem('subrace', withPictures(pictures, finalSubrace));
       // SAVE-AND-ADD-1: tell race-detail.tsx's subrace picker which subrace
       // to auto-select on return. No-op for any other caller (nothing else
       // consumes this key).
       usePendingSelectionStore.getState().setPending('subrace_picker', finalSubrace.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[subrace-builder] save failed:', e);
@@ -205,6 +204,10 @@ export default function SubraceBuilderScreen() {
     setTestOpen(true);
   }
 
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => compileSubraceFields({ name, abiBonuses, traits, pendingChoices, origin, rulesetId }, parentId ?? '', editing), editing?.id);
+  const leave = useLeaveGuard(edited);
+
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
@@ -248,8 +251,9 @@ export default function SubraceBuilderScreen() {
           </>
         )}
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Subrace Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Fire Pandafolk" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />

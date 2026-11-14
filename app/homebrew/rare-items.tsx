@@ -6,7 +6,9 @@
 // anything tagged with a magic-item rarity in its properties, the same
 // convention item-builder.tsx already writes rarity into.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, TextInput, Image } from 'react-native';
+import { View, Text, ScrollView, FlatList, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { RecordIcon } from '../../src/components/RecordPicture';
 import { useRouter } from 'expo-router';
 import { Item } from '../../src/engine/types';
 import type { ItemIndexEntry } from '../../src/content/itemRepo.types';
@@ -38,9 +40,7 @@ function RareItemRow({ entry, rarity, homebrewItem, onEdit }: {
   return (
     <Pressable style={styles.row} onPress={() => setExpanded(e => !e)}>
       <View style={styles.rowMain}>
-        {homebrewItem?.imageUri && (
-          <Image source={{ uri: homebrewItem.imageUri }} style={styles.thumb} />
-        )}
+        <RecordIcon record={homebrewItem} size={44} />
         <View style={{ flex: 1 }}>
           <Text style={styles.itemName}>{entry.name}</Text>
           <View style={styles.metaRow}>
@@ -197,7 +197,6 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
   },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  thumb:   { width: 44, height: 44, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh },
   itemName: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 2 },
   rarityChip: {

@@ -1,11 +1,12 @@
 // app/creation/hub.tsx
 // Creation hub with "Next →" sequential button and fixed scores completion check.
 import { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
-import { getHouseRule } from '../../src/engine/houseRules';
+import { getHouseRule, featsEnabled } from '../../src/engine/houseRules';
 import { Entity } from '../../src/engine/types';
 import { weaponMasteryCapacity, masteredWeaponIds, eligibleMasteryWeapons } from '../../src/engine/weaponMastery';
 import { subclassEntriesForClassMerged } from '../../src/content/subclasses/subclassBrowse';
@@ -129,7 +130,7 @@ export default function HubScreen() {
   if (!draft) return null;
 
   // The optional Feats step only appears when the table allows a 1st-level feat.
-  const featsAllowed = getHouseRule(rules, 'featAtCreation');
+  const featsAllowed = getHouseRule(rules, 'featAtCreation') && featsEnabled(rules);
   const baseSections = featsAllowed
     ? ORDERED_SECTIONS
     : ORDERED_SECTIONS.filter(s => s.key !== 'feats');

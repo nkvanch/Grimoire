@@ -5,11 +5,11 @@
 // picker, and the mechanical-effect system (labeled "Additional Mechanical
 // Effects" per request). Edit-mode reloads via homebrewDraft.
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { Item, Feature, Effect, AbilityEffect, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
@@ -21,6 +21,8 @@ import { itemMatchesConstraint } from '../../src/content/items/itemBrowse';
 import { describeConstraint } from '../../src/content/items/equipmentDisplay';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
 import { mechanicsLabel } from '../../src/content/featureMechanics';
@@ -30,8 +32,12 @@ import { buildEquipmentSummaryRows } from '../../src/components/sheet/EquipmentP
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
 import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileItemFeature, compileItemProperties, type ItemDraft } from '../../src/content/homebrewCompile';
 import { hydrateItemBuilder, serializeItemBuilder } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 function toId(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -83,7 +89,9 @@ export default function ItemBuilderScreen() {
 
   const [category, setCategory] = useState<ItemCategory>('gear');
   const [rarity, setRarity]     = useState<string | null>(null);
-  const [imageUri, setImageUri] = useState<string | undefined>(undefined);
+  // the icon and the detail picture (content/recordPictures.ts); a new icon drops the old detail picture
+  const [pictures, setPictures] = useState<RecordPictures>({});
+  const imageUri = pictures.imageUri;
   const [armorCategory, setArmorCategory] = useState('light armor');
   const [weaponProps, setWeaponProps] = useState<string[]>([]);
   const [extraProps, setExtraProps] = useState('');
@@ -133,7 +141,7 @@ export default function ItemBuilderScreen() {
     setRulesetId(editing.rulesetId);
     setCost(editing.cost === '-' ? '' : editing.cost);
     setWeight(editing.weight ? String(editing.weight) : '');
-    setImageUri(editing.imageUri);
+    setPictures(picturesOf(editing));
     const draft = hydrateItemBuilder(editing).draft as Record<string, unknown> | null;
     if (draft) {
       setDescription(String(draft.description ?? ''));
@@ -208,103 +216,20 @@ export default function ItemBuilderScreen() {
     setWeaponDamage(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
   }
 
-  // Stored as a base64 data: URI (see Item.imageUri) so it round-trips
-  // through the same JSON blob SQLite already stores the whole Item in —
-  // no separate file/asset storage to manage or that a backup/restore
-  // could leave dangling.
-  async function pickImage() {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Grimoire needs photo library access to attach a reference image.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.6,
-      base64: true,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (result.canceled || !result.assets[0]?.base64) return;
-    const asset = result.assets[0];
-    const mime = asset.mimeType ?? 'image/jpeg';
-    setImageUri(`data:${mime};base64,${asset.base64}`);
+  // What the builder's inputs compile to is in content/homebrewCompile.ts (shared with the desktop app).
+  function currentDraft(): ItemDraft {
+    return {
+      name, origin, cost, weight, description, category, rarity, armorCategory, weaponProps, extraProps, weaponClass, weaponRangeSel,
+      weaponDamage, acValue, acAddsDex, trait, imageUri, rulesetId,
+    };
   }
 
   function buildFeature(id: string): Feature | null {
-    const base: Feature = {
-      id: id + '_feat',
-      name: name.trim() || 'Item',
-      description: description.trim() || name.trim(),
-      source: { kind: 'item', refId: id },
-      level: null,
-      effects: [],
-      actions: [],
-      choices: [],
-      passive: true,
-    };
-
-    // Weapon damage and armor AC are handled separately from the trait
-    // system below, since an item can ALSO have another effect layered on
-    // top (e.g. a magic sword with both damage dice and a stat bonus, or
-    // armor that also grants a sense) — matches how the hand-authored core
-    // items already combine multiple effects/abilityEffects.
-    const weaponEffects: AbilityEffect[] = category === 'weapon'
-      ? weaponDamage
-          .filter(d => d.dice.trim())
-          .map(d => ({ type: 'damage' as const, dice: d.dice.trim(), damageType: d.damageType }))
-      : [];
-
-    const effects: Effect[] = [];
-    if (category === 'armor') {
-      const base10 = parseInt(acValue, 10);
-      if (!isNaN(base10)) {
-        effects.push({
-          type: 'base_ac_formula', target: 'ac', operation: 'set',
-          value: base10, condition: null,
-          formulaAbilities: acAddsDex ? ['dex'] : [],
-          // Medium armor caps its Dex bonus at +2 (PHB) — matches the
-          // official catalog's own medium-armor entries (e.g. Hide,
-          // src/content/items/index.ts), which all set this same cap.
-          ...(acAddsDex && armorCategory === 'medium armor' ? { formulaAbilityCap: { dex: 2 } } : {}),
-        });
-      }
-    }
-
-    const { feature: traitFeature } = buildTraitFeature(trait, { idPrefix: id, sourceKind: 'item', sourceRefId: id, level: null });
-    effects.push(...traitFeature.effects);
-
-    if (weaponEffects.length > 0) {
-      return {
-        ...base, effects,
-        abilityEffects: weaponEffects,
-        activation: { actionType: 'action', resourceCost: null, range: '5 feet', target: 'single', requiresSave: null },
-      };
-    }
-    return { ...base, effects };
+    return compileItemFeature(currentDraft(), id);
   }
 
   function buildProperties(): string[] {
-    const props: string[] = [];
-    if (category === 'weapon') {
-      props.push(...weaponProps);
-      if (weaponClass) props.push(weaponClass);
-      if (weaponRangeSel) props.push(weaponRangeSel);
-    }
-    if (category === 'armor') props.push(armorCategory);
-    if (category === 'wondrous') props.push('wondrous item', 'magic item');
-    if (category === 'potion') props.push('potion');
-    if (category === 'scroll') props.push('scroll');
-    if (category === 'ring') props.push('ring', 'magic item');
-    if (category === 'wand') props.push('wand', 'magic item');
-    if (category === 'staff') props.push('staff', 'magic item');
-    if (category === 'rod') props.push('rod', 'magic item');
-    if (category === 'tool') props.push('tool');
-    if (rarity) props.push(rarity, 'magic item');
-    if (extraProps.trim()) {
-      props.push(...extraProps.split(',').map(p => p.trim().toLowerCase()).filter(Boolean));
-    }
-    return Array.from(new Set(props));
+    return compileItemProperties(currentDraft());
   }
 
   function buildItem(id: string): Item {
@@ -314,7 +239,7 @@ export default function ItemBuilderScreen() {
     const mechanicsChanged = !editing || mechanicsTouched || (originalDraft !== null && JSON.stringify(draft) !== JSON.stringify({ ...originalDraft, editorFeatureId: undefined }));
     const built = mergeHomebrewDefinition(editing, { id, name: name.trim(), origin: cleanOrigin(origin), weight: parseFloat(weight) || 0, cost: cost.trim() || '-',
       properties: buildProperties(), features: [feature], imageUri, rulesetId, homebrewDraft: draft });
-    return serializeItemBuilder(editing, built, draft, mechanicsChanged);
+    return withPictures(pictures, serializeItemBuilder(editing, built, draft, mechanicsChanged));
   }
 
   // Read-only test: equip the draft item onto a disposable level-1 scratch
@@ -384,6 +309,7 @@ export default function ItemBuilderScreen() {
         // consumes this key elsewhere).
         usePendingSelectionStore.getState().setPending('equipment_additional_item', item.id);
       }
+      leave();
       goBack();
     } catch (e) {
       console.error('[item-builder] save failed:', e);
@@ -392,6 +318,10 @@ export default function ItemBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildItem(editing?.id ?? 'draft'), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -413,7 +343,7 @@ export default function ItemBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.fieldLabel}>Item Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Cloak of the Deep" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />
@@ -439,19 +369,7 @@ export default function ItemBuilderScreen() {
           placeholder="What does this item do?" placeholderTextColor={Colors.textDim}
           multiline textAlignVertical="top" />
 
-        <Text style={styles.fieldLabel}>Photo (optional)</Text>
-        {imageUri ? (
-          <View style={styles.photoRow}>
-            <Image source={{ uri: imageUri }} style={styles.photoPreview} />
-            <Pressable style={styles.photoRemoveBtn} onPress={() => setImageUri(undefined)}>
-              <Text style={styles.photoRemoveTxt}>Remove Photo</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable style={styles.photoAddBtn} onPress={() => { pickImage().catch(() => {}); }}>
-            <Text style={styles.photoAddTxt}>📷 Add Photo</Text>
-          </Pressable>
-        )}
+        <PictureField value={pictures} onChange={setPictures} />
 
         <Text style={styles.fieldLabel}>Category</Text>
         <View style={styles.chipWrap}>
@@ -628,15 +546,6 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 1, fontWeight: FontWeight.bold, marginTop: Spacing.xs },
   input:   { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm, color: Colors.textPrimary, fontSize: FontSize.md },
   textArea:{ minHeight: 90 },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  photoPreview: { width: 72, height: 72, borderRadius: Radius.md, backgroundColor: Colors.surfaceHigh },
-  photoRemoveBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
-  photoRemoveTxt: { color: Colors.red, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  photoAddBtn: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    borderStyle: 'dashed', padding: Spacing.md, alignItems: 'center',
-  },
-  photoAddTxt: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   hint:    { fontSize: FontSize.xs, color: Colors.textDim, lineHeight: 16, fontStyle: 'italic' },
   row:     { flexDirection: 'row', gap: Spacing.sm },
   effectPanel: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: Spacing.xs, marginTop: Spacing.xs },

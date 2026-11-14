@@ -213,7 +213,7 @@ describe('long rest', () => {
 
   it('restores HP to maximum and clears temp HP + death saves', () => {
     const result = takeRest(longRestedEntity(), 'long', DEFAULT_RULES);
-    expect(result.resources.hp).toEqual({ current: 40, maximum: 40, temp: 0 });
+    expect(result.resources.hp).toEqual({ current: 40, maximum: 40, temp: 0, conModApplied: 0 });
     expect(result.resources.deathSaves).toEqual({ successes: 0, failures: 0, stable: false });
   });
 
@@ -663,7 +663,7 @@ describe('long-rest hit-die recovery allocation (HIGH-fix closure)', () => {
     // dice stayed put while everything else quietly rested."
     const result = takeRest(e, 'long', DEFAULT_RULES); // no allocation supplied
     expect(result.resources.hitDice).toEqual(e.resources.hitDice);
-    expect(result.resources.hp).toEqual(e.resources.hp);
+    expect(result.resources.hp).toMatchObject(e.resources.hp);   // refused: the hit points are as they were
     expect(result.resources.custom).toEqual(e.resources.custom);
   });
 

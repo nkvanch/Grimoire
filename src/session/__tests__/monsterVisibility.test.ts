@@ -211,3 +211,44 @@ describe('dm.set_combatant_conditions', () => {
     expect(dm.peer.resultOf(opId)?.status).toBe('rejected');
   });
 });
+
+describe('the table-wide log lines do not name a monster the DM keeps hidden', () => {
+  const toAlice = (rig: Awaited<ReturnType<typeof tableWithEncounter>>['rig']) =>
+    rig.net.log.filter(l => l.label === 'alice' && l.dir === 's2c').map(l => l.frame).join(' ');
+
+  it('joined, is now and left say Unknown Creature while the name is hidden', async () => {
+    const { rig, dm, encounterId } = await tableWithEncounter();
+    dm.peer.addCombatant(encounterId, { id: 'ghoul', name: 'Secret Ghoul Of Harrow' });
+    await rig.settle();
+    dm.peer.setCombatantVisibility(encounterId, 'ghoul', { name: false, hpState: true, exactHp: false, ac: true, conditions: false });
+    await rig.settle();
+    dm.peer.setCombatantHpState(encounterId, 'ghoul', 'bloodied');
+    await rig.settle();
+    dm.peer.removeCombatant(encounterId, 'ghoul');
+    await rig.settle();
+
+    const heard = toAlice(rig);
+    expect(heard).toContain('Unknown Creature is now bloodied');
+    expect(heard).toContain('Unknown Creature left');
+    expect(heard).not.toContain('Secret Ghoul Of Harrow is now');
+    expect(heard).not.toContain('Secret Ghoul Of Harrow left');
+  });
+
+  it('a monster added with its name hidden joins as Unknown Creature, never under its real name', async () => {
+    // the campaign's Hidden default hides the name from the first moment
+    const rig = await newRig();
+    const dm = await addDm(rig);
+    await addPlayer(rig, 'alice');
+    const prep = await seedPrep(dm);
+    await dm.prep.edit(prep.campaignId, p => ({ ...p, rules: { ...p.rules!, monsterHpVisibilityDefault: 'hidden' } }));
+    await dm.peer.selectCampaign(prep.campaignId);
+    await dm.peer.activateEncounter(prep.campaignId, 'enc-bridge');
+    await rig.settle();
+    const encounterId = Object.keys(rig.host.debugState().encounters)[0];
+    dm.peer.addCombatant(encounterId, { id: 'ghoul', name: 'Secret Ghoul Of Harrow' });
+    await rig.settle();
+    const heard = toAlice(rig as never);
+    expect(heard).toContain('Unknown Creature joined');
+    expect(heard).not.toContain('Secret Ghoul Of Harrow');
+  });
+});

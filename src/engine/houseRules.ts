@@ -342,7 +342,12 @@ export function longRestRestoresAllHitDice(rules: CampaignRules): boolean {
 export function skillOverlapMode(rules: CampaignRules): 'replacement' | 'warn' {
   return getHouseChoice(rules, 'skillOverlapMode') === 'warn' ? 'warn' : 'replacement';
 }
+/** The table allows feats (customRules.featsEnabled, on unless false). Off: improvements are ability scores only and no feat is picked. */
+export function featsEnabled(rules: CampaignRules): boolean {
+  return rules.customRules?.featsEnabled !== false;
+}
 export function asiMode(rules: CampaignRules): 'asi_or_feat' | 'asi_only' | 'feat_only' | 'both' {
+  if (!featsEnabled(rules)) return 'asi_only';
   const v = getHouseChoice(rules, 'asiMode');
   return (v === 'asi_only' || v === 'feat_only' || v === 'both') ? v : 'asi_or_feat';
 }

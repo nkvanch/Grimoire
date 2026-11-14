@@ -15,7 +15,7 @@ import { getProgressionForClass } from '../classes/progressions';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { candidateSpellsForChoice } from '../spellChoiceFilter';
 import { extraClassSpellIds } from '../../engine/spellModifiers';
-import type { AbilityScores, CampaignRules, Entity } from '../../engine/types';
+import type { AbilityScores, CampaignRules, Entity, Subrace } from '../../engine/types';
 import type { ContentProvider } from './contentProvider';
 
 export type CharacterSpec = {
@@ -29,6 +29,8 @@ export type CharacterSpec = {
   level?: number;
   /** The subclass to take once the class offers one. */
   subclassId?: string;
+  /** A subrace of the species (one of its own, or a standalone one attached to it), taken as the creation screens take it. */
+  subrace?: Subrace;
 };
 
 export class MissingContentError extends Error {
@@ -53,15 +55,24 @@ export function createCharacter(provider: ContentProvider, spec: CharacterSpec, 
   let entity = makeEmptyEntity(spec.id, 'character');
   entity = {
     ...entity, rulesetId: provider.rulesetId,
-    identity: { ...entity.identity, name: spec.name, raceId: race.id as never, subRaceId: null, backgroundId: background.id as never, classId: '', level: 0 },
+    identity: { ...entity.identity, name: spec.name, raceId: race.id as never, subRaceId: spec.subrace?.id ?? null, backgroundId: background.id as never, classId: '', level: 0 },
     stats: { ...spec.stats },
-    resources: { ...entity.resources, hp: { current: 10, maximum: 10, temp: 0 } },
+    resources: { ...entity.resources, hp: { current: 0, maximum: 0, temp: 0 } },
   };
 
   // Species: its features, resource pools and queued picks (the screens' selectRace, without subrace or ancestry).
-  for (const feature of race.features) entity = applyGrant(entity, { kind: 'feature', value: { ...feature, isActive: true } }, feature.level ?? 0);
+  // A chosen subrace's replacesBaseFeatureIds (Variant Human's own ASI replacing the flat one) skips those base features.
+  const replaced = new Set(spec.subrace?.replacesBaseFeatureIds ?? []);
+  for (const feature of race.features) {
+    if (replaced.has(feature.id)) continue;
+    entity = applyGrant(entity, { kind: 'feature', value: { ...feature, isActive: true } }, feature.level ?? 0);
+  }
   for (const resource of race.resources ?? []) entity = applyGrant(entity, { kind: 'resource', value: resource }, 0, undefined, { kind: 'race', id: race.id });
-  for (const choice of race.pendingChoices ?? []) entity = queueChoice(entity, choice, 0);
+  if (spec.subrace) {
+    for (const feature of spec.subrace.features) entity = applyGrant(entity, { kind: 'feature', value: { ...feature, isActive: true } }, feature.level ?? 0);
+    for (const resource of spec.subrace.resources ?? []) entity = applyGrant(entity, { kind: 'resource', value: resource }, 0, undefined, { kind: 'subrace', id: spec.subrace.id });
+  }
+  for (const choice of [...(race.pendingChoices ?? []), ...(spec.subrace?.pendingChoices ?? [])]) entity = queueChoice(entity, choice, 0);
 
   // Background: its features, picks and Origin feat (the feat comes from the provider, not the engine).
   entity = swapBackground(entity, background, rules, undefined, undefined, originFeat);

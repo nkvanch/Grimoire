@@ -5,8 +5,8 @@
 // the diffing utility already built for LAN sync (src/sync/diff.ts).
 import { Entity, CampaignRules } from './types';
 import { recomputeDerived } from './pipeline';
-import { deepDiff } from '../sync/diff';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { deepDiff } from './diff';
+import { DEFAULT_RULES } from './defaults';
 
 export type SimulationResult = {
   before: Entity;

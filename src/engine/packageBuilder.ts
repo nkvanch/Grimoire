@@ -17,7 +17,7 @@
 // would add a `characters` selection to this model; the plan/payload shapes
 // below keep explicit selection, automatic dependencies and the manifest as
 // separate concepts so that extension doesn't require restructuring them.
-import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
+import { ContentCacheType, HomebrewContent } from './contentRecords';
 import {
   buildDependencyClosure, collectContentDependencies, DependencyRef, ResolvedContentRef,
 } from './contentDependencies';

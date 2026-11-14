@@ -3,7 +3,8 @@
 // fallback. Extracted from spell-builder.tsx (its original home) so
 // monster-builder.tsx can reuse it instead of forking a copy.
 import { useState } from 'react';
-import { View, Pressable, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 export function PickOrCustom({ options, value, onChange, numeric }: {

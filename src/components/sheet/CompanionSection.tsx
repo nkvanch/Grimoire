@@ -6,7 +6,8 @@
 // being threaded through the sheet's prop chain, since a companion is just
 // another normal entity in the same store (see src/engine/companion.ts).
 import { useState, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import { Entity, CampaignRules } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
 import { createCompanion, syncCompanionFromOwner } from '../../engine/companion';

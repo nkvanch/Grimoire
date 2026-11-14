@@ -8,6 +8,7 @@
 //   wild_shape_bonus_action    any value: Wild Shape is a bonus action
 // ============================================================================
 import type { Entity, BeastForm, ActivationOption } from './types';
+import { WILD_SHAPE_2014_CLASS_ID } from './ruleset/dnd5e';
 import { beastForms } from '../content/runtimeRules';
 import { getClassLevels } from './multiclass';
 import { collectAllEffects } from './pipeline';
@@ -24,7 +25,7 @@ export type WildShapeLimits = {
 
 /** The limits for a 2014 Druid of 2nd level or higher; null for anyone else. */
 export function wildShapeLimits(entity: Entity): WildShapeLimits | null {
-  const druid = getClassLevels(entity).find(c => String(c.classId) === 'druid');
+  const druid = getClassLevels(entity).find(c => String(c.classId) === WILD_SHAPE_2014_CLASS_ID);
   if (!druid || druid.level < 2) return null;
   const level = druid.level;
   const effects = collectAllEffects(entity).map(ae => ae.effect);

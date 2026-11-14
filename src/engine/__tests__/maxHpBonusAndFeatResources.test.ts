@@ -51,7 +51,7 @@ describe('max_hp effect (derived, replace-not-stack)', () => {
 
   it('a character with no max_hp effects is untouched (bonusApplied stays absent)', () => {
     const e = recomputeDerived(character(), DEFAULT_RULES);
-    expect(e.resources.hp).toEqual({ current: 30, maximum: 40, temp: 0 });
+    expect(e.resources.hp).toEqual({ current: 30, maximum: 40, temp: 0, conModApplied: 0 });   // the Constitution record, not a bonus
   });
 });
 

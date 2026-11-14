@@ -4,7 +4,9 @@
 // the player spend the group's reroll, offers free choice once the class unlocks it, and shows what
 // will go away before confirming. No calendar: pressing the button IS the new period.
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, ModeGroup } from '../../engine/types';
 import {
   modeGroupsForEntity, activeModeOption, modeClassLevel, modeDiceCount, optionForRoll, modeAllowsFreeChoice,

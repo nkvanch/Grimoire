@@ -5,7 +5,9 @@
 // uses (race-builder.tsx, class-builder.tsx, etc.) rather than autosaving
 // every keystroke.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert } from '../../src/utils/alert';
 import { useEncounterStore, trySavePreparedEncounter } from '../../src/store/encounterStore';
@@ -23,6 +25,7 @@ import { isValidManualHp } from '../../src/engine/monsterFactory';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const HP_MODE_LABEL: Record<PreparedCombatantHpMode, string> = {
   average: 'Average', max: 'Max', roll: 'Roll', manual: 'Manual',
@@ -142,7 +145,7 @@ function CombatantRow({ combatant, monsterName, monsterCr, groups, waves, onChan
       {expanded && (
         <View style={styles.combatantBody}>
           <Text style={styles.fieldLabel}>Display name (optional override)</Text>
-          <TextInput
+          <TextInput {...NAME_INPUT}
             style={styles.input}
             value={combatant.displayName ?? ''}
             onChangeText={t => onChange({ displayName: t })}
@@ -462,7 +465,7 @@ export default function EncounterBuilderScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPadding(insets.bottom) }]}>
         <Section title="Basics">
           <Text style={styles.fieldLabel}>Name</Text>
-          <TextInput style={styles.input} value={draft.name} onChangeText={t => patch({ name: t })} placeholder="Encounter name" placeholderTextColor={Colors.textDim} />
+          <TextInput {...NAME_INPUT} style={styles.input} value={draft.name} onChangeText={t => patch({ name: t })} placeholder="Encounter name" placeholderTextColor={Colors.textDim} />
 
           <Text style={styles.fieldLabel}>Description</Text>
           <TextInput style={[styles.input, styles.textArea]} value={draft.description ?? ''} onChangeText={t => patch({ description: t })} placeholder="What's happening here…" placeholderTextColor={Colors.textDim} multiline />
@@ -524,7 +527,7 @@ export default function EncounterBuilderScreen() {
         <Section title="Groups" subtitle="Organize the DM UI — e.g. North Gate, Courtyard. Optional.">
           {draft.groups.map(g => (
             <View key={g.id} style={styles.listRow}>
-              <TextInput style={[styles.input, { flex: 1 }]} value={g.name} onChangeText={t => renameGroup(g.id, t)} />
+              <TextInput {...NAME_INPUT} style={[styles.input, { flex: 1 }]} value={g.name} onChangeText={t => renameGroup(g.id, t)} />
               <Pressable style={styles.removeBtn} onPress={() => removeGroup(g.id)}><Text style={styles.removeTxt}>✕</Text></Pressable>
             </View>
           ))}
@@ -534,7 +537,7 @@ export default function EncounterBuilderScreen() {
         <Section title="Waves / Reinforcements" subtitle="A combatant assigned to a wave stays out of the fight until the DM deploys it.">
           {draft.waves.map(w => (
             <View key={w.id} style={styles.waveCard}>
-              <TextInput style={styles.input} value={w.name} onChangeText={t => patchWave(w.id, { name: t })} />
+              <TextInput {...NAME_INPUT} style={styles.input} value={w.name} onChangeText={t => patchWave(w.id, { name: t })} />
               <View style={styles.chipRow}>
                 {(['manual', 'round', 'descriptive'] as EncounterWaveTriggerKind[]).map(k => (
                   <Pressable key={k} style={[styles.chip, w.triggerKind === k && styles.chipActive]} onPress={() => patchWave(w.id, { triggerKind: k })}>

@@ -3,7 +3,9 @@
 // Used on first launch, from the Packages list and from the banner that tells a 5.5e character creator the 2024 content
 // is not installed. Nothing is installed until the player taps; skipping changes nothing.
 import { useState } from 'react';
-import { View, Text, Pressable, Modal, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { Pressable } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { BUNDLED_PACKS, installBundledPacks } from '../content/bundledPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
 import { sqlitePackStore } from '../content/officialPackStore';

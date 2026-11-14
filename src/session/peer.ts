@@ -158,6 +158,9 @@ export class SessionPeer {
 
   // ── Connection ─────────────────────────────────────────────────────────────
 
+  /** Whether the current connection is sealed. */
+  get sealed(): boolean { return this.conn?.sealed === true; }
+
   async connect(): Promise<void> {
     if (this.status !== 'disconnected') return;
     this.status = 'connecting';

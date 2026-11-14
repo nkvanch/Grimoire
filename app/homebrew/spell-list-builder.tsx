@@ -8,9 +8,10 @@
 // which is where a class's spellcasting UI actually consumes these.
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useLocalSearchParams } from 'expo-router';
 import { SpellList, RulesetId } from '../../src/engine/types';
 import { validateSpellList } from '../../src/engine/homebrewValidator';
@@ -19,12 +20,18 @@ import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { mergeSpellIndex } from '../../src/content/contentResolution';
 import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { toId, disambiguateId } from '../../src/components/homebrew/TraitEditor';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileSpellListFields } from '../../src/content/homebrewCompile';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 export default function SpellListBuilderScreen() {
   const goBack       = useSafeGoBack('/(tabs)/homebrew');
@@ -38,6 +45,7 @@ export default function SpellListBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [description, setDescription] = useState('');
   const [classId,     setClassId]     = useState<string | null>(null);
   const [spellIds,    setSpellIds]    = useState<string[]>([]);
@@ -50,6 +58,7 @@ export default function SpellListBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setDescription(editing.description ?? '');
     setClassId(editing.classId ?? null);
     setSpellIds(editing.spellIds);
@@ -78,14 +87,7 @@ export default function SpellListBuilderScreen() {
       ...spellLists.filter(l => l.id !== editing?.id).map(l => l.id),
     ]);
     const id = editing?.id ?? disambiguateId(toId(name) || 'homebrew_spell_list', takenIds);
-    return mergeHomebrewDefinition(editing, {
-      id,
-      name: name.trim(),
-      description: description.trim() || undefined,
-      classId: classId ?? undefined,
-      spellIds,
-      rulesetId,
-    });
+    return withPictures(pictures, mergeHomebrewDefinition(editing, compileSpellListFields({ name, description, classId, spellIds, rulesetId }, id)));
   }
 
   function handleSave() {
@@ -110,6 +112,7 @@ export default function SpellListBuilderScreen() {
     setSaving(true);
     try {
       await saveItem('spellList', list);
+      leave();
       goBack();
     } catch (e) {
       console.error('[spell-list-builder] save failed:', e);
@@ -118,6 +121,10 @@ export default function SpellListBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildSpellList(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -131,8 +138,9 @@ export default function SpellListBuilderScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <View style={styles.field}>
+          <PictureField value={pictures} onChange={setPictures} />
           <Text style={styles.fieldLabel}>Name *</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
             placeholder="Spell list name" placeholderTextColor={Colors.textDim} />
         </View>
 

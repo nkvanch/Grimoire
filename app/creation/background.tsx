@@ -4,7 +4,8 @@ import { applyBackgroundOriginFeat, revokeBackgroundOriginFeat } from '../../src
 import { rulesetLabel } from '../../src/content/rulesets';
 import { suggestFirst } from '../../src/content/rulesetSuggestion';
 import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
-import { View, Text, FlatList, Pressable, StyleSheet, TextInput, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

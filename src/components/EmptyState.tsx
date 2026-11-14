@@ -1,5 +1,6 @@
 // src/components/EmptyState.tsx
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
 interface Props {

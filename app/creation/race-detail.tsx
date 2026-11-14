@@ -1,6 +1,7 @@
 // app/creation/race-detail.tsx
 // Race detail with back button. Strips old race features before applying new ones.
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useEffect, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -27,6 +28,7 @@ import { sortByOption } from '../../src/content/contentQuery';
 import { currentContentExposure, exposedSubraces } from '../../src/content/contentExposure';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { RecordDetailPicture } from '../../src/components/RecordPicture';
 
 const ABILITY_LABELS: { key: Ability; label: string }[] = [
   { key: 'str', label: 'STR' }, { key: 'dex', label: 'DEX' }, { key: 'con', label: 'CON' },
@@ -398,6 +400,7 @@ export default function RaceDetailScreen() {
         {!homebrewRaceIds.includes(race.id) && <EditionBadge item={race} official />}
         {!homebrewRaceIds.includes(race.id) && isNonSrd(race.srd, race.rulesetId) && <NonSrdBadge />}
       </View>
+      <RecordDetailPicture record={race} />
       <View style={styles.divider} />
 
       {detail && (

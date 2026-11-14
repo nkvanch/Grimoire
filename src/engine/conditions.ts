@@ -4,7 +4,7 @@
 // ============================================================================
 import { Entity, ActiveCondition, CampaignRules, Feature, FeatureInstance, DurationTracker } from './types';
 import { recomputeDerived } from './pipeline';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 
 // ── Immunity ──────────────────────────────────────────────────────────────────
 

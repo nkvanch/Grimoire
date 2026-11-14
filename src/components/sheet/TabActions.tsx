@@ -2,14 +2,17 @@
 // Tab 2 — Action Cards. [Use] consumes resources and shows a dice result modal.
 import { useState, useCallback, useEffect, memo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, RiderOffer, OutcomeOffer } from '../../engine/types';
 import { ridersForCard, applyRider } from '../../engine/riders';
 import { outcomeOffersForCard, confirmOutcome, dismissOutcomes } from '../../engine/outcomes';
 import { endWildShape, endAttackSequence } from '../../engine/combat';
 import { collectAllEffects } from '../../engine/pipeline';
 import { getTriggeredFeatures, isFeatureAvailable, formatCastingContextLabel, CardGenOptions, isContextLegalForCastMode, needsPreparationOverride } from '../../engine/actionCards';
-import { applyActionCardUse } from '../../engine/actionUse';
+import { applyActionCardUse, cardOverrulable, type CardOverrule } from '../../engine/actionUse';
+import type { SpellPaymentOption } from '../../engine/spellPayment';
 import { useSpellPayment } from './SpellPaymentChooser';
 import { doubleDiceCount } from '../../engine/dice';
 import { useDiceLogStore } from '../../store/diceLogStore';
@@ -278,9 +281,12 @@ export function UseModal({ card, riders, onApplyRider, outcomeOffers, onConfirmO
 
           {diceExpr && !result && (
             <View style={styles.rollPrompt}>
-              <Pressable style={[styles.critToggle, crit && styles.critToggleActive]} onPress={() => setCrit(c => !c)}>
-                <Text style={[styles.critToggleTxt, crit && styles.critToggleTxtActive]}>💥 Critical Hit</Text>
-              </Pressable>
+              {/* Only an attack roll can be a critical hit: not healing, a saving throw or any other roll. */}
+              {/[+-]\d+ to hit/.test(card.layer2) && (
+                <Pressable style={[styles.critToggle, crit && styles.critToggleActive]} onPress={() => setCrit(c => !c)}>
+                  <Text style={[styles.critToggleTxt, crit && styles.critToggleTxtActive]}>💥 Critical Hit</Text>
+                </Pressable>
+              )}
               <Text style={styles.rollExpr}>Roll: {crit ? doubleDiceCount(diceExpr) : diceExpr}</Text>
               <Pressable style={styles.rollBtn} onPress={handleRoll}>
                 <Text style={styles.rollBtnTxt}>🎲 Roll</Text>
@@ -382,6 +388,8 @@ interface CardRowProps {
   /** Omit to hide the star entirely (not offered everywhere a card might render). */
   isFavorite?:       boolean;
   onToggleFavorite?: (card: ActionCard) => void;
+  /** Overrule (the desktop's ADR-015): use a card past the stops the person names. Omitted: a blocked card stays N/A. */
+  onOverrule?:       (card: ActionCard, overrule: ReadonlySet<CardOverrule>) => void;
 }
 
 /**
@@ -419,7 +427,7 @@ interface CardRowProps {
  * on top before actually calling onUse — so either, both, or neither
  * override can apply to one cast without one masking the other.
  */
-export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorite }: CardRowProps) {
+export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorite, onOverrule }: CardRowProps) {
   const borderColor = CARD_COLORS[card.color];
   const blockedOnlyByPreparation = card.preparationOverridable === true;
   const blockedByIncapacitation = card.incapacitatedOverridable === true;
@@ -431,6 +439,14 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
   // Execution (applyActionCardUse) revalidates ritual eligibility fresh
   // regardless, so this is a display-only relaxation, never a legality one.
   const genuinelyUnavailable = !card.available && !overridable && !card.ritualEligible;
+  const stops = onOverrule && genuinelyUnavailable ? cardOverrulable(entity, card) : [];
+  function pressOverrule() {
+    const meaning = stops.map(r => (r.id === 'no_slot' ? 'No slot is spent.' : r.id === 'spent_resource' ? 'What is left is spent, never below none.' : 'The action stays used.')).join(' ');
+    Alert.alert(`Overrule: ${card.name}`, `${stops.map(r => r.reason).join('\n')}\n\nUse it anyway? ${meaning}`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Overrule', onPress: () => onOverrule?.(card, new Set(stops.map(r => r.id))) },
+    ]);
+  }
   const cardContent = useCardContent(entity);
 
   // Rules-engine HIGH-batch closure (C4): the LAST step before actually
@@ -573,6 +589,11 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
           <Text style={styles.cardUnavail}>{card.unavailableReason}</Text>
         )}
       </View>
+      {stops.length > 0 ? (
+        <Pressable style={styles.useBtn} onPress={pressOverrule} accessibilityLabel={`Overrule and use ${card.name}`}>
+          <Text style={styles.useBtnTxt}>Overrule</Text>
+        </Pressable>
+      ) : (
       <Pressable
         style={[styles.useBtn, genuinelyUnavailable && styles.useBtnDisabled]}
         disabled={genuinelyUnavailable}
@@ -582,16 +603,18 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
           {card.available || overridable || card.ritualEligible ? 'Use' : 'N/A'}
         </Text>
       </Pressable>
+      )}
     </View>
   );
 }
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, cards, entity, onUse, onToggleFavorite }: {
+function Section({ title, cards, entity, onUse, onToggleFavorite, onOverrule }: {
   title: string; cards: ActionCard[]; entity: Entity;
   onUse: (c: ActionCard, bypassSpellPreparation?: boolean, selectedSpellCastingContext?: SpellCastingContext, bypassIncapacitated?: boolean, castMode?: 'ritual') => void;
   onToggleFavorite?: (c: ActionCard) => void;
+  onOverrule?: (c: ActionCard, overrule: ReadonlySet<CardOverrule>) => void;
 }) {
   if (cards.length === 0) return null;
   return (
@@ -605,6 +628,7 @@ function Section({ title, cards, entity, onUse, onToggleFavorite }: {
           onUse={onUse}
           isFavorite={isFavoriteCard(entity, c)}
           onToggleFavorite={onToggleFavorite}
+          onOverrule={onOverrule}
         />
       ))}
     </View>
@@ -912,6 +936,19 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
     });
   }, [entity, rules, onEntityUpdate, pendingUse, requestPayment, cardContent]);
 
+  // Overrule: the card is used past the stops the person named, and nothing else (actionUse.ts cardOverrulable).
+  const handleOverrule = useCallback((card: ActionCard, overrule: ReadonlySet<CardOverrule>) => {
+    if (!onEntityUpdate || !rules) return;
+    const run = (payment?: SpellPaymentOption) => {
+      const updated = applyActionCardUse(entity, card, rules, undefined, payment, undefined, undefined, cardContent, undefined, undefined, undefined, overrule);
+      if (updated === entity) { Alert.alert('Not done', `${card.name} is blocked by something that cannot be overruled.`); return; }
+      onEntityUpdate(updated);
+      setActiveCard(card);
+    };
+    if (overrule.has('no_slot') || card.activation.resourceCost?.resourceId !== 'spell_slots') run();
+    else requestPayment(card, undefined, run);
+  }, [entity, rules, onEntityUpdate, requestPayment, cardContent]);
+
   const handleToggleFavorite = useCallback((card: ActionCard) => {
     if (onEntityUpdate) onEntityUpdate(toggleFavoriteTag(entity, card));
   }, [entity, onEntityUpdate]);
@@ -984,10 +1021,10 @@ function TabActionsInner({ entity, rules, onEntityUpdate, onEndTurn }: Props) {
           <Text style={styles.attackActionBtnSub}>{attackActionCount} attacks</Text>
         </Pressable>
       )}
-      <Section title="ACTIONS"       cards={actions}      entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
-      <Section title="BONUS ACTIONS" cards={bonusActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
-      <Section title="REACTIONS"     cards={reactions}    entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
-      <Section title="FREE (WITH ANOTHER ACTION)" cards={freeActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} />
+      <Section title="ACTIONS"       cards={actions}      entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} onOverrule={onEntityUpdate && rules ? handleOverrule : undefined} />
+      <Section title="BONUS ACTIONS" cards={bonusActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} onOverrule={onEntityUpdate && rules ? handleOverrule : undefined} />
+      <Section title="REACTIONS"     cards={reactions}    entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} onOverrule={onEntityUpdate && rules ? handleOverrule : undefined} />
+      <Section title="FREE (WITH ANOTHER ACTION)" cards={freeActions} entity={entity} onUse={handleUse} onToggleFavorite={handleToggleFavorite} onOverrule={onEntityUpdate && rules ? handleOverrule : undefined} />
       <UniversalActionsSection entity={entity} />
       <TriggeredFeaturesSection entity={entity} />
 

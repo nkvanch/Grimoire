@@ -9,7 +9,8 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, ThemeProvider, DarkTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useLayout } from '../src/platform/layout';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
@@ -31,6 +32,7 @@ import { useCombatTurnStore } from '../src/store/combatTurnStore';
 import { hydrateCombatStateOnBoot } from '../src/store/combatStore';
 import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
 import { loadDraftState } from '../src/db/draftRepo';
+import { openRevisionStore } from '../src/store/pinningService';
 
 /** Shown on the web when the database file stays locked: Grimoire is open in another tab or window. */
 function StorageBlockedScreen() {
@@ -100,6 +102,13 @@ export default function RootLayout() {
           console.error('[_layout] initDb failed — character storage unavailable this session:', e);
           // On the web the file stays locked while another tab or window has the app open: say so instead of running on a dead store.
           if (Platform.OS === 'web' && isStorageLockError(e)) setStorageBlocked(true);
+        }
+
+        // 1b. The revisions characters are pinned to (LIFE-004). Without it they are kept for this session only.
+        try {
+          await openRevisionStore();
+        } catch (e) {
+          console.error('[_layout] revision store unavailable — pinned versions are kept for this session only:', e);
         }
 
         // 2. Open the static-content DB (spells + items, seeded from a

@@ -29,6 +29,7 @@ import { useHomebrewStore } from './homebrewStore';
 import { hydrateItemInstanceDefinitionFacts, resolveItemDefinition, hydrateLegacyItemInstanceIds } from '../engine/itemMechanics';
 import { stripTransientRuntimeState } from '../engine/combat';
 import { validateEntityDeep } from '../engine/entityValidation';
+import { pinToInstalled, pinGate, extendPinnedLock } from './pinningService';
 
 export type { EntityMeta };
 
@@ -200,123 +201,9 @@ AppState.addEventListener('change', (state) => {
   }
 });
 
-// ── Default campaign rules ────────────────────────────────────────────────────
-
-export const DEFAULT_RULES: CampaignRules = {
-  maxAbilityScore: 20,
-  maxLevel:        20,
-  useXP:           false,
-  hpMode:          'fixed',
-  allowMulticlass: false,
-  customRules:     {},
-  abilityGenerationMode: 'standard',
-};
-
-// ── Default skill block ───────────────────────────────────────────────────────
-
-const ALL_SKILLS: { name: SkillName; ability: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha' }[] = [
-  { name: 'athletics',        ability: 'str' },
-  { name: 'acrobatics',       ability: 'dex' },
-  { name: 'sleight_of_hand',  ability: 'dex' },
-  { name: 'stealth',          ability: 'dex' },
-  { name: 'arcana',           ability: 'int' },
-  { name: 'history',          ability: 'int' },
-  { name: 'investigation',    ability: 'int' },
-  { name: 'nature',           ability: 'int' },
-  { name: 'religion',         ability: 'int' },
-  { name: 'animal_handling',  ability: 'wis' },
-  { name: 'insight',          ability: 'wis' },
-  { name: 'medicine',         ability: 'wis' },
-  { name: 'perception',       ability: 'wis' },
-  { name: 'survival',         ability: 'wis' },
-  { name: 'deception',        ability: 'cha' },
-  { name: 'intimidation',     ability: 'cha' },
-  { name: 'performance',      ability: 'cha' },
-  { name: 'persuasion',       ability: 'cha' },
-];
-
-function makeDefaultSkills(): Record<SkillName, SkillEntry> {
-  const skills = {} as Record<SkillName, SkillEntry>;
-  for (const s of ALL_SKILLS) {
-    skills[s.name] = { ability: s.ability, trained: false, expertise: false, bonus: null };
-  }
-  return skills;
-}
-
-// ── Empty entity factory ──────────────────────────────────────────────────────
-
-/** Returns a fully-typed empty entity ready to receive leveling and creation steps. */
-export function makeEmptyEntity(id: string, kind: Entity['kind'] = 'character'): Entity {
-  const defaultStats: AbilityScores = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
-
-  const defaultDerived = {
-    proficiencyBonus:  2,
-    ac:                10,
-    initiative:        0,
-    speed:             30,
-    passivePerception:    10,
-    passiveInvestigation: 10,
-    passiveInsight:       10,
-    senses:            [],
-    movement:          {},
-    savingThrows:      { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 },
-    attackBonuses:     [],
-    advantageStates:   [],
-    spellSaveDC:       null,
-    spellAttackBonus:  null,
-    kiSaveDC:          null,
-    abilityBasedDC:    { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
-    attackActionAttacks: 1,
-  };
-
-  return {
-    id,
-    kind,
-    identity: {
-      name:         '',
-      level:        0,
-      raceId:       '',
-      subRaceId:    null,
-      classId:      '',
-      subclassId:   null,
-      backgroundId: '',
-      alignment:    null,
-      xp:           0,
-    },
-    stats:   defaultStats,
-    derived: defaultDerived,
-    skills:  { skills: makeDefaultSkills() },
-    proficiencies: {
-      armor:        [],
-      weapons:      [],
-      tools:        [],
-      languages:    [],
-      savingThrows: [],
-    },
-    resources: {
-      hp:      { current: 0, maximum: 0, temp: 0 },
-      hitDice: { die: 8, total: 0, remaining: 0 },
-      speed:   30,
-      ac:      0,
-      custom:  [],
-      deathSaves: { successes: 0, failures: 0, stable: false },
-    },
-    spellcasting: null,
-    inventory: {
-      equipped: [],
-      carried:  [],
-      currency: { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 },
-    },
-    conditions:       [],
-    conditionMonitor: { active: [], exhaustion: 0, flags: {} },
-    features:         [],
-    choices:          [],
-    characterOverrides: [],
-    dmOverrides:      [],
-    wildShapeState:   null,
-    notes:            '',
-  };
-}
+// The defaults and the empty entity are engine data (src/engine/defaults.ts); re-exported for the store's callers.
+export { DEFAULT_RULES, makeEmptyEntity } from '../engine/defaults';
+import { DEFAULT_RULES, makeEmptyEntity } from '../engine/defaults';
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
@@ -438,7 +325,9 @@ type CharacterStore = {
    * mechanical timeline show for this step — every existing call site
    * omitting it keeps compiling and just shows the generic default.
    */
-  updateCharacter: (id: string, updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory) => void;
+  /** `operations`: the automatic dnd5e operations the step runs; a pinned character whose versions cannot run them is left unchanged and
+   *  the reason is returned (null when the change was made). Free edits and manual steps pass none and are never refused. */
+  updateCharacter: (id: string, updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory, operations?: readonly string[]) => string | null;
   deleteCharacter: (id: string) => void;
   importCharacter: (entity: Entity) => Promise<boolean>;
 
@@ -592,7 +481,12 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     // persisted draft, malformed/injected draft state, or a future
     // alternate draft-loading path, independent of whether the read-side
     // fix in draftRepo.ts's loadDraftState is also in place.
-    const draft = stripTransientRuntimeState(rawDraft);
+    const stripped = stripTransientRuntimeState(rawDraft);
+    // a character is pinned to what is installed when it is kept (LIFE-004); a lock that cannot be made is not attached, the save goes on
+    let draft = stripped;
+    if (!stripped.pins) {
+      try { draft = pinToInstalled(stripped); } catch (e) { console.error('[characterStore] the versions could not be kept:', e); }
+    }
 
     const exists = characters.some(c => c.id === draft.id);
     const updated = exists
@@ -624,7 +518,10 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
 
   // ── Character management ───────────────────────────────────────────────────
 
-  updateCharacter: (id, updater, label = 'Edit', category) => {
+  updateCharacter: (id, updater, label = 'Edit', category, operations) => {
+    const current = get().characters.find(c => c.id === id);
+    const refusal = current ? pinGate(current, operations) : null;
+    if (refusal) return refusal;
     let updated: Entity | null = null;
     let previous: Entity | null = null;
     const timestamp = Date.now();
@@ -638,7 +535,8 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         // do. `updater`'s own output already carries `c.revision` through
         // unchanged via its own spread (every mutator in this codebase
         // spreads the input entity), so no explicit stamping is needed here.
-        updated = updater(c);
+        // content a pinned character takes on is named in its lock as part of the same change
+        updated = extendPinnedLock(updater(c));
         return updated;
       });
       if (!previous || !updated) return { characters: next };
@@ -670,6 +568,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
       // see syncEntityPatch's doc comment in syncManager.ts.
       syncManager.syncEntityPatch(id, previous, updated);
     }
+    return null;
   },
 
   /**

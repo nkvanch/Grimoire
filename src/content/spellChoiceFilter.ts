@@ -5,8 +5,8 @@
 // SpellPickFilter the choice can draw on other classes' lists (Magical Secrets, Blessed Warrior, Pact of the
 // Tome), name exact levels (Mystic Arcanum) and ignore the slot cap. Pure, so the picker and the tests share it.
 // ============================================================================
-import { ChoiceDefinition, SpellPickFilter } from '../engine/types';
-import { isSpellInClassPool } from './spellLists';
+import { ChoiceDefinition, SpellPickFilter, SpellList } from '../engine/types';
+import { isSpellInClassPool, filterSpellsForClass, type SpellListSource } from './spellLists';
 
 type PoolSpell = { id: string; level: number; school: string; ritual: boolean; classes?: string[] };
 
@@ -47,4 +47,38 @@ export function candidateSpellsForChoice<T extends PoolSpell>(
   ctx: { ownClassId: string | null | undefined; maxCastableLevel: number; extraSpellIds?: readonly string[] },
 ): T[] {
   return all.filter(s => spellMatchesChoice(s, def, ctx));
+}
+
+/**
+ * The spells a spell-choice picker offers: a choice with its own pool rules offers what its filter names; any other draws on the
+ * class's list (or the spell list the player opted into, or the class's chosen source), plus the spells effects add to it, at the
+ * levels the choice and the character's slots allow, minus what the character already has. SpellChoicePicker shows exactly this.
+ */
+export function spellPickerPool<T extends PoolSpell>(a: {
+  allSpells: readonly T[];
+  def: Pick<ChoiceDefinition, 'id' | 'spellFilter'>;
+  classId: string;
+  maxCastableLevel: number;
+  known: ReadonlySet<string>;
+  activeSpellListId: string | null | undefined;
+  spellLists: SpellList[];
+  classSource?: SpellListSource | null;
+  extraSpellIds: readonly string[];
+}): T[] {
+  const { allSpells, def, classId, maxCastableLevel, known, extraSpellIds } = a;
+  if (hasOwnSpellPool(def)) {
+    return candidateSpellsForChoice(allSpells, def, { ownClassId: classId, maxCastableLevel, extraSpellIds }).filter(s => !known.has(s.id));
+  }
+  const base = filterSpellsForClass([...allSpells], classId, a.activeSpellListId, a.spellLists, a.classSource);
+  let pool = base;
+  if (extraSpellIds.length > 0) {
+    const have = new Set(base.map(s => s.id));
+    pool = [...base, ...allSpells.filter(s => extraSpellIds.includes(s.id) && !have.has(s.id))];
+  }
+  const cantrip = isCantripChoiceDef(def);
+  return pool.filter(s => {
+    if (known.has(s.id)) return false;
+    if (cantrip) return s.level === 0;
+    return s.level !== 0 && s.level <= maxCastableLevel;
+  });
 }

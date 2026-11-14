@@ -10,7 +10,8 @@
 import { gridProps, withGridCell } from '../GridCell';
 import { useListColumns } from '../../platform/layout';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking } from 'react-native';
+import { View, Text, ScrollView, FlatList, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { useCharacterStore } from '../../store/characterStore';
@@ -32,6 +33,7 @@ import {
   libraryRulesets, editHrefFor, originLabel, descriptionOf, rulesetIdOf, sourceOf,
 } from '../../content/homebrewLibrary';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { RecordIcon } from '../RecordPicture';
 
 const STATE_KEY = 'compendium.homebrew';
 
@@ -175,6 +177,7 @@ export function HomebrewLibraryView() {
               {isSelected && <Text style={styles.checkboxMark}>✓</Text>}
             </Pressable>
           )}
+          <RecordIcon record={item} size={36} />
           <Pressable style={styles.libraryInfo} testID={`homebrew-row-toggle-${key}`} onPress={() => selectMode ? toggleSelected(type, item.id) : setExpandedKey(expanded ? null : key)}>
             <Text style={styles.libraryName} numberOfLines={expanded ? undefined : 2}>
               {item.name}{parentName ? ` (${parentName})` : ''}

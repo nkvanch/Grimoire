@@ -2,7 +2,8 @@
 // Shown on the creation screens when the character's edition has no content installed (a 5.5e character with no SRD 5.2.1
 // pack): without it the lists look exactly like the 5e ones and nothing says why. Offers the install in one tap.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import type { RulesetId } from '../engine/types';
 import { globalContentDB } from '../content/classes/library';
 import { rulesetLabel } from '../content/rulesets';

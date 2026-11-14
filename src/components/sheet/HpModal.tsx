@@ -1,7 +1,9 @@
 // src/components/sheet/HpModal.tsx
 // Damage / Heal input modal.
 import { useState } from 'react';
-import { Modal, View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { COMMON_DAMAGE_TYPES } from '../../content/traitCompiler';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 

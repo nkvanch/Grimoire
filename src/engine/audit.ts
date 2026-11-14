@@ -24,7 +24,9 @@
 //   Skills:         any SkillName e.g. 'perception', 'athletics'
 // ============================================================================
 
+import { effectsInForce } from './featureModes';
 import { findBeastForm } from '../content/runtimeRules';
+import { KI_SAVE_FEATURE_ID } from './ruleset/dnd5e';
 import {
   Entity, Ability, SkillName, AuditEntry, AuditTrail, AuditSourceKind, ActiveEffect,
 } from './types';
@@ -167,7 +169,7 @@ function buildInitiativeEntries(entity: Entity): AuditEntry[] {
 
   for (const f of entity.features) {
     if (!f.isActive) continue;
-    for (const e of f.effects) {
+    for (const e of effectsInForce(f, entity, f.id)) {
       if (e.type === 'stat_modifier' && e.target === 'initiative' && typeof e.value === 'number') {
         entries.push(entry(f.name, e.value, f.source.kind, f.id));
       }
@@ -263,7 +265,7 @@ function buildPassiveInsightEntries(entity: Entity): AuditEntry[] {
 // ── Ki Save DC ─────────────────────────────────────────────────────────────────
 
 function buildKiSaveDcEntries(entity: Entity): AuditEntry[] {
-  if (!entity.features.some(f => f.id === 'martial_arts')) return [];
+  if (!entity.features.some(f => f.id === KI_SAVE_FEATURE_ID)) return [];
   const prof = proficiencyBonus(entity.identity.level);
   const allEffects = collectAllEffects(entity);
   const effectiveStats = applyStatModifiers(entity.stats, allEffects);
@@ -360,21 +362,30 @@ function buildTargetBonusEntries(allEffects: ActiveEffect[], targets: string[]):
 // ── Ability scores ────────────────────────────────────────────────────────────
 
 function buildAbilityEntries(entity: Entity, ability: Ability): AuditEntry[] {
-  const entries: AuditEntry[] = [];
-  entries.push(entry('Base score', entity.stats[ability], 'base', null));
-
-  for (const f of entity.features) {
-    if (!f.isActive) continue;
-    for (const e of f.effects) {
-      if (
-        e.type      === 'stat_modifier' &&
-        e.target    === ability &&
-        e.operation === 'add' &&
-        typeof e.value === 'number'
-      ) {
-        entries.push(entry(f.name, e.value, f.source.kind, f.id));
-      }
-    }
+  // The same effects, and the same rule, as applyStatModifiers (pipeline.ts), so the lines add up to the score shown: items count, a
+  // 'set' is the final score (the adds are listed but count for nothing), and an 'at least' floor raises it last.
+  const base = entity.stats[ability];
+  const entries: AuditEntry[] = [entry('Base score', base, 'base', null)];
+  const mine = collectAllEffects(entity).filter(ae => ae.effect.type === 'stat_modifier' && ae.effect.target === ability && typeof ae.effect.value === 'number');
+  const floors = mine.filter(ae => ae.effect.operation === 'set' && ae.effect.atLeast);
+  const sets = mine.filter(ae => ae.effect.operation === 'set' && !ae.effect.atLeast);
+  const adds = mine.filter(ae => ae.effect.operation === 'add');
+  const top = sets.reduce<typeof sets[number] | null>((best, ae) => (!best || (ae.effect.value as number) > (best.effect.value as number) ? ae : best), null);
+  let score = base;
+  for (const ae of adds) {
+    const v = ae.effect.value as number;
+    if (top) entries.push({ label: `${ae.sourceName} (${v >= 0 ? '+' : ''}${v}, does not count: the score is set)`, value: 0, sourceKind: ae.sourceKind ?? 'base', sourceId: ae.sourceId });
+    else { entries.push(entry(ae.sourceName, v, ae.sourceKind ?? 'base', ae.sourceId)); score += v; }
+  }
+  if (top) {
+    const to = top.effect.value as number;
+    entries.push({ label: `${top.sourceName} sets it to ${to}`, value: to - base, sourceKind: top.sourceKind ?? 'base', sourceId: top.sourceId, replacement: { from: base, to } });
+    score = to;
+  }
+  const floor = floors.reduce<typeof floors[number] | null>((best, ae) => (!best || (ae.effect.value as number) > (best.effect.value as number) ? ae : best), null);
+  if (floor && (floor.effect.value as number) > score) {
+    const to = floor.effect.value as number;
+    entries.push({ label: `${floor.sourceName} makes it at least ${to}`, value: to - score, sourceKind: floor.sourceKind ?? 'base', sourceId: floor.sourceId, replacement: { from: score, to } });
   }
   return entries;
 }
@@ -396,7 +407,7 @@ function buildSaveEntries(entity: Entity, ability: Ability): AuditEntry[] {
   // Feature bonuses to saves (Paladin Aura, etc.)
   for (const f of entity.features) {
     if (!f.isActive) continue;
-    for (const e of f.effects) {
+    for (const e of effectsInForce(f, entity, f.id)) {
       if (
         e.type === 'stat_modifier' &&
         e.target === `save_${ability}` &&
@@ -438,7 +449,7 @@ function buildSkillEntries(entity: Entity, skill: SkillName): AuditEntry[] {
   // Feature bonuses targeting this specific skill
   for (const f of entity.features) {
     if (!f.isActive) continue;
-    for (const e of f.effects) {
+    for (const e of effectsInForce(f, entity, f.id)) {
       if (
         e.type === 'stat_modifier' &&
         e.target === `skill.${skill}` &&

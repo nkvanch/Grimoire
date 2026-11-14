@@ -8,9 +8,10 @@
 // consumed by the already-existing subrace picker in creation/race-detail.tsx).
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -28,6 +29,8 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import {
   ABILITIES, SENSE_TYPES, MOVE_TYPES, MoveType, toId, disambiguateId,
@@ -41,8 +44,12 @@ import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
 import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { raceGeneratedFeatures } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeDraftTraits, serializeLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const SIZES = ['Tiny', 'Small', 'Medium', 'Large'] as const;
 
@@ -85,7 +92,7 @@ function SubraceEditor({ subraces, onChange }: {
         </Pressable>
       ))}
       <View style={styles.senseInputRow}>
-        <TextInput
+        <TextInput {...NAME_INPUT}
           style={[styles.input, { flex: 1 }]}
           value={newName}
           onChangeText={setNewName}
@@ -158,6 +165,7 @@ export default function RaceBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [age,          setAge]         = useState('');
   const [size,         setSize]        = useState<typeof SIZES[number]>('Medium');
@@ -188,6 +196,7 @@ export default function RaceBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setAge(editing.age ?? '');
     setSize(editing.size ?? 'Medium');
@@ -259,63 +268,9 @@ export default function RaceBuilderScreen() {
       ...homebrewRaces.filter(r => r.id !== editing?.id).map(r => r.id),
     ]);
     const id = editing?.id ?? disambiguateId(toId(name) || 'homebrew_race', takenIds);
-    const features: Feature[] = [];
+    // The ability bonuses, speed, senses and movement features are compiled in content/homebrewCompile.ts (shared with the desktop app).
+    const features: Feature[] = raceGeneratedFeatures({ abiBonuses, speed, senses, movement }, id);
     const resources: ResourceGrant[] = [];
-
-    const asiEffects = ABILITIES
-      .filter(a => parseInt(abiBonuses[a], 10) > 0)
-      .map(a => ({
-        type: 'stat_modifier' as const, target: a, operation: 'add' as const,
-        value: parseInt(abiBonuses[a], 10), condition: null,
-      }));
-    if (asiEffects.length > 0) {
-      features.push({
-        id: `${id}_asi`, name: 'Ability Score Increase',
-        description: 'Your ability scores increase as shown.',
-        source: { kind: 'race', refId: id },
-        level: null, actions: [], choices: [], passive: true, effects: asiEffects,
-      });
-    }
-
-    const speedVal = parseInt(speed, 10) || 30;
-    if (speedVal !== 30) {
-      features.push({
-        id: `${id}_speed`, name: 'Speed',
-        description: `Your base walking speed is ${speedVal} feet.`,
-        source: { kind: 'race', refId: id },
-        level: null, actions: [], choices: [], passive: true,
-        effects: [{ type: 'stat_modifier', target: 'speed', operation: 'set', value: speedVal, condition: null }],
-      });
-    }
-
-    if (senses.length > 0) {
-      features.push({
-        id: `${id}_senses`, name: 'Senses',
-        description: senses.map(s =>
-          `${SENSE_TYPES.find(t => t.key === s.type)?.label ?? s.type} ${s.range} ft` + (s.note ? ` (${s.note})` : '')
-        ).join('; '),
-        source: { kind: 'race', refId: id },
-        level: null, actions: [], choices: [], passive: true,
-        effects: senses.map(s => ({
-          type: 'grant_sense' as const, target: 'senses', operation: 'add' as const,
-          value: null, condition: null, senseType: s.type, senseRange: s.range, senseNote: s.note,
-        })),
-      });
-    }
-
-    const moveEntries = (Object.entries(movement) as [MoveType, number][]).filter(([, v]) => v > 0);
-    if (moveEntries.length > 0) {
-      features.push({
-        id: `${id}_movement`, name: 'Movement',
-        description: moveEntries.map(([t, v]) => `${MOVE_TYPES.find(m => m.key === t)?.label ?? t} ${v} ft`).join('; '),
-        source: { kind: 'race', refId: id },
-        level: null, actions: [], choices: [], passive: true,
-        effects: moveEntries.map(([t, v]) => ({
-          type: 'grant_movement' as const, target: 'movement', operation: 'add' as const,
-          value: null, condition: null, movementType: t, movementRange: v,
-        })),
-      });
-    }
 
     // Seeded with the hand-authored ASI/Speed/Senses/Movement feature ids
     // above so a trait named e.g. "Speed" can't silently collide with one.
@@ -332,7 +287,7 @@ export default function RaceBuilderScreen() {
 
     const compiledSubraces: Subrace[] = subraces.map(sr => buildSubrace(sr, id));
 
-    return mergeHomebrewDefinition(editing, {
+    return withPictures(pictures, mergeHomebrewDefinition(editing, {
       // Imported definitions without an authoring draft cannot be safely
       // reverse-compiled by this UI; preserve structured mechanics.
       ...(editing && !editing.homebrewDraft ? {
@@ -347,7 +302,7 @@ export default function RaceBuilderScreen() {
       rulesetId,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, RACE_CHOICE_PREFIX),
       homebrewDraft: { speed, description, abiBonuses, senses, movement, traits, subraces, pendingChoices, traitOwners: serializedTraits.owners },
-    });
+    }));
   }
 
   // Read-only test: apply the draft race's OWN features/resources to a
@@ -421,6 +376,7 @@ export default function RaceBuilderScreen() {
       // that's what sent us here, select this race automatically on
       // return instead of making the player find it again in the list.
       usePendingSelectionStore.getState().setPending('race_picker', race.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[race-builder] save failed:', e);
@@ -429,6 +385,10 @@ export default function RaceBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildRace(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -441,8 +401,9 @@ export default function RaceBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Text style={styles.fieldLabel}>Race Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Pandafolk" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />

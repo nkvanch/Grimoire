@@ -3,7 +3,9 @@
 // stat changes, new/removed weapon attack bonuses, and resistance/immunity
 // gained or lost, using the generic simulate() primitive. Third consumer
 // of simulate(), after RestPreviewModal and FeatPreviewModal.
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, DerivedStats, DERIVED_NUMERIC_KEYS } from '../../engine/types';
 import { collectAllEffects } from '../../engine/pipeline';
 import { DERIVED_LABELS } from './derivedStatLabels';

@@ -16,12 +16,18 @@
 // count) is deliberately NOT re-implemented here — this module only compiles
 // what pool is LEGAL TO OFFER, the same "filters may narrow, never broaden"
 // invariant choiceEligibility.ts already enforces at resolution time.
-import { ChoiceDefinition, ChoiceOption } from '../engine/types';
+import { ChoiceDefinition, ChoiceOption, ChoiceReplacePolicy, SpellPickFilter } from '../engine/types';
+import { FeaturePoolOption, FeaturePoolOwner, definitionToFeaturePoolDraft, featurePoolDraftToDefinition, validateFeaturePoolDraft } from './featurePoolChoice';
 import { ALL_SKILL_OPTIONS } from './skills';
 import { ALL_TOOLS, TOOL_CATEGORY_ORDER } from './tools';
 import { ALL_LANGUAGES, LANGUAGE_CATEGORY_ORDER } from './languages';
 
-export type AuthorableChoiceKind = 'expertise' | 'tool' | 'language';
+// 'skill', 'asi' (ability improvement or feat, as the table's rule allows), 'spell' (from a spell list, with a level filter) and
+// 'feature_pool' (options that are traits: fighting styles, invocations) were added for the desktop's builder parity; each compiles to the
+// shape official content already uses, so the sheet and creation offer it with the pickers they already have.
+export type AuthorableChoiceKind = 'expertise' | 'tool' | 'language' | 'skill' | 'asi' | 'spell' | 'feature_pool';
+/** Kinds whose pool is a list of named options (all / category / restricted). The others have no pool to pick. */
+export const hasOptionPool = (kind: AuthorableChoiceKind) => kind === 'expertise' || kind === 'tool' || kind === 'language' || kind === 'skill';
 export type PoolMode = 'all' | 'category' | 'restricted';
 
 export type DraftChoice = {
@@ -38,6 +44,13 @@ export type DraftChoice = {
   categories: string[];
   /** SkillName[] | tool id[] | language id[] depending on kind. */
   restrictedIds: string[];
+  /** kind 'spell': the class lists the spells come from ([] = the character's own; ['any'] = every spell) and the levels offered ([] = the default). */
+  spellLists?: string[];
+  spellLevels?: number[];
+  /** kind 'feature_pool': the options (each a trait, with the level it needs) and whether held options can be swapped later. */
+  options?: FeaturePoolOption[];
+  replaceTiming?: '' | ChoiceReplacePolicy['timing'];
+  replaceRule?: string;
 };
 
 type RegistryEntry = { id: string; label: string; category?: string };
@@ -61,7 +74,8 @@ export function newDraftChoice(kind: AuthorableChoiceKind): DraftChoice {
 }
 
 export function registryFor(kind: AuthorableChoiceKind): RegistryEntry[] {
-  if (kind === 'expertise') return ALL_SKILL_OPTIONS.map(o => ({ id: o.id, label: o.label }));
+  if (kind === 'expertise' || kind === 'skill') return ALL_SKILL_OPTIONS.map(o => ({ id: o.id, label: o.label }));
+  if (!hasOptionPool(kind)) return [];
   if (kind === 'tool') return ALL_TOOLS.map(t => ({ id: t.id, label: t.name, category: t.category }));
   return ALL_LANGUAGES.map(l => ({ id: l.id, label: l.name, category: l.category }));
 }
@@ -88,6 +102,10 @@ function defaultPrompt(kind: AuthorableChoiceKind, count: number): string {
   const n = count === 1 ? 'one' : String(count);
   if (kind === 'expertise') return `Choose ${n} skill${count === 1 ? '' : 's'} to gain Expertise in.`;
   if (kind === 'tool') return `Choose ${n} tool proficienc${count === 1 ? 'y' : 'ies'}.`;
+  if (kind === 'skill') return `Choose ${n} skill proficienc${count === 1 ? 'y' : 'ies'}.`;
+  if (kind === 'asi') return 'Ability Score Improvement or a feat.';
+  if (kind === 'spell') return `Choose ${n} spell${count === 1 ? '' : 's'}.`;
+  if (kind === 'feature_pool') return `Choose ${n} option${count === 1 ? '' : 's'}.`;
   return `Choose ${n} language${count === 1 ? '' : 's'}.`;
 }
 
@@ -101,6 +119,7 @@ export function poolSizeForDraft(draft: DraftChoice): number {
  * (proficient/not-already-expert/no-duplicates), which stay solely in
  * choiceEligibility.ts + leveling.ts's apply*ChoiceToEntity functions. */
 export function validateDraftChoice(draft: DraftChoice): string[] {
+  if (draft.kind === 'feature_pool') return validateFeaturePoolDraft(poolDraftOf(draft));
   const errors: string[] = [];
   const count = parseInt(draft.count, 10);
   if (!Number.isFinite(count) || count < 1) {
@@ -140,7 +159,10 @@ export function validateDraftChoice(draft: DraftChoice): string[] {
  * hand-authored pendingChoices already use. grants:[]/required:true/
  * resolved:false match every other 'all'-pool-resolved-via-bypass-function
  * choice literal in src/content (see expertiseChoice() in classes/index.ts). */
-export function draftChoiceToDefinition(draft: DraftChoice, idPrefix = ''): ChoiceDefinition {
+export function draftChoiceToDefinition(draft: DraftChoice, idPrefix = '', owner?: FeaturePoolOwner): ChoiceDefinition {
+  if (draft.kind === 'feature_pool') {
+    return featurePoolDraftToDefinition(poolDraftOf(draft), idPrefix, owner ?? { sourceKind: 'manual', sourceRefId: idPrefix });
+  }
   const count = Math.max(1, parseInt(draft.count, 10) || 1);
   const pool: ChoiceDefinition['pool'] =
     draft.poolMode === 'all' ? 'all' :
@@ -155,7 +177,20 @@ export function draftChoiceToDefinition(draft: DraftChoice, idPrefix = ''): Choi
     grants: [],
     required: true,
     resolved: false,
+    ...(draft.kind === 'spell' ? { spellFilter: spellFilterOf(draft) } : {}),
   };
+}
+
+function poolDraftOf(draft: DraftChoice) {
+  return { localId: draft.localId, kind: 'feature_pool' as const, count: draft.count, prompt: draft.prompt, options: draft.options ?? [],
+    replaceTiming: draft.replaceTiming ?? '', replaceRule: draft.replaceRule ?? '' };
+}
+
+/** A spell choice always carries a filter, so it keeps its own row on the sheet instead of joining the class's spells. */
+function spellFilterOf(draft: DraftChoice): SpellPickFilter {
+  const lists = draft.spellLists ?? [];
+  const levels = [...new Set(draft.spellLevels ?? [])].filter(l => l >= 0 && l <= 9).sort((a, b) => a - b);
+  return { ...(lists.includes('any') ? { lists: 'any' as const } : lists.length ? { lists } : {}), ...(levels.length ? { levels } : {}) };
 }
 
 /** Reverse of draftChoiceToDefinition, for reopening an already-saved
@@ -165,9 +200,21 @@ export function draftChoiceToDefinition(draft: DraftChoice, idPrefix = ''): Choi
  * so round-tripping a feature/race/etc. authored partly outside this editor
  * never loses data it doesn't understand. */
 export function definitionToDraftChoice(def: ChoiceDefinition, idPrefix = ''): DraftChoice | null {
-  if (def.kind !== 'expertise' && def.kind !== 'tool' && def.kind !== 'language') return null;
-  const kind = def.kind;
   const localId = def.id.startsWith(idPrefix) ? def.id.slice(idPrefix.length) : def.id;
+  const none = { poolMode: 'all' as const, categories: [], restrictedIds: [] };
+  if (def.kind === 'feature_pool') {
+    const pool = definitionToFeaturePoolDraft(def, idPrefix);   // only a pool an editor wrote; any other is kept as it was
+    return pool ? { ...none, ...pool, kind: 'feature_pool' } : null;
+  }
+  if (def.kind === 'asi') return { ...none, localId, kind: 'asi', count: String(def.count), prompt: def.prompt };
+  if (def.kind === 'spell') {
+    if (!def.spellFilter || def.pool !== 'all') return null;    // a class's own cantrip and spell choices are not this editor's
+    const f = def.spellFilter;
+    return { ...none, localId, kind: 'spell', count: String(def.count), prompt: def.prompt,
+      spellLists: f.lists === 'any' ? ['any'] : [...(f.lists ?? [])], spellLevels: [...(f.levels ?? [])] };
+  }
+  if (def.kind !== 'expertise' && def.kind !== 'tool' && def.kind !== 'language' && def.kind !== 'skill') return null;
+  const kind = def.kind;
   const base = { localId, kind, count: String(def.count), prompt: def.prompt };
 
   if (def.pool === 'all') {

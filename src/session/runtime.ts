@@ -14,6 +14,7 @@ import { KeyValueStore } from './kv';
 import { ClientTransport, Connection, ServerTransport } from './transport';
 import { Capability, CharacterAdapter, ViewState, ParticipantId, PeekResult } from './types';
 import { peekRoom } from './roomPeek';
+import { SealedClientTransport, SealedServerTransport, hostRoomSeed, RoomKeyChangedError, RoomNotProtectedError, trustRoomKey as trustKey } from './sealed';
 import { loadInstalledPacks } from '../db/packRegistryRepo';
 import type { ActiveComponents } from './effectBridge';
 
@@ -33,11 +34,14 @@ export type RuntimeState = {
   status:       PeerStatus;
   view:         ViewState | null;
   version:      number;                   // bumps on every peer notification
+  sealed:       boolean;                  // the joined connection is sealed (protected from listeners and tampering)
+  unprotected:  number;                   // hosting: connected devices whose connection is not sealed
+  keyChange:    boolean;                  // the room's key changed, or it stopped sealing: the person decides whether to trust it
 };
 
 const INITIAL: RuntimeState = {
   mode: 'idle', busy: false, error: null, address: null, roomCode: null, participantId: null,
-  nickname: '', capabilities: [], status: 'disconnected', view: null, version: 0,
+  nickname: '', capabilities: [], status: 'disconnected', view: null, version: 0, sealed: false, unprotected: 0, keyChange: false,
 };
 
 export const useSessionRuntime = create<RuntimeState>(() => INITIAL);
@@ -52,6 +56,11 @@ export type RuntimeDeps = {
   localLink:          () => { server: ServerTransport; client: ClientTransport };
   /** Client transport for joining a remote Host at host:port. */
   remoteClient:       (host: string, port: number) => ClientTransport;
+  /** Wraps the transport other devices join on, so the room seals their connections (src/session/sealed.ts). The Host's own loopback
+   *  link is not wrapped. */
+  sealServer?:        (server: ServerTransport) => Promise<ServerTransport>;
+  /** Same room, with the sealed handshake first (src/session/sealed.ts). Peeking stays on remoteClient: a peek is public and plain. */
+  sealedClient?:      (host: string, port: number) => ClientTransport;
   /** The local IP other devices should use, or null when offline. */
   localAddress:       () => Promise<{ host: string; code: string | null } | null>;
   port:               number;
@@ -81,6 +90,7 @@ export class SessionRuntime {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retries = 0;
   private wantConnected = false;
+  private blockedRoom: RoomKeyChangedError | null = null;
   private lastEffectSig = '';
   private bridgedCharacter: string | null = null;
   private announced = false;
@@ -138,7 +148,8 @@ export class SessionRuntime {
         ...(snapshot ? { restoreFrom: snapshot } : {}),
       });
       const local = this.deps.localLink();
-      await host.start(combineServers(local.server, this.deps.remoteServer()));
+      const remote = this.deps.remoteServer();
+      await host.start(combineServers(local.server, this.deps.sealServer ? await this.deps.sealServer(remote) : remote));
       const token = host.registerLocalHost(participantId, opts.nickname, opts.extraCaps ?? []);
       const peer = await SessionPeer.create({
         participantId, nickname: opts.nickname, requestedCapabilities: [],
@@ -196,7 +207,7 @@ export class SessionRuntime {
       const participantId = await this.deviceParticipantId();
       const peer = await SessionPeer.create({
         participantId, nickname: opts.nickname, requestedCapabilities: opts.wants,
-        transport: this.deps.remoteClient(opts.host, port), kv: this.deps.kv,
+        transport: (this.deps.sealedClient ?? this.deps.remoteClient)(opts.host, port), kv: this.deps.kv,
         storageKey: peerStorageKey(participantId, opts.host, port),
         prep: new PrepService(this.deps.kv), vault: new SecretVault(this.deps.kv),
         newId: p => `${p}_${this.deps.newId()}`, installedPacks: loadInstalledPacks,
@@ -208,8 +219,7 @@ export class SessionRuntime {
       this.retries = 0;
       await peer.connect();
     } catch (e) {
-      useSessionRuntime.setState({ error: (e as Error).message });
-      this.scheduleRetry();
+      this.onConnectError(e);
     } finally {
       this.setBusy(false);
     }
@@ -227,7 +237,7 @@ export class SessionRuntime {
       this.retryTimer = null;
       const p = this.peer;
       if (!p || !this.wantConnected || p.status !== 'disconnected') return;
-      p.connect().catch(() => this.scheduleRetry());
+      p.connect().catch(e => this.onConnectError(e));
     }, delay);
   }
 
@@ -237,7 +247,30 @@ export class SessionRuntime {
     if (!p || p.status !== 'disconnected') return;
     this.retries = 0;
     this.wantConnected = this.host === null;
-    try { await p.connect(); } catch (e) { useSessionRuntime.setState({ error: (e as Error).message }); this.scheduleRetry(); }
+    try { await p.connect(); } catch (e) { this.onConnectError(e); }
+  }
+
+  /** A room whose key changed (or that stopped sealing) is not retried: the person decides, then trustRoomKey() joins again. */
+  private onConnectError(e: unknown): void {
+    useSessionRuntime.setState({ error: (e as Error).message });
+    if (e instanceof RoomKeyChangedError) {
+      this.blockedRoom = e;
+      this.wantConnected = false;
+      useSessionRuntime.setState({ keyChange: true });
+      return;
+    }
+    if (e instanceof RoomNotProtectedError) { this.wantConnected = false; return; }
+    this.scheduleRetry();
+  }
+
+  /** The person said to trust what the room now shows. */
+  async trustRoomKey(): Promise<void> {
+    const blocked = this.blockedRoom;
+    if (!blocked) return;
+    await trustKey(this.deps.kv, blocked);
+    this.blockedRoom = null;
+    useSessionRuntime.setState({ keyChange: false, error: null });
+    await this.reconnect();
   }
 
   // ── Teardown ───────────────────────────────────────────────────────────────
@@ -277,7 +310,8 @@ export class SessionRuntime {
     const mirror = (): void => {
       useSessionRuntime.setState(s => ({
         mode, capabilities: peer.capabilities, status: peer.status, view: peer.view,
-        participantId: peer.participantId, version: s.version + 1,
+        participantId: peer.participantId, version: s.version + 1, sealed: peer.sealed,
+        unprotected: this.host?.unprotectedCount() ?? 0,
         error: peer.lastError ?? s.error,
       }));
       this.bridgeEffects(peer);
@@ -340,6 +374,14 @@ export function getSessionRuntime(): SessionRuntime {
       remoteServer: () => new lan.LanServerTransport(lan.SESSION_PORT),
       localLink: () => { const n = new loop.LoopbackNetwork(); return { server: n.server(), client: n.client() }; },
       remoteClient: (host, port) => new lan.LanClientTransport(host, port),
+      sealServer: async server => new SealedServerTransport(server, {
+        roomSeed: await hostRoomSeed(repo.getSessionKv(), n => (require('expo-crypto') as typeof import('expo-crypto')).getRandomBytes(n)),
+        randomBytes: n => (require('expo-crypto') as typeof import('expo-crypto')).getRandomBytes(n),
+      }),
+      sealedClient: (host, port) => new SealedClientTransport(new lan.LanClientTransport(host, port), {
+        kv: repo.getSessionKv(), address: `${host}:${port}`,
+        randomBytes: n => (require('expo-crypto') as typeof import('expo-crypto')).getRandomBytes(n),
+      }),
       localAddress: async () => {
         const ip = await disc.getLocalIp();
         return ip ? { host: ip, code: disc.encodeRoomCode(ip) } : null;

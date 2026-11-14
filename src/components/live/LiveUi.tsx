@@ -1,6 +1,7 @@
 // Shared UI primitives for the Host / DM / Player live-session screens.
 import { ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, TextInput, TextInputProps } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TextInputProps } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { useSafeGoBack } from '../../hooks/useSafeGoBack';
 import { SafeBottomView } from '../SafeBottomView';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
@@ -93,6 +94,16 @@ export function Badge({ label, tone = 'default' }: { label: string; tone?: 'defa
       <Text style={[s.badgeTxt, { color }]}>{label}</Text>
     </View>
   );
+}
+
+/** Contract LIVE-TRUST-002: shown before a room is opened, when joining, and while one is open, until live play is fully secured
+ *  (LIVE-SEC-001..003). Remove it only then. */
+export const TRUSTED_NETWORK_NOTICE =
+  'Live play is for networks you trust. Anyone on this network can find a room, see who is in it and ask to join. ' +
+  'A connection is protected only when both devices support it; the session card says whether yours is, and the host sees how many are not.';
+
+export function TrustedNetworkNotice() {
+  return <Card tone="warn" testID="live-trusted-network"><Muted>{TRUSTED_NETWORK_NOTICE}</Muted></Card>;
 }
 
 export function Muted({ children }: { children: ReactNode }) {

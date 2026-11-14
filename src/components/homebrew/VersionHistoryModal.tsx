@@ -3,7 +3,9 @@
 // ContentCacheType, works for all 10 homebrew categories. Same Modal +
 // backdrop-Pressable + sheet-Pressable idiom as ExportFormatSheet.tsx.
 import { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { ContentCacheType, ContentVersionEntry } from '../../db/contentCacheRepo';
 import { Alert } from '../../utils/alert';

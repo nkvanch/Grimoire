@@ -12,9 +12,11 @@ import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { CampaignPacksNote } from '../../src/components/CampaignPacksNote';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  Modal, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
+  View, Text, ScrollView, StyleSheet,
+  ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -34,6 +36,8 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { Quest, SessionLogEntry, Campaign, CampaignRules, RulesetId } from '../../src/engine/types';
 import { InstalledPack, loadInstalledPacks } from '../../src/db/packRegistryRepo';
 import { HostModal, JoinModal as LiveJoinModal } from '../../src/components/live/LiveSessionStart';
+import { campaignAdmission } from '../../src/engine/campaignLock';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -208,7 +212,7 @@ function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => vo
           <ScrollView style={styles.wizScroll} keyboardShouldPersistTaps="handled">
             {step === 'Basics' && (
               <View style={{ gap: Spacing.sm }}>
-                <TextInput style={styles.input} value={name} onChangeText={setName}
+                <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
                   placeholder="Campaign name…" placeholderTextColor={Colors.textDim} autoFocus testID="wiz-name" />
                 <TextInput style={[styles.input, styles.notesInput]} value={description} onChangeText={setDescription}
                   placeholder="Description (optional)…" placeholderTextColor={Colors.textDim} multiline textAlignVertical="top" testID="wiz-description" />
@@ -453,7 +457,7 @@ function QuestsSection({ quests, editable, onUpdate }: {
           <Pressable style={styles.backdropTapArea} onPress={() => setAddModal(false)} />
           <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
             <Text style={styles.modalTitle}>New Quest</Text>
-            <TextInput style={styles.input} value={addName} onChangeText={setAddName}
+            <TextInput {...NAME_INPUT} style={styles.input} value={addName} onChangeText={setAddName}
               placeholder="Quest name…" placeholderTextColor={Colors.textDim} autoFocus />
             <TextInput style={[styles.input, styles.notesInput]} value={addDesc} onChangeText={setAddDesc}
               placeholder="Description (optional)…" placeholderTextColor={Colors.textDim}
@@ -870,8 +874,10 @@ function PlayerActiveView() {
   async function claim(characterId: string) {
     // assignCharacterToCampaign already pushes the entity to the DM and announces
     // the claimed character over sync, so we don't repeat those calls here.
-    await assignCharacter(characterId, campaignId);
-    setClaimOpen(false);
+    try {
+      await assignCharacter(characterId, campaignId);
+      setClaimOpen(false);
+    } catch (e) { showError('Not added', e instanceof Error ? e.message : String(e)); }
   }
 
   // Item 16 (LAN/session UX) — one tap, no retyping: the stored room code
@@ -1023,15 +1029,16 @@ function PlayerActiveView() {
             {characters.length === 0 ? (
               <Text style={styles.emptyNote}>You have no characters yet. Create one first.</Text>
             ) : (
-              characters.map(c => (
-                <Pressable key={c.id} style={styles.pickRow} onPress={() => claim(c.id)}>
+              characters.map(c => { const refusal = myChar?.id === c.id ? '' : campaignAdmission(activeCampaign, c); return (
+                <Pressable key={c.id} style={[styles.pickRow, !!refusal && { opacity: 0.5 }]} disabled={!!refusal} onPress={() => claim(c.id)}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.partyName}>{c.identity.name || 'Unnamed'}</Text>
                     <Text style={styles.partySub}>Lv {c.identity.level} · {identityLabelsFor(c).class || '—'}</Text>
+                    {!!refusal && <Text style={styles.partySub}>{refusal}</Text>}
                   </View>
                   {myChar?.id === c.id && <Text style={styles.changeLink}>✓</Text>}
                 </Pressable>
-              ))
+              ); })
             )}
             <Pressable style={styles.cancelBtn} onPress={() => setClaimOpen(false)}>
               <Text style={styles.cancelTxt}>Cancel</Text>
@@ -1148,7 +1155,7 @@ function NoCampaignView({
         <>
           <View style={[styles.nicknameRow, { alignSelf: 'stretch' }]}>
             <Text style={styles.nickLabel}>YOUR NAME</Text>
-            <TextInput style={styles.nickInput} value={nickname}
+            <TextInput {...NAME_INPUT} style={styles.nickInput} value={nickname}
               onChangeText={onNicknameChange}
               placeholder="Enter your name…" placeholderTextColor={Colors.textDim} />
           </View>

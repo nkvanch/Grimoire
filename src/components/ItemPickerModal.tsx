@@ -20,7 +20,9 @@
 //                  toward a required-equipment counter.
 import { itemsForRuleset } from '../content/itemEditions';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Modal, View, Text, Pressable, TextInput, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { ItemFilterConstraint } from '../engine/types';
 import { ItemIndexEntry } from '../content/itemRepo.types';
 import { useHomebrewStore } from '../store/homebrewStore';

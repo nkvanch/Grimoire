@@ -15,7 +15,8 @@ import { grantEntitlement } from '../../engine/entitlements';
 // Spontaneous casters: all known spells are castable; no prepared toggle.
 // ============================================================================
 import { useState, useCallback, useMemo, useRef, memo } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import { Entity, CampaignRules, ActionCard, Spell, ActivationOption, SpellCastingContext } from '../../engine/types';
 import { spellRepo } from '../../content/spellRepo';
 import { resolveSpellById } from '../../content/contentResolution';

@@ -9,12 +9,13 @@
 // resolves — every id contains 'cantrip' or it doesn't), rather than a new
 // ChoiceDefinition field, so the engine/type layer didn't need to grow.
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
 import { applySpellChoiceToEntity } from '../engine/leveling';
 import type { SpellIndexEntry } from '../content/spellRepo.types';
 import { mergeSpellIndex } from '../content/contentResolution';
-import { spellListsForClass, filterSpellsForClass, spellSourceLabel } from '../content/spellLists';
-import { candidateSpellsForChoice, hasOwnSpellPool } from '../content/spellChoiceFilter';
+import { spellListsForClass, spellSourceLabel } from '../content/spellLists';
+import { hasOwnSpellPool, spellPickerPool } from '../content/spellChoiceFilter';
 import { extraClassSpellIds } from '../engine/spellModifiers';
 import { useHomebrewStore } from '../store/homebrewStore';
 import { Entity, ChoiceState, CampaignRules } from '../engine/types';
@@ -101,29 +102,11 @@ export function SpellChoicePicker({
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
   const classSpellSource = useMemo(() => getMergedContentDB().classes.find(c => c.id === classId)?.spellListSource, [getMergedContentDB, classId]);
   const extraSpellIds = useMemo(() => extraClassSpellIds(entity, classId), [entity, classId]);
-  const classFiltered = useMemo(() => {
-    const base = filterSpellsForClass(allSpells, classId, activeSpellListId, spellLists, classSpellSource);
-    if (extraSpellIds.length === 0) return base;
-    const have = new Set(base.map(s => s.id));
-    return [...base, ...allSpells.filter(s => extraSpellIds.includes(s.id) && !have.has(s.id))];
-  }, [allSpells, classId, activeSpellListId, spellLists, classSpellSource, extraSpellIds]);
-
-  const preFilterOptions = useMemo(() => {
-    if (ownPool) {
-      return candidateSpellsForChoice(allSpells, choice.definition, { ownClassId: classId, maxCastableLevel, extraSpellIds })
-        .filter(s => !known.has(s.id));
-    }
-    return classFiltered.filter(s => {
-      if (known.has(s.id)) return false;
-      if (isCantripChoice) {
-        if (s.level !== 0) return false;
-      } else {
-        if (s.level === 0 || s.level > maxCastableLevel) return false;
-      }
-      return true;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classFiltered, isCantripChoice, maxCastableLevel, ownPool, allSpells]);
+  // The pool is one pure function (content/spellChoiceFilter.ts spellPickerPool), so the desktop app is held to the same list.
+  const preFilterOptions = useMemo(() => spellPickerPool({
+    allSpells, def: choice.definition, classId, maxCastableLevel, known, activeSpellListId, spellLists, classSource: classSpellSource, extraSpellIds,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [allSpells, choice.definition, classId, maxCastableLevel, activeSpellListId, spellLists, classSpellSource, extraSpellIds, spellcasting]);
 
   // School chips reflect only what's actually present in THIS constrained
   // pool (not every school ever) — same "don't show a filter with nothing

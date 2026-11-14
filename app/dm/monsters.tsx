@@ -2,9 +2,10 @@
 // Monster library — browse SRD monsters, preview stat blocks, spawn into encounter.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, FlatList, Pressable, StyleSheet,
-  TextInput, Modal,
+  View, Text, ScrollView, FlatList, StyleSheet,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCombatStore }   from '../../src/store/combatStore';
 import { useCharacterStore } from '../../src/store/characterStore';

@@ -1,7 +1,8 @@
 // src/components/OfficialPackImportCard.tsx
 // The confirm step of importing a first-party content pack (the SRD packs): what the pack is, what installing it does,
 // and why it cannot be installed when it cannot. Nothing is installed until the player presses the button.
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import type { OfficialPackPreview } from '../content/officialPackService';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 

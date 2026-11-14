@@ -18,7 +18,8 @@
 // This is package ASSEMBLY, not Homebrew creation: entries are made on the
 // Homebrew tab and merely picked here.
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, FlatList, ScrollView, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { View, Text, FlatList, ScrollView, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { makeHomebrewLookup } from '../../src/store/homebrewLookup';
 import { usePackageBuilderStore } from '../../src/store/packageBuilderStore';
@@ -34,6 +35,7 @@ import type { PackageMeta } from '../../src/engine/backup';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const NO_OWNERSHIP = new Map<string, { packId: string; packName: string }>();
 
@@ -212,7 +214,7 @@ export default function PackageBuilderScreen() {
       </View>
       <ScrollView contentContainerStyle={s.reviewContent}>
         <Text style={s.label}>Package name *</Text>
-        <TextInput testID="package-builder-name" style={s.input} value={name} onChangeText={v => setField('name', v)} placeholder="e.g. My Lunar Collection" placeholderTextColor={Colors.textDim} />
+        <TextInput {...NAME_INPUT} testID="package-builder-name" style={s.input} value={name} onChangeText={v => setField('name', v)} placeholder="e.g. My Lunar Collection" placeholderTextColor={Colors.textDim} />
         <View style={s.twoCol}>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>Author (optional)</Text>

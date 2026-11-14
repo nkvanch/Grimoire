@@ -7,6 +7,8 @@
 
 export interface Connection {
   readonly id: string;
+  /** True when every frame is sealed (src/session/sealed.ts). Absent on a plain connection. */
+  readonly sealed?: boolean;
   send(frame: string): void;
   onFrame(cb: (frame: string) => void): void;
   onClose(cb: () => void): void;

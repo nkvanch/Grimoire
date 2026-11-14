@@ -16,7 +16,7 @@
 // resolving their first pending choice is a reasonable, honest bit of
 // onboarding in itself, not a gap to paper over.
 import { Entity, CampaignRules } from './types';
-import { makeEmptyEntity } from '../store/characterStore';
+import { makeEmptyEntity } from './defaults';
 import { applyGrant, levelUp, resolveChoice } from './leveling';
 import { recomputeDerived } from './pipeline';
 import { getOfficialContentProvider } from '../content/officialSource';

@@ -3,7 +3,9 @@
 // is a set of homebrew Features tagged with `rewardTrack`; granting a higher tier REPLACES the lower
 // ones (engine/rewardTracks.ts), so nothing stacks and no level-up or respec is involved.
 import { useMemo } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Feature } from '../../engine/types';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { grantRewardTier, currentRewardTier, rewardTiers } from '../../engine/rewardTracks';

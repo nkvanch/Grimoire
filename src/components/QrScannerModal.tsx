@@ -6,7 +6,9 @@
 // do with it (legacy sync port vs. session port).
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Colors, Radius, FontWeight } from '../theme';
 

@@ -3,8 +3,10 @@
 import { gridProps, withGridCell } from '../../src/components/GridCell';
 import { useListColumns, useLayout } from '../../src/platform/layout';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
+import { RecordIcon } from '../../src/components/RecordPicture';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ScrollView, Platform } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useCampaignStore } from '../../src/store/campaignStore';
@@ -39,6 +41,7 @@ function CharacterCard({
         ? ({ onContextMenu: (e: { preventDefault?: () => void }) => { e.preventDefault?.(); onLongPress(); } } as object)
         : {})}
     >
+      <RecordIcon record={{ imageUri: identity.portraitUri }} size={44} />
       <View style={styles.cardMain}>
         <Text style={styles.cardName}>{identity.name || 'Unnamed'}</Text>
         <Text style={styles.cardSub}>

@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, ActionCard, ActivationOption } from '../../engine/types';
 import { legalSpellPaymentOptions, SpellPaymentOption } from '../../engine/spellPayment';
 

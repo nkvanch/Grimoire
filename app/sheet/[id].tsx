@@ -2,8 +2,11 @@
 // Character sheet — 6-tab sheet with persistent rest bar.
 // All values read from entity.derived — never computed in components.
 import { useLayout } from '../../src/platform/layout';
+import { asksForDamageType, CHOOSE_DAMAGE_TYPE } from '../../src/engine/infusionRules';
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useLocalSearchParams } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useCustomRuleProfileStore } from '../../src/store/customRuleProfileStore';
@@ -12,6 +15,15 @@ import { freeEditUiModel } from '../../src/components/sheet/sheetUiModel';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useLastCharacterStore } from '../../src/store/lastCharacterStore';
 import { Alert } from '../../src/utils/alert';
+import { STEP_OPERATIONS, versionNotes, pinToInstalled } from '../../src/store/pinningService';
+import { VersionsModal } from '../../src/components/sheet/VersionsModal';
+import { RenameModal } from '../../src/components/sheet/RenameModal';
+import { CharacterInfoModal } from '../../src/components/sheet/CharacterInfoModal';
+import { RecordIcon } from '../../src/components/RecordPicture';
+import { setFeatureMode } from '../../src/engine/featureModes';
+import { characterInfoRows } from '../../src/content/characterInfo';
+import { ItemCustomizeModal } from '../../src/components/sheet/ItemCustomizeModal';
+import { customizedItem, moveOwnedItem, type ItemEdits } from '../../src/engine/itemCustomize';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { useSessionStore }  from '../../src/store/sessionStore';
 import { useCombatTurnStore } from '../../src/store/combatTurnStore';
@@ -25,7 +37,7 @@ import { commitSpellPayment, restoreSpellSlot, SpellPaymentOption } from '../../
 import { captureLoadout, applyLoadout, deleteLoadout } from '../../src/engine/loadout';
 import { simulate } from '../../src/engine/simulate';
 import { validateEntity } from '../../src/engine/validation';
-import { Entity, ItemInstance, DurationTracker, Issue } from '../../src/engine/types';
+import { Entity, Item, ItemInstance, DurationTracker, Issue } from '../../src/engine/types';
 import { itemRepo } from '../../src/content/itemRepo';
 import { spellRepo } from '../../src/content/spellRepo';
 import { spellIdsOnEntity } from '../../src/content/spellRepo.types';
@@ -162,14 +174,10 @@ export default function CharacterSheetScreen() {
   useEffect(()=>{ if(!freeEditAllowed)setFreeEditOpen(false); },[freeEditAllowed]);
 
   // Build tab list: Spells tab is inserted after Actions for spellcasters.
-  // Also show it for Skeleton characters (Doomed Touch grants chill touch) even
-  // if their spellcasting block hasn't been initialised yet — the tab provides
-  // the repair action that initialises it.
-  const isSkeletonChar =
-    entity?.identity.raceId    === 'skeleton' ||
-    entity?.identity.subRaceId === 'skeleton_giant' ||
-    !!entity?.features.some(f => f.id === 'skeleton_doomed_touch');
-  const showSpellsTab = !!entity?.spellcasting || isSkeletonChar;
+  // Also show it for a character whose features grant a spell (a species' innate cantrip, e.g. a Skeleton's Doomed Touch)
+  // even if the spellcasting block hasn't been initialised yet: the tab provides the repair action that initialises it.
+  const grantsASpell = !!entity?.features.some(f => f.effects?.some(e => e.type === 'grant_spell'));
+  const showSpellsTab = !!entity?.spellcasting || grantsASpell;
   const TABS: { id: TabId; label: string }[] = showSpellsTab
     ? [BASE_TABS[0], BASE_TABS[1], SPELLS_TAB, ...BASE_TABS.slice(2)]
     : BASE_TABS;
@@ -190,13 +198,60 @@ export default function CharacterSheetScreen() {
     return { classDefs: db.classes, homebrewSpells: db.spells, races: db.races, items: db.items };
   }, [entity?.rulesetId, getMergedContentDB]);
 
-  const mutate = useCallback((updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory) => {
+  // `operations`: the automatic dnd5e operations the step runs (STEP_OPERATIONS); a pinned character whose versions cannot run them is left
+  // unchanged and told why (LIFE-004). A step that passes none (free edit, typing a note) is never refused.
+  const mutate = useCallback((updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory, operations?: readonly string[]) => {
     if (!id) return;
-    updateCharacter(id, e => {
+    const refusal = updateCharacter(id, e => {
       const updated = updater(e);
       return recomputeDerived(updated, rules, cardContent);
-    }, label, category);
+    }, label, category, operations);
+    if (refusal) Alert.alert('Not done', refusal);
   }, [id, updateCharacter, rules, cardContent]);
+
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  // built only while the page is open
+  const infoRows = useMemo(() => (entity && infoOpen ? characterInfoRows(entity, getMergedContentDB(entity.rulesetId), homebrewSubclasses) : []),
+    [entity, infoOpen, getMergedContentDB, homebrewSubclasses]);
+  // theirs is changed in place; then this owned copy is moved onto it, keeping its spent uses.
+  const [customizing, setCustomizing] = useState<{ instanceId: string; item: Item; makesCopy: boolean } | null>(null);
+  const saveHomebrewItem = useHomebrewStore(s => s.saveItem);
+  const handleCustomizeItem = useCallback(async (instance: ItemInstance) => {
+    await itemRepo.ensureLoaded([instance.itemId]);
+    const official = itemRepo.getItemSync(instance.itemId);
+    const item = official ?? homebrewItems.find(i => i.id === instance.itemId);
+    if (!item || !instance.id) { Alert.alert('Not available', 'This item could not be found, so it cannot be customised.'); return; }
+    setCustomizing({ instanceId: instance.id, item, makesCopy: !!official });
+  }, [homebrewItems]);
+  const saveCustomizedItem = useCallback(async (edits: ItemEdits) => {
+    if (!customizing) return;
+    const { instanceId, item, makesCopy } = customizing;
+    const id = makesCopy ? `${item.id}_custom_${Date.now().toString(36)}` : item.id;
+    const mine = customizedItem(item, edits, id);
+    try {
+      await saveHomebrewItem('item', mine);
+    } catch (e: any) {
+      Alert.alert('Not saved', `The item could not be saved: ${e?.message ?? e}`);
+      return;
+    }
+    mutate(e => moveOwnedItem(e, instanceId, item, mine), `Customised ${mine.name}`, 'inventory');
+    setCustomizing(null);
+  }, [customizing, saveHomebrewItem, mutate]);
+  const handleRename = useCallback((name: string) => mutate(e => ({ ...e, identity: { ...e.identity, name } }), `Renamed to ${name}`, 'other'), [mutate]);
+  const handlePortrait = useCallback((portraitUri: string | undefined) => mutate(e => {
+    const { portraitUri: _old, ...identity } = e.identity;
+    return { ...e, identity: portraitUri ? { ...identity, portraitUri } : identity };
+  }, portraitUri ? 'Portrait set' : 'Portrait removed', 'other'), [mutate]);
+  // read only while the menu or the panel is open: resolving the lock checks every kept revision
+  const versions = useMemo(() => (entity && (headerMenuOpen || versionsOpen) ? versionNotes(entity) : null), [entity, headerMenuOpen, versionsOpen]);
+  const handlePinToInstalled = useCallback(() => {
+    if (!entity) return;
+    let pinned: Entity;
+    try { pinned = pinToInstalled(entity); } catch (e: any) { Alert.alert('Not done', `The versions could not be kept: ${e?.message ?? e}`); return; }
+    mutate(() => pinned, 'Versions pinned', 'other');
+  }, [entity, mutate]);
 
   // ── Handlers (all pure engine calls → mutate) ─────────────────────────────
 
@@ -214,14 +269,15 @@ export default function CharacterSheetScreen() {
     // HpModal (TabCharacter.tsx) — never stored persistently on the entity.
     mutate(e => e.wildShapeState?.active
       ? applyWildShapeDamage(e, amount, rules, damageType, isNonmagicalAttack)
-      : applyDamage(e, amount, rules, damageType), `Took ${amount}${damageType ? ` ${damageType}` : ''} damage`, 'combat');
-  }, [mutate, rules]);
+      : applyDamage(e, amount, rules, damageType), `Took ${amount}${damageType ? ` ${damageType}` : ''} damage`, 'combat',
+      entity?.wildShapeState?.active ? STEP_OPERATIONS.wildShapeDamage : STEP_OPERATIONS.damage);
+  }, [mutate, rules, entity?.wildShapeState?.active]);
 
   const handleHeal = useCallback((amount: number) => {
     // Per the book rule, healing has no effect on a Wild Shape beast form's
     // hit points — no-op while transformed, rather than incorrectly healing
     // the player's real HP underneath (which isn't the pool being damaged).
-    mutate(e => e.wildShapeState?.active ? e : applyHealing(e, amount, rules), `Healed ${amount}`, 'combat');
+    mutate(e => e.wildShapeState?.active ? e : applyHealing(e, amount, rules), `Healed ${amount}`, 'combat', STEP_OPERATIONS.heal);
   }, [mutate, rules]);
 
   const handleAddCondition = useCallback((condId: string, duration: DurationTracker | null) => {
@@ -230,11 +286,11 @@ export default function CharacterSheetScreen() {
     // Grappled sets speed to 0 in the pipeline) — audit findings CONTENT-8
     // / KNOWN_CONDITIONS-1.
     const condContent = getMergedContentDB(entity?.rulesetId).conditions.find(c => c.id === condId);
-    mutate(e => applyCondition(e, condId, 'manual', rules, condContent?.features, duration), `Added condition: ${condContent?.name ?? condId}`, 'combat');
+    mutate(e => applyCondition(e, condId, 'manual', rules, condContent?.features, duration), `Added condition: ${condContent?.name ?? condId}`, 'combat', STEP_OPERATIONS.conditions);
   }, [mutate, rules, getMergedContentDB, entity?.rulesetId]);
 
   const handleRemoveCondition = useCallback((condId: string) => {
-    mutate(e => removeCondition(e, condId, rules), `Removed condition: ${getMergedContentDB(entity?.rulesetId).conditions.find(c => c.id === condId)?.name ?? condId}`, 'combat');
+    mutate(e => removeCondition(e, condId, rules), `Removed condition: ${getMergedContentDB(entity?.rulesetId).conditions.find(c => c.id === condId)?.name ?? condId}`, 'combat', STEP_OPERATIONS.conditions);
   }, [mutate, rules, getMergedContentDB, entity?.rulesetId]);
 
   const handleResourceChange = useCallback((resourceId: string, delta: number) => {
@@ -261,7 +317,7 @@ export default function CharacterSheetScreen() {
     mutate(e => {
       if (!e.spellcasting) return e;
       return commitSpellPayment(e, { kind, tier: tier as import('../../src/engine/spellPayment').SlotTier });
-    }, `Spent level ${tier} spell slot`, 'spells');
+    }, `Spent level ${tier} spell slot`, 'spells', STEP_OPERATIONS.spellSlots);
   }, [mutate]);
 
   const handleRestoreSlot = useCallback((tier: string, kind: SpellPaymentOption['kind'] = 'normal') => {
@@ -270,7 +326,7 @@ export default function CharacterSheetScreen() {
       const slots = restoreSpellSlot(e.spellcasting, { kind, tier: tier as import('../../src/engine/spellPayment').SlotTier });
       if (slots === e.spellcasting) return e;
       return { ...e, spellcasting: slots };
-    }, `Restored level ${tier} spell slot`, 'spells');
+    }, `Restored level ${tier} spell slot`, 'spells', STEP_OPERATIONS.spellSlots);
   }, [mutate]);
 
   // Manual End Concentration — the ONE handler both the Character and Spells
@@ -316,7 +372,7 @@ export default function CharacterSheetScreen() {
 
   const confirmEquipPreview = useCallback(() => {
     if (!equipPreview) return;
-    mutate(() => equipPreview.after, `${equipPreview.kind === 'equip' ? 'Equipped' : 'Unequipped'} ${equipPreview.itemName}`, 'inventory');
+    mutate(() => equipPreview.after, `${equipPreview.kind === 'equip' ? 'Equipped' : 'Unequipped'} ${equipPreview.itemName}`, 'inventory', STEP_OPERATIONS.equipment);
     setEquipPreview(null);
   }, [mutate, equipPreview]);
 
@@ -333,8 +389,13 @@ export default function CharacterSheetScreen() {
   // check itself lives in toggleAttunement() (a no-op past the cap); the UI
   // (TabInventory) checks countAttuned()/attunementCap() itself first so it
   // can show an explanatory Alert instead of a silent no-op.
-  const handleToggleAttune = useCallback((itemId: string, instanceId?: string) => {
-    mutate(e => toggleAttunement(e, itemId, instanceId), `Toggled attunement: ${itemName(itemId)}`, 'inventory');
+  // a feature's mode (engine/featureModes.ts): one Undo-able step, named after the mode
+  const handleSetMode = useCallback((key: string, modeId: string, label: string) => {
+    mutate(e => setFeatureMode(e, key, modeId), `Mode: ${label}`, 'inventory');
+  }, [mutate]);
+
+  const handleToggleAttune = useCallback((itemId: string, instanceId?: string, overrule?: boolean) => {
+    mutate(e => toggleAttunement(e, itemId, instanceId, overrule), `Toggled attunement: ${itemName(itemId)}${overrule ? ' (overruled)' : ''}`, 'inventory', STEP_OPERATIONS.equipment);
   }, [mutate, itemName]);
 
   // Item 13 (loadouts) — save/apply/delete a named (equipped items,
@@ -371,7 +432,7 @@ export default function CharacterSheetScreen() {
     Alert.alert(`Apply "${loadout.name}"?`, summary || 'No changes.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Apply', onPress: () => {
-        mutate(e => applyLoadout(e, loadout, itemDefs, rules), `Applied loadout: ${loadout.name}`, 'inventory');
+        mutate(e => applyLoadout(e, loadout, itemDefs, rules), `Applied loadout: ${loadout.name}`, 'inventory', STEP_OPERATIONS.equipment);
       } },
     ]);
   }, [entity, homebrewItems, itemName, mutate, rules]);
@@ -488,11 +549,11 @@ export default function CharacterSheetScreen() {
 
       // player's chosen damage type before the feature is appended.
       let feature = infusion.feature;
-      if (feature && infusion.id === 'resistant_armor' && damageType) {
+      if (feature && asksForDamageType(feature) && damageType) {
         feature = {
           ...feature,
           effects: feature.effects.map(eff =>
-            eff.target === '__CHOOSE_DAMAGE_TYPE__' ? { ...eff, target: damageType } : eff
+            eff.target === CHOOSE_DAMAGE_TYPE ? { ...eff, target: damageType } : eff
           ),
         };
       }
@@ -534,7 +595,8 @@ export default function CharacterSheetScreen() {
   // straight through to the SAME buildRestMutation the preview already
   // simulated against, so what Confirm applies is exactly what was shown.
   const handleRest = useCallback((kind: 'short' | 'long', hitDiceAllocation?: import('../../src/engine/rest').HitDiceRecoveryAllocation) => {
-    mutate(buildRestMutation(kind, rules, hitDiceAllocation), kind === 'short' ? 'Short Rest' : 'Long Rest', 'rest');
+    mutate(buildRestMutation(kind, rules, hitDiceAllocation), kind === 'short' ? 'Short Rest' : 'Long Rest', 'rest',
+      kind === 'short' ? STEP_OPERATIONS.shortRest : STEP_OPERATIONS.longRest);
   }, [mutate, rules]);
 
   const [restPreview, setRestPreview] = useState<'short' | 'long' | null>(null);
@@ -562,7 +624,7 @@ export default function CharacterSheetScreen() {
   // 'Used action card', 'End Turn' — and 2 different categories for the
   // exact same mutation). One call site means one label/category/sync/undo
   // behavior, guaranteed identical regardless of which tab it's pressed from.
-  const handleEndTurn = useCallback(() => mutate(e => playerEndTurn(e, rules), 'End Turn', 'combat'), [mutate, rules]);
+  const handleEndTurn = useCallback(() => mutate(e => playerEndTurn(e, rules), 'End Turn', 'combat', STEP_OPERATIONS.endTurn), [mutate, rules]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -709,6 +771,7 @@ export default function CharacterSheetScreen() {
               campaignId={campaignId}
               deviceId={deviceId}
               onEntityUpdate={onAbilitiesEntityUpdate}
+              canSetTotals={freeEditAllowed}
             />
           )}
           {tabId === 'features' && (
@@ -732,9 +795,11 @@ export default function CharacterSheetScreen() {
               onApplyInfusion={handleApplyInfusion}
               onRemoveInfusion={handleRemoveInfusion}
               onToggleAttune={handleToggleAttune}
+              onSetMode={handleSetMode}
               onSaveLoadout={handleSaveLoadout}
               onApplyLoadout={(...args) => { void handleApplyLoadout(...args); }}
               onDeleteLoadout={handleDeleteLoadout}
+              onCustomizeItem={(inst) => { void handleCustomizeItem(inst); }}
             />
           )}
           {tabId === 'notes' && (
@@ -752,16 +817,21 @@ export default function CharacterSheetScreen() {
           <Pressable style={styles.backBtn} onPress={goBack}>
             <Text style={styles.backTxt}>← Back</Text>
           </Pressable>
-          <Text style={styles.charName} numberOfLines={1} ellipsizeMode="tail">{identity.name || 'Unnamed'}</Text>
+          <RecordIcon record={{ imageUri: identity.portraitUri }} size={32} />
+          <Pressable style={styles.charNameBtn} onPress={() => setRenameOpen(true)} accessibilityRole="button" accessibilityLabel={`Rename ${identity.name || 'character'}`} accessibilityHint="Opens a box to change the character's name">
+            <Text style={styles.charName} numberOfLines={1} ellipsizeMode="tail">{identity.name || 'Unnamed'}</Text>
+          </Pressable>
           <SyncStatusDot />
           <Pressable accessibilityRole="button" testID="character-undo" accessibilityLabel="Undo" style={styles.headerIconBtn} disabled={undoStack[0]?.entityId !== id} onPress={undo}><Text style={[styles.headerIcon,undoStack[0]?.entityId!==id&&styles.undoRedoTxtDisabled]}>↶</Text></Pressable>
           <Pressable accessibilityRole="button" testID="character-redo" accessibilityLabel="Redo" style={styles.headerIconBtn} disabled={redoStack[0]?.entityId !== id} onPress={redo}><Text style={[styles.headerIcon,redoStack[0]?.entityId!==id&&styles.undoRedoTxtDisabled]}>↷</Text></Pressable>
           <Pressable accessibilityRole="button" testID="character-more" accessibilityLabel="More character actions" style={styles.headerIconBtn} onPress={()=>setHeaderMenuOpen(true)}><Text style={styles.headerIcon}>⋮</Text></Pressable>
         </View>
         <View style={styles.headerStats}>
-          <Text style={styles.charSub}>
-            Lv {identity.level}  ·  {(entity ? identityLabelsFor(entity).class : '') || identity.classId || '—'}
-          </Text>
+          <Pressable onPress={() => setInfoOpen(true)} style={styles.charSubBtn} accessibilityRole="button" accessibilityLabel="Character info" accessibilityHint="Shows class, subclass, species, background and feats">
+            <Text style={styles.charSub}>
+              Lv {identity.level}  ·  {(entity ? identityLabelsFor(entity).class : '') || identity.classId || '—'}  ⓘ
+            </Text>
+          </Pressable>
           <View style={styles.statPills}>
             {/* HP */}
             <View style={[styles.statPill, { borderColor: hpColor + '88' }]}>
@@ -795,9 +865,12 @@ export default function CharacterSheetScreen() {
       </View>
 
       <Modal visible={headerMenuOpen} transparent animationType="fade" onRequestClose={()=>setHeaderMenuOpen(false)}><Pressable style={styles.menuBackdrop} onPress={()=>setHeaderMenuOpen(false)}><View style={styles.headerMenu}>
+        <MenuAction icon="ⓘ" label="Character info" onPress={()=>{setHeaderMenuOpen(false);setInfoOpen(true)}} />
+        <MenuAction icon="✎" label="Rename" onPress={()=>{setHeaderMenuOpen(false);setRenameOpen(true)}} />
         <MenuAction icon="🕘" label="History" onPress={()=>{setHeaderMenuOpen(false);setHistoryOpen(true)}} />
         <MenuAction icon="🌐" label="Rules" onPress={()=>{setHeaderMenuOpen(false);setRulesetChangeOpen(true)}} />
         <MenuAction icon={freeEditAllowed?'✎':'🔒'} label={freeEditAllowed?'Free Edit':'Free Edit locked'} disabled={!freeEditAllowed} onPress={()=>{setHeaderMenuOpen(false);setFreeEditOpen(true)}} />
+        <MenuAction icon={versions?.differences.length ? '⚠️' : '📌'} label={versions?.differences.length ? `Versions (${versions.differences.length})` : 'Versions'} onPress={()=>{setHeaderMenuOpen(false);setVersionsOpen(true)}} />
         <MenuAction icon="📤" label="Export Character" disabled={exporting} onPress={()=>{setHeaderMenuOpen(false);setExportSheetOpen(true)}} />
         {issues.length>0&&<MenuAction icon={issues.some(i=>i.severity==='error')?'⛔':'⚠️'} label={`Diagnostics (${issues.length})`} onPress={()=>{setHeaderMenuOpen(false);setIssuesOpen(true)}} />}
       </View></Pressable></Modal>
@@ -926,6 +999,19 @@ export default function CharacterSheetScreen() {
         />
       )}
 
+      <ItemCustomizeModal
+        visible={!!customizing}
+        item={customizing?.item ?? null}
+        makesCopy={customizing?.makesCopy ?? true}
+        onSave={(edits) => { void saveCustomizedItem(edits); }}
+        onClose={() => setCustomizing(null)}
+      />
+      <CharacterInfoModal visible={infoOpen} name={identity.name || ''} rows={infoRows} onClose={() => setInfoOpen(false)}
+        portraitUri={identity.portraitUri} onPortrait={handlePortrait} />
+      <RenameModal visible={renameOpen} name={identity.name || ''} onSave={handleRename} onClose={() => setRenameOpen(false)} />
+
+      {versions && <VersionsModal visible={versionsOpen} notes={versions} onPin={handlePinToInstalled} onClose={() => setVersionsOpen(false)} />}
+
       {issuesOpen && (
         <IssuesModal
           visible={issuesOpen}
@@ -1002,7 +1088,8 @@ const styles = StyleSheet.create({
   },
   backBtn:  { paddingRight: Spacing.xs },
   backTxt:  { color: Colors.gold, fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  charName: { flex: 1, flexShrink: 1, fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  charNameBtn: { flex: 1, flexShrink: 1, minHeight: 44, justifyContent: 'center' },
+  charName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   freeEditBtn: {
     flexShrink: 0,
     backgroundColor: Colors.gold + '22', borderRadius: Radius.full,
@@ -1018,6 +1105,7 @@ const styles = StyleSheet.create({
   menuItemDisabled:{opacity:0.45},menuIcon:{fontSize:18,width:24,textAlign:'center'},menuLabel:{fontSize:FontSize.sm,color:Colors.textPrimary,fontWeight:FontWeight.bold},
   undoRedoTxtDisabled: { color: Colors.textDim },
   charSub:  { fontSize: FontSize.xs, color: Colors.textSecondary },
+  charSubBtn: { minHeight: 44, justifyContent: 'center' },
 
   statPills: { flexDirection: 'row', gap: Spacing.xs },
   statPill: {

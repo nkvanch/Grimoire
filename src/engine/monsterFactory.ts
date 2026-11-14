@@ -7,10 +7,10 @@
 // ============================================================================
 import { Entity, CampaignRules, SkillName, PreparedCombatantHpMode, ResourceGrant } from './types';
 import { MonsterTemplate } from '../content/monsters/types';
-import { makeEmptyEntity }  from '../store/characterStore';
+import { makeEmptyEntity }  from './defaults';
 import { recomputeDerived, modifier } from './pipeline';
 import { rollExpression }   from './dice';
-import { DEFAULT_RULES }    from '../store/characterStore';
+import { DEFAULT_RULES }    from './defaults';
 import { applyGrant }       from './leveling';
 import { resolveFeatureRechargeTag } from './combat';
 

@@ -3,7 +3,8 @@
 // Campaign Settings (table house rules) are accessible here as a card —
 // they live in Character Basics, not as a step in the creation flow.
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore, makeEmptyEntity } from '../../src/store/characterStore';
 import { RulesetId } from '../../src/engine/types';
@@ -11,6 +12,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { RulesSourcePicker, RulesChoice, rulesChoiceFromDraft } from '../../src/components/RulesSourcePicker';
 import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const LEVEL_OPTIONS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
 
@@ -102,7 +104,7 @@ export default function NameScreen() {
 
         {/* Name */}
         <Text style={styles.label}>Character Name</Text>
-        <TextInput
+        <TextInput {...NAME_INPUT}
           style={styles.input}
           placeholder="Enter name…"
           placeholderTextColor={Colors.textDim}

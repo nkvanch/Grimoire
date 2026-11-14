@@ -216,6 +216,20 @@ export const CREATE_SESSION_DOCS_TABLE = `
   );
 `;
 
+// Revision pinning (contract LIFE-004; the desktop app's table of the same name): the text of every definition a character was pinned to, under
+// the hash of that text. Immutable: a kept revision is never changed or deleted (the triggers refuse both), so a pinned character can always be
+// resolved as it was. Additive: an existing database simply gains the table.
+export const CREATE_DEFINITION_REVISIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS definition_revisions (
+    key  TEXT PRIMARY KEY NOT NULL,
+    text TEXT NOT NULL
+  );
+  CREATE TRIGGER IF NOT EXISTS definition_revisions_no_update BEFORE UPDATE ON definition_revisions
+    BEGIN SELECT RAISE(ABORT, 'a kept revision is never changed'); END;
+  CREATE TRIGGER IF NOT EXISTS definition_revisions_no_delete BEFORE DELETE ON definition_revisions
+    BEGIN SELECT RAISE(ABORT, 'a kept revision is never deleted'); END;
+`;
+
 // Indexes for common query patterns
 export const CREATE_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_entities_kind     ON entities    (kind);
@@ -228,6 +242,7 @@ export const CREATE_INDEXES = `
 `;
 
 export const ALL_TABLES = [
+  CREATE_DEFINITION_REVISIONS_TABLE,
   CREATE_ENTITIES_TABLE,
   CREATE_CAMPAIGNS_TABLE,
   CREATE_SYNC_EVENTS_TABLE,

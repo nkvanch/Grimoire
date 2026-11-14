@@ -9,7 +9,8 @@
 // Migrating the 3 existing inline instances onto this is a separate,
 // deliberately out-of-scope cleanup — not required for this consumer.
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
 interface Props<T extends { id: string; name: string }> {

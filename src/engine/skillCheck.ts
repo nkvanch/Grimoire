@@ -11,7 +11,7 @@
 // Advantage and disadvantage from different sources cancel to a straight roll, as they do on the table.
 // ============================================================================
 import type { Entity, SkillName, Ability, AdvantageState } from './types';
-import { modifier, collectAllEffects, applyStatModifiers, applyAbilitySubstitutions } from './pipeline';
+import { modifier, collectAllEffects, effectiveAbilityScores, applyAbilitySubstitutions } from './pipeline';
 
 export type SkillCheck = {
   bonus:       number;
@@ -24,7 +24,8 @@ export type SkillCheck = {
 
 export function skillCheckBonus(entity: Entity, skill: SkillName, ability: Ability): number {
   const effects = collectAllEffects(entity);
-  const stats = applyAbilitySubstitutions(applyStatModifiers(entity.stats, effects), effects, 'ability_checks');
+  // the scores the passive checks use too: effects, then the character's and the DM's own overrides
+  const stats = applyAbilitySubstitutions(effectiveAbilityScores(entity), effects, 'ability_checks');
   const entry = entity.skills.skills[skill];
   const prof = entry?.expertise ? 2 : entry?.trained ? 1 : 0;
   // Bonuses effects give to this one skill (target 'skill.<name>'), the same ones the passive scores already include.
@@ -48,4 +49,21 @@ export function skillCheck(entity: Entity, skill: SkillName, ability: Ability): 
   const { state, sources } = skillCheckAdvantage(entity, skill, ability);
   const dice = state === 'advantage' ? '2d20kh1' : state === 'disadvantage' ? '2d20kl1' : '1d20';
   return { bonus, state, sources, expression: `${dice}${bonus >= 0 ? '+' : ''}${bonus}` };
+}
+
+/**
+ * What made the character proficient in `skill`, in words for a list: the species, background or class by name, or the feat or
+ * other feature that grants it. null when nothing on the character grants it (a skill picked in a choice that is still open).
+ */
+export function skillProficiencySource(
+  entity: Entity, skill: SkillName, names: { race: string; subrace: string | null; background: string; class: string },
+): string | null {
+  const f = entity.features.find(x => x.effects.some(e => e.type === 'grant_proficiency' && e.target === `skill:${skill}`));
+  if (!f) return null;
+  switch (f.source.kind) {
+    case 'race':       return f.source.refId === entity.identity.subRaceId && names.subrace ? names.subrace : names.race;
+    case 'background': return names.background;
+    case 'class': case 'subclass': return names.class;
+    default:           return f.name;
+  }
 }

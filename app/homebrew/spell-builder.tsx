@@ -4,9 +4,10 @@
 // checkboxes instead of comma-separated text, and spell-type tagging.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -18,6 +19,8 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { PickOrCustom } from '../../src/components/homebrew/PickOrCustom';
 import { simulate } from '../../src/engine/simulate';
@@ -28,8 +31,12 @@ import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/sto
 import { disambiguateId } from '../../src/content/traitCompiler';
 import { FULL_SPELL_LIBRARY } from '../../src/content/spells/index';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { compileSpellFields } from '../../src/content/homebrewCompile';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { tiersFromDraft, draftFromTiers, CantripTierDraft } from '../../src/engine/cantripScaling';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const LEVELS  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const SCHOOLS = ['Abjuration','Conjuration','Divination','Enchantment','Evocation','Illusion','Necromancy','Transmutation'];
@@ -72,6 +79,7 @@ export default function SpellBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name,        setName]        = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [level,       setLevel]       = useState<number>(0);
   const [school,      setSchool]      = useState('Evocation');
@@ -94,6 +102,7 @@ export default function SpellBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setLevel(editing.level);
@@ -128,23 +137,10 @@ export default function SpellBuilderScreen() {
       ...FULL_SPELL_LIBRARY.map(s => s.id),
       ...spells.filter(s => s.id !== editing?.id).map(s => s.id),
     ]);
-    return mergeHomebrewDefinition(editing, {
-      id:            editing?.id ?? disambiguateId(toId(name) || 'homebrew_spell', takenSpellIds),
-      name:          name.trim(), origin: cleanOrigin(origin),
-      level,
-      school:        school.trim(),
-      castingTime:   castingTime.trim(),
-      range:         range.trim(),
-      components:    Array.from(components),
-      duration:      duration.trim(),
-      description:   description.trim(),
-      upcast:        upcast.trim() || null,
-      cantripScaling: level === 0 && tiersFromDraft(tiers).length > 0 ? tiersFromDraft(tiers) : undefined,
-      ritual,
-      concentration,
-      spellType:     spellTypes.length > 0 ? spellTypes : undefined,
-      rulesetId,
-    });
+    return withPictures(pictures, mergeHomebrewDefinition(editing, compileSpellFields({
+      name, origin, level, school, castingTime, range, components: Array.from(components), duration, description, upcast, tiers,
+      ritual, concentration, spellTypes, rulesetId,
+    }, editing?.id ?? disambiguateId(toId(name) || 'homebrew_spell', takenSpellIds))));
   }
 
   // Item 18 (homebrew improvements — expanded test bench): the last of the
@@ -216,6 +212,7 @@ export default function SpellBuilderScreen() {
       // no entitlement consumed), so it must never be confused with the
       // Required consumer's eligibility-gated add.
       usePendingSelectionStore.getState().setPending('spell_picker_additional', spell.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[spell-builder] save failed:', e);
@@ -224,6 +221,10 @@ export default function SpellBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildSpell(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -236,8 +237,9 @@ export default function SpellBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Field label="Name *">
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
             placeholder="Spell name" placeholderTextColor={Colors.textDim} />
         </Field>
 

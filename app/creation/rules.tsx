@@ -15,7 +15,8 @@
 // registry the rest of this screen uses), so they're rendered as their own
 // accordion sections with bespoke controls, same visual language as before.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
 import { useCampaignStore } from '../../src/store/campaignStore';

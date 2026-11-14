@@ -29,8 +29,8 @@
 //                            taps "Remove Pack" — which saved characters
 //                            reference this pack's content right now.
 import { Entity, Issue, PreparedEncounter } from './types';
-import { InstalledPack, PackItemRef } from '../db/packRegistryRepo';
-import { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
+import { InstalledPack, PackItemRef } from './contentRecords';
+import { ContentCacheType, HomebrewContent } from './contentRecords';
 import { getClassLevels } from './multiclass';
 import { spellIdsOnEntity } from '../content/spellRepo.types';
 import { collectContentDependencies } from './contentDependencies';

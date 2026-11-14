@@ -15,15 +15,15 @@
 // item. Nothing regresses: official subclasses are equally unselectable today.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { DraftTrait, HomebrewSubclass, LevelEntry, Grant, Entity, asSubclassId, RulesetId, Feature, ResourceGrant } from '../../src/engine/types';
 import {
-  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice,
+  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice, CHOICE_KIND_LABELS, summarizeDraftChoice,
 } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
@@ -31,6 +31,8 @@ import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPick
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { classResourceChoices, poolChoicesBefore } from '../../src/content/classes/knownResources';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal } from '../../src/components/homebrew/TraitEditor';
@@ -46,6 +48,9 @@ import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/sto
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { hydrateLeveledChoices, mergeSubclassEntries, LeveledLosslessDraftChoice, SubclassFeatureEdit } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 // Re-audit A05: originalFeature carries the compiled Feature this DraftTrait
 // was hydrated from (edit mode only — undefined for a freshly-added
@@ -109,6 +114,7 @@ export default function SubclassBuilderScreen() {
   const [parentSearch, setParentSearch] = useState('');
   const [classId, setClassId] = useState<string | null>(classIdParam ?? null);
   const [name, setName] = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [levelFeatures, setLevelFeatures] = useState<LevelFeature[]>([]);
   // Re-audit A05: which feature localIds the user has actually opened and
@@ -140,6 +146,7 @@ export default function SubclassBuilderScreen() {
     if (!editing) return;
     setClassId(editing.classId);
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     setLevelFeatures(draftFeaturesFromEntries(editing.entries));
@@ -234,8 +241,9 @@ export default function SubclassBuilderScreen() {
         featureEdits.push({ level, originalFeatureId: f.originalFeature?.id, grants });
       }
     }
-    const entries = mergeSubclassEntries(editing?.entries, featureEdits, levelChoicesList, hpDie, subclassId);
-    return mergeHomebrewDefinition(editing, { id: asSubclassId(subclassId), name: name.trim(), origin: cleanOrigin(origin), classId, entries, rulesetId });
+    const entries = mergeSubclassEntries(editing?.entries, featureEdits, levelChoicesList, hpDie, subclassId,
+      { sourceKind: 'subclass', sourceRefId: subclassId, ...(classId ? { classId } : {}) });
+    return withPictures(pictures, mergeHomebrewDefinition(editing, { id: asSubclassId(subclassId), name: name.trim(), origin: cleanOrigin(origin), classId, entries, rulesetId }));
   }
 
   // Read-only test: apply EVERY authored level's grants to a disposable
@@ -292,6 +300,7 @@ export default function SubclassBuilderScreen() {
       // SAVE-AND-ADD-1: tell subclass.tsx's picker which subclass to
       // auto-select on return. No-op for any other caller.
       usePendingSelectionStore.getState().setPending('subclass_picker', subclass.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[subclass-builder] save failed:', e);
@@ -303,6 +312,10 @@ export default function SubclassBuilderScreen() {
 
   const canSave = !!name.trim() && !!classId && !saving;
   const canTest = !!name.trim() && !!classId;
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildHomebrewSubclass(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -346,8 +359,9 @@ export default function SubclassBuilderScreen() {
           </>
         )}
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Text style={[styles.fieldLabel, { marginTop: Spacing.md }]}>Subclass Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Way of the Storm" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />
@@ -392,7 +406,7 @@ export default function SubclassBuilderScreen() {
             placeholder="Lv"
             placeholderTextColor={Colors.textDim}
           />
-          <TextInput
+          <TextInput {...NAME_INPUT}
             style={[styles.input, { flex: 1 }]}
             value={addName}
             onChangeText={setAddName}
@@ -420,8 +434,8 @@ export default function SubclassBuilderScreen() {
               {levelChoicesList.filter(c => c.level === lvl).map(c => (
                 <Pressable key={c.localId} style={styles.featureItem} onPress={() => setOpenChoiceId(c.localId)}>
                   <View style={styles.featureItemBody}>
-                    <Text style={styles.featureItemName}>{c.kind === 'expertise' ? 'Expertise' : c.kind === 'tool' ? 'Tool Proficiency' : 'Language'} choice</Text>
-                    <Text style={styles.featureItemDesc} numberOfLines={1}>Choose {c.count}</Text>
+                    <Text style={styles.featureItemName}>{CHOICE_KIND_LABELS[c.kind]} choice</Text>
+                    <Text style={styles.featureItemDesc} numberOfLines={1}>{summarizeDraftChoice(c)}</Text>
                   </View>
                   <Pressable style={styles.featureDeleteBtn} onPress={() => deleteLevelChoice(c.localId)} hitSlop={8}>
                     <Text style={styles.featureDeleteTxt}>✕</Text>
@@ -481,6 +495,7 @@ export default function SubclassBuilderScreen() {
         onChange={updateLevelChoice}
         onDone={() => setOpenChoiceId(null)}
         onDelete={() => openChoiceId && deleteLevelChoice(openChoiceId)}
+        allowPools
       />
     </KeyboardAvoidingView>
   );

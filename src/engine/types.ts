@@ -182,12 +182,17 @@ export type GrantResult = {
 export type AbilityGenerationMode = 'standard' | 'pointbuy' | 'manual' | 'roll';
 export type PointBuyConfig = { budget:number; minimum:number; maximum:number; costs:Record<number,number> };
 
+/** Alternatives, any one of which is enough; each lists abilities that all need at least their minimum (13 when absent). The desktop's shape. */
+export type MulticlassPrerequisites = { ability: Ability; minimum?: number }[][];
+
 export type CampaignRules = {
   maxAbilityScore: number | null;
   maxLevel:        number | null;
   useXP:           boolean;
   hpMode:          'fixed' | 'rolled' | 'max';
   allowMulticlass: boolean;
+  /** Whether a new class needs the abilities its multiclass requirement names (engine/multiclassPrerequisites.ts). On unless false. */
+  multiclassPrerequisites?: boolean;
   customRules:     Record<string, unknown>;
   abilityGenerationMode?: AbilityGenerationMode;
   pointBuy?: PointBuyConfig;
@@ -525,6 +530,8 @@ export type CharClass  = {
    * a conservative, disclosed default rather than a guess.
    */
   multiclassProficiencies?: ProficiencyGrant;
+  /** The abilities this class asks for as one of several classes, read before the SRD table (engine/multiclassPrerequisites.ts). */
+  multiclassPrerequisites?: MulticlassPrerequisites;
   /**
    * SRD 5.1 (CC-BY-4.0) legal status. All 12 core PHB classes are SRD-safe
    * (SRD 5.1 includes the full class chassis, not just a stripped subset).
@@ -802,6 +809,8 @@ export type ClassLevelEntry = {
 
 export type Identity = {
   name:         string;
+  /** An icon-sized portrait, a data:image URI (the desktop's identity.portraitUri; content/recordPictures.ts). */
+  portraitUri?: string;
   level:        number;
   // raceId/classId (and subRaceId/subclassId/backgroundId) stay plain `string`,
   // not RaceId/ClassId — deliberately NOT branded (see Brand<> comment near the
@@ -960,6 +969,13 @@ export type HPBlock = {
    * Absent on characters saved before this field existed — read as 0, so nothing changes for them.
    */
   bonusApplied?: number;
+  /**
+   * The Constitution modifier `maximum` currently reflects (a character's own: items, features, conditions, modes and overrides
+   * included, never a Wild Shape beast's). recomputeDerived moves `maximum` by the change times the level whenever the modifier
+   * changes, from whatever source (engine/pipeline.ts followConModifier). Absent (saved before this rule): the modifier the old
+   * rules kept it in step with, so a maximum an item never changed is put right on the first load (pipeline.ts savedConModifier).
+   */
+  conModApplied?: number;
 };
 
 /** One die-size's own total/remaining count within a mixed hit-dice pool. */
@@ -1328,6 +1344,11 @@ export type ChoiceDefinition = {
   forClassId?: string;
   /** For `kind: 'feature_pool'`: the held options of this choice can be swapped later. See ChoiceReplacePolicy. */
   replace?: ChoiceReplacePolicy;
+  /**
+   * For a `feature_pool` the homebrew editor wrote: the option drafts the pool was compiled from ({trait: DraftTrait, minLevel}),
+   * so the editor can reopen it without rebuilding traits from the compiled features. Ignored by the engine.
+   */
+  authoredOptions?: { trait: DraftTrait; minLevel: string }[];
   /** For `kind: 'spell'`: where the spells may come from and which levels are offered. See SpellPickFilter. */
   spellFilter?: SpellPickFilter;
   /**
@@ -1826,6 +1847,9 @@ export type Effect = {
  * ACTIVE features:  also have activation + abilityEffects that fire when a card is used.
  * Both can coexist — Rage has passive resistance effects AND active "set flag" effects.
  */
+/** One mode of a feature: its name and the effects that apply while it is the active one. */
+export type FeatureMode = { id: string; name: string; effects: Effect[] };
+
 export type Feature = {
   id:          string;
   name:        string;
@@ -1834,6 +1858,9 @@ export type Feature = {
   level:       number | null;
   /** Passive effects — fire in recomputeDerived(). Do not put combat dice here. */
   effects:     Effect[];
+  /** Modes the person switches between (a belt that sometimes works the other way round). The active mode's effects apply on top of
+   *  `effects`; the first mode is active until another is chosen. See engine/featureModes.ts. */
+  modes?:      FeatureMode[];
   actions:     Action[];
   choices:     ChoiceDefinition[];
   /**
@@ -2271,6 +2298,9 @@ export type AttackSequenceState = {
  */
 export type Entity = {
   id:               string;
+  /** The dependency lock (revision pinning, contract LIFE-004): what the character was resolved with, in the desktop app's format.
+   *  Read and written through src/engine/ruleset/dnd5ePinning.ts; kept as it is by everything else. */
+  pins?:            Record<string, unknown>;
   kind:             'character' | 'monster' | 'npc';
   identity:         Identity;
   stats:            AbilityScores;
@@ -2375,6 +2405,9 @@ export type Entity = {
    * existing saved entities parse unchanged.
    */
   situationalAnswers?: Record<string, boolean>;
+  /** The active mode of each feature that has modes (engine/featureModes.ts), keyed by feature id, or `instanceId/featureId` for an
+   *  item's feature. Absent: the first mode. */
+  featureModes?: Record<string, string>;
   /** Mode Group state by group id (engine/modes.ts). Absent for every character with no mode group. */
   modeState?: Record<string, ModeState>;
   weaponMastery?: { picks: string[] };
@@ -3149,13 +3182,14 @@ export type Quest = {
 
 /**
  * A campaign is owned by one DM device.
- * Players join via a 6-digit room code (+ QR code) that resolves to the DM's local IP.
+ * Players join with a room code (+ QR code) that encodes the DM's local IP address: a discovery credential, not an authentication
+ * one (see discovery.ts encodeRoomCode; the code is seven characters of a base-32 alphabet).
  */
 export type Campaign = {
   id:           string;
   name:         string;
   dmDeviceId:   string;
-  /** 6-digit code shown to players. Resolves to DM's local IP over WiFi. */
+  /** The room code shown to players (discovery only; it encodes the DM's local IP over WiFi and grants no authority). */
   joinCode:     string;
   rules:        CampaignRules;
   playerIds:    string[];
@@ -3185,6 +3219,8 @@ export type Campaign = {
   /** The ruleset this campaign is built for. Optional — undefined means no restriction, same
    *  "unset = unrestricted" convention as everywhere else a RulesetId is optional in this file. */
   rulesetId?:     RulesetId;
+  /** The revision `rulesetId` had when it was chosen (LIFE-004): the campaign is locked to that ruleset, and a later revision can be told apart. */
+  rulesetRevision?: string;
 };
 
 // ── Prepared Encounters ──────────────────────────────────────────────────────

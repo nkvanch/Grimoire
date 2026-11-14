@@ -9,9 +9,10 @@ import { useSpellPayment } from './SpellPaymentChooser';
 //           death saves (when HP=0), concentration check, level-up button.
 import { useState, useCallback, useRef, useMemo, memo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  Modal, TextInput,
+  View, Text, ScrollView, StyleSheet,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, CharClass, ActionCard, asClassId, DurationTracker, ActivationOption, matchesRuleset, Ability } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
 import { hasActiveOverride } from '../../engine/dmOverride';
@@ -33,6 +34,10 @@ import { getSubclassEntryMerged } from '../../content/subclasses/subclassBrowse'
 import { spellRepo } from '../../content/spellRepo';
 import { spellIdsOnEntity } from '../../content/spellRepo.types';
 import { useHomebrewStore } from '../../store/homebrewStore';
+import { pinGate, STEP_OPERATIONS } from '../../store/pinningService';
+import { pinnedLockOf } from '../../engine/ruleset/dnd5ePinning';
+import { multiclassLacks, multiclassRequirementApplies } from '../../engine/multiclassPrerequisites';
+import { Alert } from '../../utils/alert';
 import { AsiFeatPicker } from '../AsiFeatPicker';
 import { AuditModal } from './AuditModal';
 import { HpModal } from './HpModal';
@@ -366,10 +371,17 @@ function LevelUpSection({
   // are entirely unaffected — this gate never opens for them.
   const [hpRollFor, setHpRollFor] = useState<
     | { kind: 'single'; hpDie: number; hpAbility: Ability }
-    | { kind: 'class'; targetClassId: string; targetClass?: CharClass; hpDie: number; hpAbility: Ability }
+    | { kind: 'class'; targetClassId: string; targetClass?: CharClass; overruled?: boolean; hpDie: number; hpAbility: Ability }
     | null
   >(null);
   const [hpRollDraft, setHpRollDraft] = useState('');
+
+  // a pinned character whose versions cannot level up is told why before anything is rolled or previewed (LIFE-004)
+  function levelUpRefused(): boolean {
+    const refusal = pinGate(entity, STEP_OPERATIONS.levelUp);
+    if (refusal) Alert.alert('Not done', refusal);
+    return !!refusal;
+  }
 
   function confirmPendingLevelUp() {
     if (!pendingLevelUp) return;
@@ -412,6 +424,7 @@ function LevelUpSection({
     const nextEntry = progression.entries.find(e => e.level === nextLevel);
 
     async function doLevelUp(manualHpRoll?: number) {
+      if (levelUpRefused()) return;
       const { before, after } = simulate(entity, e => levelUp(e, nextLevel, progression!, rules, allClasses, manualHpRoll), rules);
       // levelUp() can grant fixed cantrips/spells for this level — warm Tier 2
       // for anything new before the entity reaches the engine pipeline.
@@ -481,16 +494,31 @@ function LevelUpSection({
   // used to resolve/label classes the character ALREADY has, which must
   // keep working regardless of the character's current ruleset).
   const availableToAdd = allClasses.filter(c => !takenIds.has(asClassId(c.id)) && matchesRuleset(c.rulesetId, entity.rulesetId));
+  // What a new class asks for and this character lacks (the desktop's ADR-014); nothing when the table turns it off or the character was
+  // pinned before level-up revision 3. Overrule takes the class anyway, for that step only.
+  const requirementApplies = multiclassRequirementApplies(rules, pinnedLockOf(entity)?.operations['dnd5e.level_up']);
+  const lacksFor = (classId: string) => (requirementApplies ? multiclassLacks(entity, classId, allClasses) : []);
 
-  async function doLevelUpClass(targetClassId: string, targetClass?: CharClass, manualHpRoll?: number) {
+  function pressAddClass(c: CharClass) {
+    const lacks = lacksFor(c.id);
+    if (lacks.length === 0) { pressLevelUpClass(c.id, c); return; }
+    Alert.alert(`Not enough for ${c.name}`, `${lacks.map(l => l.message).join('. ')}.
+
+Overrule takes the class anyway.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Overrule', onPress: () => pressLevelUpClass(c.id, c, true) },
+    ]);
+  }
+
+  async function doLevelUpClass(targetClassId: string, targetClass?: CharClass, manualHpRoll?: number, overruled = false) {
     const existing = classes.find(c => c.classId === targetClassId);
     const progression = resolveProgression(targetClassId, existing?.subclassId ?? null);
-    if (!progression) return;
+    if (!progression || levelUpRefused()) return;
     const { before, after } = simulate(entity, e => levelUpClass(e, targetClassId, progression!, rules, targetClass, allClasses, manualHpRoll), rules);
     await spellRepo.ensureLoaded(spellIdsOnEntity(after));
     const title = existing
       ? `Level Up ${classLabel(targetClassId)} (→ ${existing.level + 1})`
-      : `Add ${targetClass?.name ?? classLabel(targetClassId)} (level 1)`;
+      : `Add ${targetClass?.name ?? classLabel(targetClassId)} (level 1)${overruled ? ', requirements overruled' : ''}`;
     setPendingLevelUp({ title, before, after });
     setAddClassOpen(false); // close the "Add a Class" list modal now — preview takes over
   }
@@ -498,7 +526,7 @@ function LevelUpSection({
   // Table-first gate, multiclass version of pressLevelUp above — same
   // reasoning (only rolled mode needs a result; deterministic modes skip
   // straight to doLevelUpClass).
-  function pressLevelUpClass(targetClassId: string, targetClass?: CharClass) {
+  function pressLevelUpClass(targetClassId: string, targetClass?: CharClass, overruled = false) {
     const existing = classes.find(c => c.classId === targetClassId);
     const progression = resolveProgression(targetClassId, existing?.subclassId ?? null);
     const newClassLevel = (existing?.level ?? 0) + 1;
@@ -516,9 +544,9 @@ function LevelUpSection({
     const isVeryFirstLevel = entity.identity.level === 0 && newClassLevel === 1;
     if (rules.hpMode === 'rolled' && entry && !isVeryFirstLevel) {
       setHpRollDraft('');
-      setHpRollFor({ kind: 'class', targetClassId, targetClass, hpDie: entry.hpDie, hpAbility: progression!.hpAbility ?? 'con' });
+      setHpRollFor({ kind: 'class', targetClassId, targetClass, overruled, hpDie: entry.hpDie, hpAbility: progression!.hpAbility ?? 'con' });
     } else {
-      void doLevelUpClass(targetClassId, targetClass);
+      void doLevelUpClass(targetClassId, targetClass, undefined, overruled);
     }
   }
 
@@ -548,7 +576,7 @@ function LevelUpSection({
         onResolve={roll => {
           const pending = hpRollFor;
           setHpRollFor(null);
-          if (pending?.kind === 'class') void doLevelUpClass(pending.targetClassId, pending.targetClass, roll);
+          if (pending?.kind === 'class') void doLevelUpClass(pending.targetClassId, pending.targetClass, roll, pending.overruled);
         }}
       />
 
@@ -567,11 +595,9 @@ function LevelUpSection({
             </Pressable>
           </View>
           <Text style={styles.addClassSub}>
-            Adding a class grants the PHB's reduced multiclass proficiencies
-            instead of a fresh class's full starting kit — this isn't a
-            hard requirement check, so double-check your ability scores
-            meet the prerequisite for both your current class(es) and the
-            one you're adding.
+            Adding a class grants the reduced multiclass proficiencies
+            instead of a fresh class's full starting kit.
+            {requirementApplies ? ' A new class needs the ability scores both it and your present classes ask for.' : ''}
           </Text>
           <ScrollView contentContainerStyle={styles.addClassList}>
             {availableToAdd.length === 0 ? (
@@ -580,9 +606,10 @@ function LevelUpSection({
               <Pressable
                 key={c.id}
                 style={styles.addClassRow}
-                onPress={() => pressLevelUpClass(c.id, c)}
+                onPress={() => pressAddClass(c)}
               >
                 <Text style={styles.addClassRowTxt}>{c.name}</Text>
+                {lacksFor(c.id).map(l => <Text key={l.classId} style={styles.addClassLack}>{l.message}</Text>)}
               </Pressable>
             ))}
           </ScrollView>
@@ -2238,6 +2265,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border, padding: Spacing.md,
   },
   addClassRowTxt: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  addClassLack: { fontSize: FontSize.sm, color: Colors.red, marginTop: 2 },
 
   section: {
     backgroundColor: Colors.surface, borderRadius: Radius.lg,

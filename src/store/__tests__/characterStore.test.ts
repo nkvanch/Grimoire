@@ -481,7 +481,7 @@ describe('creation draft durability (re-audit A09, item 11)', () => {
     expect(result).toBe(true);
     expect(useCharacterStore.getState().draft).toBeNull();
     expect(useCharacterStore.getState().characters.map(c => c.id)).toEqual(['draft1']);
-    expect(saveEntitySpy).toHaveBeenCalledWith(draft);
+    expect(saveEntitySpy).toHaveBeenCalledWith({ ...draft, pins: expect.any(Object) }); // kept with its lock (LIFE-004)
     expect(clearDraftSpy).toHaveBeenCalled();
   });
 
@@ -498,7 +498,7 @@ describe('creation draft durability (re-audit A09, item 11)', () => {
     expect(useCharacterStore.getState().draft).toEqual(draft); // NOT cleared — recoverable
     expect(useCharacterStore.getState().characters).toEqual([]); // optimistic add rolled back
     expect(useCharacterStore.getState().lastPersistError).not.toBeNull();
-    expect(saveEntitySpy).toHaveBeenCalledWith(draft);
+    expect(saveEntitySpy).toHaveBeenCalledWith({ ...draft, pins: expect.any(Object) }); // kept with its lock (LIFE-004)
     expect(clearDraftSpy).not.toHaveBeenCalled(); // persisted draft row also left alone
   });
 
@@ -587,7 +587,7 @@ describe('Extra Attack sequence closure (final single-issue closure): attackSequ
 
     await useCharacterStore.getState().saveDraft();
 
-    expect(useCharacterStore.getState().characters.find(c => c.id === 'draft1')).toEqual(draft);
+    expect(useCharacterStore.getState().characters.find(c => c.id === 'draft1')).toEqual({ ...draft, pins: expect.any(Object) }); // only its lock is added (LIFE-004)
   });
 
   it('old-token safety: a forged draft sequence token cannot authorize a free continuation after commit', async () => {

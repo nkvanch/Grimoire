@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { installedOfficialPacks } from '../src/content/officialPackService';
 import { packShortfalls, describeShortfall } from '../src/content/requiredPacks';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { pickPortableCharacter } from '../src/io/characterPortable';
 import { useCharacterStore } from '../src/store/characterStore';

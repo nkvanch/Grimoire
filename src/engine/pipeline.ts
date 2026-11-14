@@ -10,7 +10,9 @@
 // The UI always reads from entity.derived and never computes stats itself.
 // ============================================================================
 
+import { effectsInForce, modeKey } from './featureModes';
 import { findBeastForm } from '../content/runtimeRules';
+import { KI_SAVE_FEATURE_ID, MARTIAL_ARTS } from './ruleset/dnd5e';
 import { isFeatureSuspended } from './suspension';
 import { exhaustionSpeedPenalty } from './exhaustion';
 import {
@@ -121,10 +123,12 @@ export function applyStatModifiers(
     // 'set' exist? then that resolved value IS the score; otherwise add
     // the resolved (additive-only) delta to base" pattern speed already
     // uses just below (see the "Speed: respect 'set' operations" block).
-    const hasSet   = relevant.some(ae => ae.effect.operation === 'set');
-    const resolved = resolveCombine(relevant);
-    // 'scale' ("double your Strength") multiplies the fully resolved score, after set/add.
-    result[ab] = applyScale(hasSet ? resolved : base[ab] + resolved, resolveScaleFactor(relevant));
+    // A 'set' is the final score: the highest set wins and every add/multiply on this ability is ignored (user decision 2026-11-13,
+    // same rule in the desktop app). Without a set: base + the resolved adds, as before.
+    const sets = relevant.filter(ae => ae.effect.operation === 'set' && typeof ae.effect.value === 'number').map(ae => ae.effect.value as number);
+    const score = sets.length ? Math.max(...sets) : base[ab] + resolveCombine(relevant);
+    // 'scale' ("double your Strength") multiplies the resolved score, after set/add.
+    result[ab] = applyScale(score, resolveScaleFactor(relevant));
     if (floors.length) result[ab] = Math.max(result[ab], ...floors.map(f => f.effect.value as number));
   }
   return result;
@@ -204,6 +208,43 @@ function syncFormulaResources(entity: Entity, stats: Entity['stats']): Entity {
   return changed ? { ...entity, resources: { ...entity.resources, custom } } : entity;
 }
 
+/**
+ * Maximum hit points follow the Constitution modifier, whatever changed it (an improvement, a feat, an item, a mode, a condition, a
+ * feature, an override): the book's rule that a changed modifier changes the maximum as if it had always been the new one, so by the
+ * change times the level. Current hit points move by the same amount (damage taken is kept), never below 0. One place for every
+ * source; the maximum is a stored number, so the modifier it reflects is kept beside it (HPBlock.conModApplied).
+ * shortcut: characters only and every level counts Constitution; a monster's level is a stand-in for its CR, and a homebrew class
+ * whose hit points use another ability is counted as Constitution. Upgrade when hit dice per class carry their ability.
+ */
+export function followConModifier(entity: Entity, con: number): Entity {
+  const mod = modifier(con);
+  const hp = entity.resources.hp;
+  if (entity.kind !== 'character' || hp.conModApplied === mod) return entity;
+  const level = entity.identity.level;
+  const delta = level > 0 ? (mod - (hp.conModApplied ?? savedConModifier(entity))) * level : 0;
+  if (delta === 0) return { ...entity, resources: { ...entity.resources, hp: { ...hp, conModApplied: mod } } };   // only the record
+  const maximum = Math.max(1, hp.maximum + delta);
+  const current = Math.min(maximum, Math.max(0, hp.current + delta));
+  return { ...entity, resources: { ...entity.resources, hp: { ...hp, maximum, current, conModApplied: mod } } };
+}
+
+/**
+ * For a character saved before HPBlock.conModApplied: the modifier its stored maximum already reflects. Before this rule only
+ * improvements, feats, overrides and "set the total" moved the maximum, so it reflects the base scores, the character's own
+ * features and the overrides, never an item, a condition or a mode. Taking that as the start puts right, on the first load,
+ * a maximum an item such as an Amulet of Health never changed.
+ */
+function savedConModifier(entity: Entity): number {
+  const own: ActiveEffect[] = entity.features
+    .filter(f => f.isActive && f.source.kind !== 'condition' && !isFeatureSuspended(entity, f.id))
+    .flatMap(f => f.effects.map(effect => ({ effect, sourceName: f.name, sourceId: f.id, appliedAt: f.level ?? 0 })));
+  let con = applyStatModifiers(entity.stats, own).con;
+  for (const o of [...(entity.characterOverrides ?? []), ...(entity.dmOverrides ?? [])].filter(o => o.active && o.stat === 'con')) {
+    con = o.operation === 'set' ? o.value : con + o.value;
+  }
+  return modifier(con);
+}
+
 export function recomputeDerived(
   entityParam: Entity, rules: CampaignRules,
   content: Pick<CardGenOptions, 'classDefs' | 'homebrewSpells' | 'races' | 'items'> = {},
@@ -239,6 +280,7 @@ export function recomputeDerived(
   //    Same non-mutating "apply on top" philosophy as DmOverride — nothing
   //    here touches entity.stats itself. See docs/ROADMAP_1.0.md "FEATURE
   //    DESIGN: Wild Shape".
+  const conBeforeBeast = effectiveStats.con;   // the character's own, for its hit points (a beast form has its own)
   const beastForm = entity.wildShapeState?.active
     ? findBeastForm(entity.wildShapeState!.formId) ?? null
     : null;
@@ -256,6 +298,13 @@ export function recomputeDerived(
     const ability = override.stat as Ability;
     effectiveStats[ability] = override.operation === 'set' ? override.value : effectiveStats[ability] + override.value;
   }
+
+  // The character's own Constitution with the overrides on it: what its maximum hit points follow.
+  let ownCon = conBeforeBeast;
+  for (const o of [...(entity.characterOverrides ?? []), ...(entity.dmOverrides ?? [])].filter(o => o.active && o.stat === 'con')) {
+    ownCon = o.operation === 'set' ? o.value : ownCon + o.value;
+  }
+  entity = followConModifier(entity, ownCon);
 
   entity = syncFormulaResources(entity, effectiveStats);
 
@@ -328,7 +377,7 @@ export function recomputeDerived(
   let skillsChanged = false;
   for (const skillName of Object.keys(updatedSkills) as SkillName[]) {
     const existing = updatedSkills[skillName];
-    if (!existing) continue;
+    if (!existing || typeof existing !== 'object') continue;   // not a skill entry: a member this build does not know
     const finalTrained = newGrantedSkills.has(skillName) || newExpertiseSkills.has(skillName);
     const finalExpertise = newExpertiseSkills.has(skillName);
     if (finalTrained !== existing.trained || finalExpertise !== existing.expertise) {
@@ -338,7 +387,7 @@ export function recomputeDerived(
     }
   }
   if (skillsChanged) {
-    entity = { ...entity, skills: { skills: updatedSkills } };
+    entity = { ...entity, skills: { ...entity.skills, skills: updatedSkills } };
   }
 
   entity = {
@@ -505,7 +554,7 @@ export function recomputeDerived(
       : null,
     // Monk's ki-ability save DC (Stunning Strike, etc.) — always WIS-based,
     // separate from spellSaveDC since Monk has no entity.spellcasting block.
-    kiSaveDC: entity.features.some(f => f.id === 'martial_arts')
+    kiSaveDC: entity.features.some(f => f.id === KI_SAVE_FEATURE_ID)
       ? abilityDC(profBonus, modifier(effectiveStats.wis))
           + (resolveEffectsForTarget('ki_save_dc', allEffects, rules) as number)
       : null,
@@ -608,6 +657,21 @@ export function effectConditionActive(
   }
 }
 
+/**
+ * Situational questions whose answer the engine already knows from the character's state, so the player is never asked them
+ * (the sheet leaves them out). Keyed by Effect.situational.id: characters keep their own copy of a feature, so an answer here
+ * reaches characters built before it was added, without changing their data or the signed packs.
+ */
+export const OBSERVED_SITUATIONALS: Readonly<Record<string, (worn: WornGear) => boolean>> = {
+  fighting_style_defense_armored: worn => worn.armor !== 'none',   // Defense: "while you are wearing armor" (a shield is not armor)
+};
+
+/** Whether a situational effect counts: the engine's own answer when it has one, otherwise the player's explicit Yes. */
+function situationalYes(entity: Entity, id: string, worn: WornGear): boolean {
+  const observed = OBSERVED_SITUATIONALS[id];
+  return observed ? observed(worn) : entity.situationalAnswers?.[id] === true;
+}
+
 export function collectAllEffects(entity: Entity, homebrewItems: readonly import('./types').Item[] = []): ActiveEffect[] {
   const effects: ActiveEffect[]       = [];
   const activeFlags                   = entity.conditionMonitor.flags;
@@ -624,7 +688,7 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
     // were granted at (which is not always <= the character's level in fixtures and mid-creation states).
     if (fi.source.kind === 'race' && fi.level !== null && fi.level > entity.identity.level) continue;
 
-    for (const effect of fi.effects) {
+    for (const effect of effectsInForce(fi, entity, fi.id)) {
       if (effect.minLevel && entity.identity.level < effect.minLevel) continue;
       // Gate: skip if effect requires a flag or condition that is not active
       if (effect.condition !== null && !effectConditionActive(effect.condition, activeFlags, activeConditionIds, entity, worn)) continue;
@@ -634,7 +698,7 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
       // player/DM has explicitly answered Yes. Unanswered and explicit No
       // are treated identically — conservative, never silently overstates
       // a bonus. See Effect.situational's own doc comment.
-      if (effect.situational && entity.situationalAnswers?.[effect.situational.id] !== true) continue;
+      if (effect.situational && !situationalYes(entity, effect.situational.id, worn)) continue;
 
       // Gate: skip if this feature's source condition has its effects suppressed
       if (fi.source.kind === 'condition') {
@@ -690,10 +754,10 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
     if (!isItemMechanicallyActive(item, definition)) continue;
     const itemFeatures = effectiveItemFeatures(item, definition);
     for (const fi of itemFeatures) {
-      for (const effect of fi.effects) {
+      for (const effect of effectsInForce(fi, entity, modeKey(fi.id, item.id))) {
         if (effect.condition !== null && !effectConditionActive(effect.condition, activeFlags, activeConditionIds, entity, worn)) continue;
         if (effect.requiresNoArmorOrShield && anyArmorOrShieldEquipped) continue;
-        if (effect.situational && entity.situationalAnswers?.[effect.situational.id] !== true) continue;
+        if (effect.situational && !situationalYes(entity, effect.situational.id, worn)) continue;
         effects.push({
           effect,
           sourceName: fi.name,
@@ -791,6 +855,11 @@ function isProficientWithWeapon(entity: Entity, def: { name: string; properties:
  * had drifted: one used max(str,dex) for ranged weapons, which is wrong
  * per RAW, and one read raw base stats instead of effect-modified ones).
  */
+function hasFightingStyle(entity: Entity, style: 'archery' | 'dueling'): boolean {
+  return entity.features.some(f => f.isActive !== false && (f.source.kind === 'class' || f.source.kind === 'subclass' || f.source.kind === 'feat')
+    && f.name.replace(/^fighting style:\s*/i, '').trim().toLowerCase() === style);
+}
+
 function computeWeaponAttackBonuses(
   entity:         Entity,
   effectiveStats: Entity['stats'],
@@ -800,6 +869,8 @@ function computeWeaponAttackBonuses(
   const strMod = modifier(effectiveStats.str);
   const dexMod = modifier(effectiveStats.dex);
   const result: AttackBonus[] = [];
+  const archery = hasFightingStyle(entity, 'archery');
+  const twoHanded = new Set<AttackBonus>();
 
   for (const inst of entity.inventory.equipped) {
     // Re-audit A17: an attunement-required weapon contributes no attack
@@ -867,17 +938,23 @@ function computeWeaponAttackBonuses(
     // any specific named weapons a feature/race/background grants).
     const isProficient = isProficientWithWeapon(entity, def);
 
-    result.push({
+    const attack: AttackBonus = {
       id:          inst.itemId,
       instanceId:  inst.id,
       name:        def.name,
-      bonus:       (isProficient ? profBonus : 0) + mod + magicBonus,
+      bonus:       (isProficient ? profBonus : 0) + mod + magicBonus + (archery && isRanged ? 2 : 0),
       type:        isRanged ? 'ranged' : 'melee',
       ability,
       damageBonus: mod + magicBonus,
       damageDice:  dice,
       damageType:  dmgType,
-    });
+    };
+    if (props.some(p => p.includes('two-handed'))) twoHanded.add(attack);
+    result.push(attack);
+  }
+  // Dueling: a melee weapon in one hand and no other weapon (a versatile one counts as held in one hand; a shield is fine).
+  if (hasFightingStyle(entity, 'dueling') && result.length === 1 && result[0].type === 'melee' && !twoHanded.has(result[0])) {
+    result[0] = { ...result[0], damageBonus: result[0].damageBonus + 2 };
   }
 
   // Unarmed Strike — always available (PHB pg 195: 1 + STR mod bludgeoning),
@@ -886,20 +963,16 @@ function computeWeaponAttackBonuses(
   // multiclassed monk/fighter still gets the right die) and unlocks DEX as
   // an option for the attack/damage roll, same finesse-style
   // max(str,dex) rule as a finesse weapon above.
-  const hasMartialArts2024 = entity.features.some(f => f.id === 'monk_2024_martial_arts');
-  const hasMartialArts = hasMartialArts2024 || entity.features.some(f => f.id === 'martial_arts');
+  const hasMartialArts2024 = entity.features.some(f => f.id === MARTIAL_ARTS['2024'].featureId);
+  const hasMartialArts = hasMartialArts2024 || entity.features.some(f => f.id === MARTIAL_ARTS['2014'].featureId);
   let unarmedDice = '1';
   let unarmedAbility: 'str' | 'dex' = 'str';
   let unarmedMod = strMod;
   if (hasMartialArts) {
-    if (hasMartialArts2024) {
-      // 2024 Martial Arts die: d6, d8 at 5, d10 at 11, d12 at 17.
-      const monkLevel = getClassEntry(entity, 'monk_2024')?.level ?? entity.identity.level;
-      unarmedDice = monkLevel >= 17 ? '1d12' : monkLevel >= 11 ? '1d10' : monkLevel >= 5 ? '1d8' : '1d6';
-    } else {
-      const monkLevel = getClassEntry(entity, 'monk')?.level ?? entity.identity.level;
-      unarmedDice = monkLevel >= 17 ? '1d10' : monkLevel >= 11 ? '1d8' : monkLevel >= 5 ? '1d6' : '1d4';
-    }
+    // the die scales with the class's own level (a multiclassed monk gets the right one), from the ruleset's table
+    const art = MARTIAL_ARTS[hasMartialArts2024 ? '2024' : '2014'];
+    const monkLevel = getClassEntry(entity, art.classId)?.level ?? entity.identity.level;
+    unarmedDice = art.dice.find(([from]) => monkLevel >= from)![1];
     unarmedAbility = dexMod >= strMod ? 'dex' : 'str';
     unarmedMod = Math.max(strMod, dexMod);
   }

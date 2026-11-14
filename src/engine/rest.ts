@@ -9,7 +9,7 @@ import { recomputeDerived, modifier, collectAllEffects, applyStatModifiers } fro
 import { removeCondition, reduceExhaustion } from './conditions';
 import { dropConcentration } from './combat';
 import { longRestRestoresAllHitDice } from './houseRules';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 import { getClassLevels } from './multiclass';
 import { bumpedHitDie, hitDieTierFromEffects } from './hitDieTier';
 import { pactSlotTableFor } from '../content/classes/spellSlotTables';
@@ -191,7 +191,8 @@ function longRest(entity: Entity, rules: CampaignRules = DEFAULT_RULES, hitDiceA
         maximum: updated.resources.hp.maximum,
         temp:    0,
       },
-      deathSaves: { successes: 0, failures: 0, stable: false },
+      // spread, so a member this build does not know of (a newer app's, or the desktop app's) is carried through the rest
+      deathSaves: { ...updated.resources.deathSaves, successes: 0, failures: 0, stable: false },
     },
   };
 

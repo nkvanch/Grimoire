@@ -3,7 +3,8 @@
 // the SAME look as the Combat / Exploration switch on the character sheet
 // (app/sheet/[id].tsx: modeSwitch/modeBtn) — compact, full-width segments,
 // gold selected state, no navigation.
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 import { COMPENDIUM_MODES, COMPENDIUM_MODE_LABELS, CompendiumMode } from '../../content/compendiumModes';
 

@@ -4,7 +4,8 @@
 // app/creation/class.tsx, app/creation/race.tsx, and
 // src/components/AsiFeatPicker.tsx before this extraction. One generic
 // component instead of four near-identical copies (CREATION-FILTERS-2).
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
 export type ChipOption<T extends string> = { id: T; label: string };

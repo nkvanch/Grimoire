@@ -4,9 +4,11 @@ import { useLayout } from '../../src/platform/layout';
 import { LAN_SESSIONS_AVAILABLE } from '../../src/platform/features';
 import { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
-  Modal, TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useCampaignStore }  from '../../src/store/campaignStore';

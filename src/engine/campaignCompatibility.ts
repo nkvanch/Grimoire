@@ -17,7 +17,7 @@
 // ============================================================================
 import { Entity } from './types';
 import { collectTypedContentRefs } from './packDiagnostics';
-import { buildPackOwnershipIndex, InstalledPack } from '../db/packRegistryRepo';
+import { buildPackOwnershipIndex, InstalledPack } from './contentRecords';
 
 /**
  * What a DM's prepared campaign (session/prep.ts's CampaignPrep.contentManifest) publishes to

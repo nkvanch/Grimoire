@@ -7,8 +7,8 @@ import { Race, Subrace, CharClass, HomebrewSubclass, Spell, Feature, Background,
 import { MonsterTemplate } from '../content/monsters/types';
 import { getDb } from './db';
 
-export type ContentCacheType = 'race' | 'subrace' | 'class' | 'subclass' | 'spell' | 'background' | 'feature' | 'item' | 'feat' | 'monster' | 'condition' | 'spellList';
-export type HomebrewContent   = Race | Subrace | CharClass | HomebrewSubclass | Spell | Feature | Background | Item | Feat | MonsterTemplate | Condition | SpellList;
+import type { ContentCacheType, HomebrewContent } from '../engine/contentRecords';
+export type { ContentCacheType, HomebrewContent } from '../engine/contentRecords';
 
 type ContentCacheRow = {
   id:      string;

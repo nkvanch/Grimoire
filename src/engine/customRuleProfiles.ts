@@ -29,6 +29,7 @@ export function sanitizeProfileRules(raw: CustomRuleProfile['rules']): CustomRul
   if(typeof raw.useXP==='boolean')rules.useXP=raw.useXP;
   if(raw.hpMode==='fixed'||raw.hpMode==='rolled'||raw.hpMode==='max')rules.hpMode=raw.hpMode;
   if(typeof raw.allowMulticlass==='boolean')rules.allowMulticlass=raw.allowMulticlass;
+  if(typeof raw.multiclassPrerequisites==='boolean')rules.multiclassPrerequisites=raw.multiclassPrerequisites;
   if(['standard','pointbuy','manual','roll'].includes(raw.abilityGenerationMode as string))rules.abilityGenerationMode=raw.abilityGenerationMode;
   if(raw.pointBuy&&typeof raw.pointBuy==='object')rules.pointBuy=normalizePointBuyConfig(raw.pointBuy);
   if(raw.customRules&&typeof raw.customRules==='object')rules.customRules=Object.fromEntries(Object.entries(raw.customRules).filter(([key])=>SUPPORTED_CUSTOM_RULE_KEYS.has(key)));

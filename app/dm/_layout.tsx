@@ -11,7 +11,8 @@
 // shared gate here covers every current and future screen in this route
 // group instead of repeating the guard per-screen.
 import { Stack } from 'expo-router';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, FontSize, FontWeight } from '../../src/theme';

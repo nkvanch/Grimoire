@@ -1,7 +1,8 @@
 // src/components/ErrorBoundary.tsx
 // React error boundary — wraps the root navigator.
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
 interface State { hasError: boolean; error: Error | null }

@@ -594,6 +594,12 @@ describe('levelUp', () => {
     expect(updated.choices.some(c => c.id === 'bonus_feat_lvl_1' && c.definition.kind === 'asi')).toBe(true);
   });
 
+  it('queues no bonus feat when the table has feats off', () => {
+    const rules = { ...DEFAULT_RULES, customRules: { bonusFeatEveryLevel: true, featsEnabled: false } };
+    const e = entity({ identity: { ...makeEmptyEntity('e1').identity, classId: 'wizard' } });
+    expect(levelUp(e, 1, progression(), rules).choices.some(c => c.id.startsWith('bonus_feat_lvl_'))).toBe(false);
+  });
+
   // FEAT-ENTITLEMENT-1: a multi-level jump (direct high-level creation or a
   // multi-level in-play level-up) must queue ONE bonus-feat choice PER LEVEL
   // crossed, not a single flat bonus slot — real per-level entitlement, not

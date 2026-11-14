@@ -9,7 +9,7 @@
 // indices, mergeMonsterIndex(), subclassEntriesForClassMerged()) — this
 // file only normalizes shape and derives a one-line row summary, it never
 // re-fetches or re-derives content itself.
-import { Race, Subrace, CharClass, Background, Feat, Condition } from '../engine/types';
+import { Race, Subrace, CharClass, Background, Feat, Condition, Feature, Grant, ChoiceDefinition } from '../engine/types';
 import type { SpellIndexEntry } from './spellRepo.types';
 import type { ItemIndexEntry } from './itemRepo.types';
 import type { MonsterTemplate } from './monsters/types';
@@ -17,6 +17,7 @@ import type { SubclassEntry } from './subclasses/subclassBrowse';
 import { BrowsableEntry, ContentTypeId } from './contentQuery';
 import { Colors } from '../theme';
 import { CASTER_TYPE } from './classes/classBrowse';
+import { getProgressionForClass } from './classes/progressions';
 import { itemCategory, ITEM_CATEGORY_LABELS } from './items/itemBrowse';
 import { crLabel } from './monsters/monsterBrowse';
 import { primaryPrereqCategory } from './feats/featBrowse';
@@ -105,6 +106,35 @@ function ordinal(n: number): string {
 
 /** One-line row summary — real, available fields only. Never the full
  *  mechanical description (that's what the detail screen is for). */
+/**
+ * What an opened Compendium row shows, for every type: the record's own description, and the features it gives (by level for a
+ * class or subclass, whose features live in the progression, not in `features`, and include picks such as a Fighting Style or
+ * Hunter's Prey). Spells and items load their full record in their own detail components (the list holds only their index), so
+ * they get nothing here.
+ */
+/** The picks a class table lists as features (skills, spells, gear and languages are creation details, not features). */
+const FEATURE_CHOICES = new Set<ChoiceDefinition['kind']>(['feature_pool', 'subclass', 'asi', 'feat', 'expertise', 'infusion']);
+
+export function entryDetail(entry: BrowsableEntry): { description: string | null; features: string[] } {
+  const raw = entry.raw as { description?: unknown; features?: { name: string }[]; feature?: { name: string } };
+  const description = typeof raw.description === 'string' && raw.description.trim() ? raw.description.trim() : null;
+  const byLevel = (entries: readonly { level: number; grants: Grant[]; choices: ChoiceDefinition[] }[]) => {
+    const seen = new Set<string>();
+    return [...entries].sort((a, b) => a.level - b.level).flatMap(e => [
+      ...e.grants.filter(g => g.kind === 'feature').map(g => g.value as Feature)
+        .filter(f => f?.id && !seen.has(f.id) && seen.add(f.id)).map(f => `Level ${e.level}: ${f.name}`),
+      ...e.choices.filter(c => FEATURE_CHOICES.has(c.kind)).map(c => `Level ${e.level}: ${c.prompt}`),
+    ]);
+  };
+  switch (entry.type) {
+    case 'spell': case 'item': return { description: null, features: [] };
+    case 'class': return { description, features: byLevel(getProgressionForClass(entry.raw as CharClass).entries) };
+    case 'subclass': return { description, features: byLevel((entry.raw as SubclassEntryWithParent).progression.entries) };
+    case 'feat': return { description, features: raw.feature?.name ? [raw.feature.name] : [] };
+    default: return { description, features: Array.isArray(raw.features) ? raw.features.map(f => f.name) : [] };
+  }
+}
+
 export function summaryLine(entry: BrowsableEntry): string {
   switch (entry.type) {
     case 'race': {

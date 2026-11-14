@@ -29,7 +29,8 @@ import {
   buildClassHtml, buildFeatureListHtml, buildHomebrewSubclassHtml,
   buildSpellHtml, buildStandaloneFeatureHtml,
 } from './exportHtml';
-import { buildCharacterSheetHtml } from './characterSheetPdf';
+import { buildCharacterSheetHtml, DEFAULT_SHEET_THEME, isSheetTheme, type SheetLookup, type SheetTheme } from './characterSheetPdf';
+import { getMeta } from '../db/appMetaRepo';
 import { serializePortableCharacter } from './characterPortable';
 import { useCustomRuleProfileStore } from '../store/customRuleProfileStore';
 
@@ -183,6 +184,15 @@ async function shareByFormat(
 
 // ── Character ─────────────────────────────────────────────────────────────────
 
+export const SHEET_THEME_KEY = 'pdf_sheet_theme';
+/** The PDF look chosen in Settings; the default when none was chosen or it cannot be read. */
+export async function savedSheetTheme(): Promise<SheetTheme> {
+  try {
+    const saved = await getMeta(SHEET_THEME_KEY);
+    return isSheetTheme(saved) ? saved : DEFAULT_SHEET_THEME;
+  } catch { return DEFAULT_SHEET_THEME; }
+}
+
 export async function exportCharacter(entity: Entity, format: ExportFormat, action: ExportAction = 'share'): Promise<void> {
   if (format === 'pack') return;
   if (format === 'character-json') { const profile = useCustomRuleProfileStore.getState().profiles.find(candidate => candidate.id === entity.customRuleProfileId); await shareText(serializePortableCharacter(withRequiredPacks(entity, installedOfficialPacks()), profile), sanitize((entity.identity.name || 'character') + '-character') + '.grimoire-character.json', 'json', action); return; }
@@ -196,11 +206,17 @@ export async function exportCharacter(entity: Entity, format: ExportFormat, acti
   await withTimeout(ensureNamesLoaded(spellIds, itemIds), 20000, 'Loading spell and item names');
 
   const resolveName: ResolveName = (kind, id) => resolveContentName(db, kind, id);
+  // what page 2 of the PDF prints beside the names, and the look the person chose in Settings
+  const lookup: SheetLookup = {
+    spell: id => spellRepo.getSpellSync(id) ?? db.spells.find(s => s.id === id),
+    item:  id => itemRepo.getItemSync(id) ?? db.items.find(it => it.id === id),
+  };
+  const sheetTheme = format === 'pdf' ? await savedSheetTheme() : DEFAULT_SHEET_THEME;
 
   await shareByFormat(
     format,
     () => buildCharacterMarkdown(entity, resolveName),
-    () => buildCharacterSheetHtml(entity, resolveName),
+    () => buildCharacterSheetHtml(entity, resolveName, { theme: sheetTheme, lookup }),
     sanitize(`${entity.identity.name || 'character'}-character`),
     action,
   );

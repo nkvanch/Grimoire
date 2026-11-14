@@ -2,7 +2,9 @@
 // DM party overview dashboard. Only accessible when isDm === true.
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { Alert } from '../../src/utils/alert';
@@ -17,10 +19,11 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SyncStatusDot } from '../../src/components/SyncStatusDot';
 import { useSyncStore }  from '../../src/store/syncStore';
+import { campaignAdmission } from '../../src/engine/campaignLock';
 
 // ── Party Character Card ──────────────────────────────────────────────────────
 
-function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; showFull: boolean; onPress: () => void; onPlay: () => void }) {
+function PartyCard({ entity, showFull, onPress, onPlay, lockIssue }: { entity: Entity; showFull: boolean; onPress: () => void; onPlay: () => void; lockIssue?: string }) {
   const { identity, resources, derived, conditions, spellcasting, features, wildShapeState, conditionMonitor } = entity;
 
   // While Wild Shaped, the HP bar shown to the DM should reflect the BEAST's
@@ -67,6 +70,8 @@ function PartyCard({ entity, showFull, onPress, onPlay }: { entity: Entity; show
           <Text style={styles.cardSub}>
             Lv {identity.level} {identityLabelsFor(entity).class} · {identityLabelsFor(entity).race}
           </Text>
+          {/* already in the party, and not of the ruleset the campaign is locked to (LIFE-004) */}
+          {!!lockIssue && <Text style={styles.cardSub}>⚠️ {lockIssue}</Text>}
         </View>
         <View style={styles.cardBadges}>
           {isDead && (
@@ -453,6 +458,7 @@ export default function DmDashboard() {
               key={c.id}
               entity={c}
               showFull={showFull}
+              lockIssue={campaignAdmission(activeCampaign!, c)}
               onPress={() => router.push(`/dm/character/${c.id}` as any)}
               onPlay={() => router.push(`/sheet/${c.id}` as any)}
             />

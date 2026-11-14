@@ -8,9 +8,10 @@
 // zero extra engine wiring needed.
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
@@ -25,6 +26,8 @@ import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPick
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { simulate } from '../../src/engine/simulate';
 import { applyGrant } from '../../src/engine/leveling';
@@ -34,8 +37,12 @@ import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/sto
 import { disambiguateId } from '../../src/content/traitCompiler';
 import { globalContentDB } from '../../src/content/classes/library';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
+import { backgroundGeneratedFeatures } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeBackgroundFeatures, serializeLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { PictureField } from '../../src/components/homebrew/PictureField';
+import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 // Same 18-skill list used in race-builder.tsx and the PDF export.
 const SKILLS: { id: SkillName; label: string }[] = [
@@ -110,7 +117,7 @@ function FeatureListEditor({ features, onChange }: {
         </Pressable>
       ))}
       <View style={styles.inputRow}>
-        <TextInput style={[styles.input, { flex: 1 }]} value={newName} onChangeText={setNewName}
+        <TextInput {...NAME_INPUT} style={[styles.input, { flex: 1 }]} value={newName} onChangeText={setNewName}
           placeholder="Feature name (e.g. Shelter of the Faithful)" placeholderTextColor={Colors.textDim}
           onSubmitEditing={add} />
         <Pressable style={styles.addBtn} onPress={add}>
@@ -168,6 +175,7 @@ export default function BackgroundBuilderScreen() {
   const [rulesetId, setRulesetId] = useState<RulesetId | undefined>(() => editing ? editing.rulesetId : draftRulesetId);
 
   const [name, setName] = useState('');
+  const [pictures, setPictures] = useState<RecordPictures>({});
   const [origin, setOrigin] = useState<ContentOrigin | undefined>(undefined);
   const [skills, setSkills] = useState<SkillName[]>([]);
   const [toolProfs, setToolProfs] = useState<string[]>([]);
@@ -185,6 +193,7 @@ export default function BackgroundBuilderScreen() {
   useEffect(() => {
     if (!editing) return;
     setName(editing.name);
+    setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
     const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
@@ -228,54 +237,8 @@ export default function BackgroundBuilderScreen() {
       ...homebrewBackgrounds.filter(b => b.id !== editing?.id).map(b => b.id),
     ]);
     const id = editing?.id ?? disambiguateId(toId(name) || 'homebrew_background', takenBgIds);
-    const bgFeatures: Feature[] = [];
-
-    // Skills — same grant_proficiency (skill:X) pattern as race traits,
-    // confirmed to work correctly with the existing class-change re-apply
-    // logic in class-detail.tsx without needing the hardcoded BG_SKILL_MAP.
-    if (skills.length > 0) {
-      bgFeatures.push({
-        id: `${id}_skills`, name: 'Skill Proficiencies',
-        description: `You are proficient in ${skills.map(s => SKILLS.find(x => x.id === s)?.label ?? s).join(' and ')}.`,
-        source: { kind: 'background', refId: id },
-        level: null, actions: [], choices: [], passive: true,
-        effects: skills.map(s => ({
-          type: 'grant_proficiency' as const, target: `skill:${s}`,
-          operation: 'add' as const, value: null, condition: null,
-        })),
-      });
-    }
-
-    // Tools/languages/equipment: informational only (matches how the app's
-    // proficiencies.tools/languages blocks are populated elsewhere — a real
-    // grant_proficiency effect for tools works the same as skills, so wire
-    // those for real; equipment stays descriptive since backgrounds have no
-    // grant mechanism for starting gear the way classes now do).
-    if (toolProfs.length > 0) {
-      bgFeatures.push({
-        id: `${id}_tools`, name: 'Tool Proficiencies',
-        description: `You are proficient with ${toolProfs.join(', ')}.`,
-        source: { kind: 'background', refId: id },
-        level: null, actions: [], choices: [], passive: true,
-        effects: [{ type: 'grant_proficiency', target: 'tools', operation: 'add', value: toolProfs, condition: null }],
-      });
-    }
-    if (languages.trim()) {
-      bgFeatures.push({
-        id: `${id}_languages`, name: 'Languages',
-        description: `You know ${languages.trim()}.`,
-        source: { kind: 'background', refId: id },
-        level: null, actions: [], choices: [], passive: true, effects: [],
-      });
-    }
-    if (equipmentNote.trim()) {
-      bgFeatures.push({
-        id: `${id}_equipment`, name: 'Equipment',
-        description: equipmentNote.trim(),
-        source: { kind: 'background', refId: id },
-        level: null, actions: [], choices: [], passive: true, effects: [],
-      });
-    }
+    // Skills, tools, languages and equipment are compiled in content/homebrewCompile.ts (shared with the desktop app).
+    const bgFeatures: Feature[] = backgroundGeneratedFeatures({ skills, toolProfs, languages, equipmentNote: equipmentNote }, id);
     // Bug fix: this used to build each custom feature's id as
     // `${id}_${toId(f.name)}` with no collision check — two custom features
     // with the same (or same-once-slugified) name silently produced the
@@ -289,7 +252,7 @@ export default function BackgroundBuilderScreen() {
     const originalDraft = editing?.homebrewDraft as Record<string, unknown> | undefined;
     const serializedFeatures = serializeBackgroundFeatures(editing, (originalDraft?.features as DraftFeature[] | undefined) ?? [], features, id, bgFeatures, generatedIds);
 
-    return mergeHomebrewDefinition(editing, {
+    return withPictures(pictures, mergeHomebrewDefinition(editing, {
       // Imported definitions without an authoring draft cannot be safely
       // reverse-compiled by this UI; preserve structured mechanics.
       ...(editing && !editing.homebrewDraft ? {
@@ -298,7 +261,7 @@ export default function BackgroundBuilderScreen() {
       id, name: name.trim(), origin: cleanOrigin(origin), features: serializedFeatures.features, rulesetId,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, BACKGROUND_CHOICE_PREFIX),
       homebrewDraft: { skills, toolProfs, languages, equipmentNote, features, pendingChoices, traitOwners: serializedFeatures.owners },
-    });
+    }));
   }
 
   // Read-only test: apply the draft background's features to a disposable
@@ -361,6 +324,7 @@ export default function BackgroundBuilderScreen() {
     try {
       await saveItem('background', bg);
       usePendingSelectionStore.getState().setPending('background_picker', bg.id);
+      leave();
       goBack();
     } catch (e) {
       console.error('[background-builder] save failed:', e);
@@ -369,6 +333,10 @@ export default function BackgroundBuilderScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildBackground(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -381,8 +349,9 @@ export default function BackgroundBuilderScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        <PictureField value={pictures} onChange={setPictures} />
         <Text style={styles.fieldLabel}>Background Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Wandering Scholar" placeholderTextColor={Colors.textDim} />
 
         <OriginFields value={origin} onChange={setOrigin} />

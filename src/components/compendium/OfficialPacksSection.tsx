@@ -4,7 +4,8 @@
 // removing the last pack puts the built-in catalog back.
 import { shareText } from '../../io/exportShare';
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import { installedOfficialPacks, onOfficialPacksChanged, removeOfficialPack } from '../../content/officialPackService';
 import { sqlitePackStore } from '../../content/officialPackStore';
 import { Alert } from '../../utils/alert';

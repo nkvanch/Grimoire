@@ -614,7 +614,9 @@ export type OpResult = {
 
 export type ClientMessage =
   | { type: 'hello'; participantId: ParticipantId; token: string | null; nickname: string;
-      requestedCapabilities: Capability[]; characterId: string | null; lastRevision: number }
+      requestedCapabilities: Capability[]; characterId: string | null; lastRevision: number;
+      /** Sent inside a sealed hello only: lets the app back in when the room registered it but the welcome (with its token) was lost. */
+      resumeKey?: string }
   | { type: 'op'; op: Op }
   | { type: 'resync' }
   /** Room-info query that does NOT join — no participantId/hello, no registry entry, no

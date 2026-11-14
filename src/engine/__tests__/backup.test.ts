@@ -11,7 +11,7 @@
 // review C8). validatePackContents locks in the fix: reject a pack whose
 // homebrew content or embedded character features don't pass the same
 // per-type validators every in-app authoring form already uses.
-import { createBackupPack, validatePackContents, GrimoirePackHomebrew } from '../backup';
+import { createBackupPack, validateGrimoirePack, validatePackContents, GrimoirePackHomebrew } from '../backup';
 import { makeEmptyEntity } from '../../store/characterStore';
 import { Race, Feature, FeatureInstance, Entity } from '../types';
 
@@ -123,5 +123,16 @@ describe('validatePackContents — embedded character features', () => {
     const problems = validatePackContents(pack);
     expect(problems.some(p => p.includes('Bad'))).toBe(true);
     expect(problems.some(p => p.includes('Good'))).toBe(false);
+  });
+});
+
+describe('validateGrimoirePack and custom categories from the desktop app', () => {
+  const pack = { formatVersion: 1, packType: 'content-pack', characters: [] };
+  it('refuses a file that carries genericDefinitions, rather than dropping them', () => {
+    expect(validateGrimoirePack({ ...pack, genericDefinitions: [{ type: 'schema', id: 'x' }] })).toMatch(/desktop app/);
+  });
+  it('accepts an empty or absent genericDefinitions', () => {
+    expect(validateGrimoirePack(pack)).toBeNull();
+    expect(validateGrimoirePack({ ...pack, genericDefinitions: [] })).toBeNull();
   });
 });

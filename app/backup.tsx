@@ -4,7 +4,8 @@
 // a character survives a lost/reset device (see docs/PRIVACY_POLICY.md —
 // there is no cloud backup by design). docs/ROADMAP_1.0.md Phase 3.2.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../src/store/characterStore';
 import { Alert } from '../src/utils/alert';

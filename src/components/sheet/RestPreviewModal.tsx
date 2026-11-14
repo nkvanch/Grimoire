@@ -5,7 +5,9 @@
 // preview can never drift from what actually happens on Confirm: both read
 // from the same buildRestMutation() function exported here.
 import { useEffect, useState } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
 import {
   takeRest, HitDiceRecoveryAllocation, hitDiceRecoveryNeedsAllocation,

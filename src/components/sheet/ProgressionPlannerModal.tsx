@@ -8,7 +8,9 @@
 // here is ever committed, this is a read-only projection against the real
 // character, not a pending real mutation.
 import { useState, useMemo } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, ClassProgression, CharClass } from '../../engine/types';
 import { projectToLevel } from '../../engine/leveling';
 import { buildLevelUpSummaryRows, Row } from './LevelUpPreviewModal';

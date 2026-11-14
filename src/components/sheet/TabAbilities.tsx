@@ -2,7 +2,9 @@ import { setManualEntitlement } from '../../engine/entitlements';
 // app/sheet/TabAbilities.tsx
 // Tab 3 — Ability scores, saving throws, skills.
 import { useState, memo } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, Ability, SkillName, CampaignRules } from '../../engine/types';
 import { modifier, effectiveAbilityScores, recomputeDerived } from '../../engine/pipeline';
 import { applyDmOverride, getActiveOverrides, cancelDmOverride } from '../../engine/dmOverride';
@@ -370,9 +372,11 @@ interface AbilitiesProps {
   campaignId:   string;
   deviceId:     string;
   onEntityUpdate: (updated: Entity) => void;
+  /** Tapping an ability score offers to set its total (the same rule as Free Edit, so only where Free Edit is allowed). */
+  canSetTotals?: boolean;
 }
 
-function TabAbilitiesInner({ entity, rules, isDm, campaignId, deviceId, onEntityUpdate }: AbilitiesProps) {
+function TabAbilitiesInner({ entity, rules, isDm, campaignId, deviceId, onEntityUpdate, canSetTotals }: AbilitiesProps) {
   const [auditStat,  setAuditStat]  = useState<string | null>(null);
   const [auditLabel, setAuditLabel] = useState('');
   const [profOpen, setProfOpen] = useState(false);
@@ -413,7 +417,7 @@ function TabAbilitiesInner({ entity, rules, isDm, campaignId, deviceId, onEntity
             const modStr = mod >= 0 ? `+${mod}` : String(mod);
             return (
               <Pressable key={key} style={styles.abilityBox}
-                onPress={() => openAudit(key, `${label} (${score})`)}
+                onPress={() => openAudit(key, label)}
               >
                 <Text style={styles.abilityLabel}>{label}</Text>
                 <Text style={styles.abilityMod}>{modStr}</Text>
@@ -517,6 +521,7 @@ function TabAbilitiesInner({ entity, rules, isDm, campaignId, deviceId, onEntity
         campaignId={campaignId}
         deviceId={deviceId}
         onUpdate={onEntityUpdate}
+        canSetTotal={canSetTotals}
         onClose={() => setAuditStat(null)}
       />
 

@@ -2,7 +2,10 @@
 // DM Override apply/cancel modal.
 // Shown when isDm && user taps [Override] from the audit trail.
 import { useState } from 'react';
-import { Modal, View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, DmOverride, CampaignRules } from '../../engine/types';
 import { applyDmOverride, cancelDmOverride, getActiveOverrides } from '../../engine/dmOverride';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
@@ -36,6 +39,8 @@ export function DmOverrideModal({
   const [valueStr,  setValueStr]  = useState('');
   const [label,     setLabel]     = useState('');
   const [expiry,    setExpiry]    = useState<Expiry>('manual');
+  // Closing with edits asks first (src/hooks/useDiscardGuard.ts); an explicit Discard does not.
+  const close = closeAsking(useEdited(() => ({ operation, valueStr, label, expiry }), visible), onClose);
 
   const value  = parseFloat(valueStr);
   const valid  = !isNaN(value) && label.trim().length > 0;
@@ -66,8 +71,8 @@ export function DmOverrideModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+      <Pressable style={styles.backdrop} onPress={close}>
         <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
           <Text style={styles.title}>DM Override</Text>
           <Text style={styles.statName}>{statLabel}</Text>
@@ -156,7 +161,7 @@ export function DmOverrideModal({
             </View>
           )}
 
-          <Pressable style={styles.closeBtn} onPress={onClose}>
+          <Pressable style={styles.closeBtn} onPress={close}>
             <Text style={styles.closeTxt}>Close</Text>
           </Pressable>
         </Pressable>

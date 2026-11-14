@@ -10,7 +10,9 @@
 // consequence path. concentrationCheck() itself is left untouched for any
 // other existing caller; this modal now composes its two halves directly.
 import { useState } from 'react';
-import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
 import { rollConcentrationSave, resolveConcentrationOutcome } from '../../engine/combat';
 import { recomputeDerived } from '../../engine/pipeline';

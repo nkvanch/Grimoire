@@ -6,9 +6,12 @@
 import { itemsForRuleset } from '../../content/itemEditions';
 import { useState, useMemo, useEffect, memo } from 'react';
 import {
-  ScrollView, View, Text, Pressable, StyleSheet,
-  Modal, TextInput, SectionList, Image,
+  ScrollView, View, Text, StyleSheet,
+  SectionList,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { RecordIcon } from '../RecordPicture';
 import { Entity, ItemInstance, Item, Currency, CampaignRules, matchesRuleset, RulesetId } from '../../engine/types';
 import { Alert } from '../../utils/alert';
 import { applyStatModifiers, collectAllEffects } from '../../engine/pipeline';
@@ -18,6 +21,8 @@ import { useHomebrewStore } from '../../store/homebrewStore';
 import { usesLargeCreatureWeaponDice } from '../../engine/houseRules';
 import { infusions } from '../../content/runtimeRules';
 import { infusionCapacity } from '../../engine/infusionCapacity';
+import { asksForDamageType } from '../../engine/infusionRules';
+import { isLargeCreature as engineIsLargeCreature } from '../../engine/actionCards';
 import { itemRequiresAttunement, attunementCap, countAttuned } from '../../engine/inventory';
 import { NonSrdBadge, isNonSrd } from '../NonSrdBadge';
 import {
@@ -30,6 +35,9 @@ import { SortControl } from '../SortControl';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../FilterChipRow';
 import { useBrowseStateStore } from '../../store/browseStateStore';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { ModeSwitch } from './ModeSwitch';
+import { modeKey } from '../../engine/featureModes';
+import { NAME_INPUT } from '../nameInput';
 
 const ITEM_PICKER_SCREEN_KEY = 'item_picker';
 
@@ -40,14 +48,8 @@ const DAMAGE_TYPES = [
 
 // ── Large creature detection ───────────────────────────────────────────────────
 
-const LARGE_SUBRACE_IDS  = new Set(['skeleton_giant']);
-const LARGE_RACE_IDS     = new Set<string>(); // extend as more Large races are added
-
-function isLargeCreature(entity: Entity): boolean {
-  if (entity.identity.subRaceId && LARGE_SUBRACE_IDS.has(entity.identity.subRaceId)) return true;
-  if (entity.identity.raceId    && LARGE_RACE_IDS.has(entity.identity.raceId))       return true;
-  return entity.features.some(f => f.id === 'skeleton_giant_remains');
-}
+// The engine's own check: Large when the species or subspecies record says so, or a feature makes the character count as Large.
+const isLargeCreature = (entity: Entity): boolean => engineIsLargeCreature(entity, useHomebrewStore.getState().getMergedContentDB().races);
 
 // ── Currency helpers ───────────────────────────────────────────────────────────
 
@@ -319,7 +321,7 @@ function AddItemModal({
           {/* Quick-add custom (homebrew) item form */}
           {quickOpen && (
             <View style={addStyles.quickForm}>
-              <TextInput
+              <TextInput {...NAME_INPUT}
                 style={addStyles.quickInput}
                 value={qName}
                 onChangeText={setQName}
@@ -786,7 +788,7 @@ function InfuseItemModal({
   function handleApply() {
     if (!selectedInfusion || !selectedInstance || atCap) return;
     const instanceId = selectedInstance.id ?? selectedInstance.itemId;
-    onApply(selectedInstance.itemId, selectedInfusion, selectedInfusion === 'resistant_armor' ? damageType : undefined, instanceId);
+    onApply(selectedInstance.itemId, selectedInfusion, asksForDamageType(knownInfusions.find(i => i.id === selectedInfusion)?.feature) ? damageType : undefined, instanceId);
     reset();
     onClose();
   }
@@ -815,7 +817,7 @@ function InfuseItemModal({
             {knownInfusions.length === 0 && <Text style={addStyles.empty}>No infusions known yet.</Text>}
           </ScrollView>
 
-          {selectedInfusion === 'resistant_armor' && (
+          {asksForDamageType(knownInfusions.find(i => i.id === selectedInfusion)?.feature) && (
             <>
               <Text style={infuseStyles.stepLabel}>Damage type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={addStyles.chipRowContent}>
@@ -884,7 +886,7 @@ const infuseStyles = StyleSheet.create({
 
 function ItemRow({
   instance, equipped, allItems, onToggle, onRemove, onRemoveInfusion, onQuantityChange, onSetQuantity,
-  onToggleAttune,
+  onToggleAttune, onCustomize, modeState, onSetMode,
 }: {
   instance: ItemInstance;
   equipped: boolean;
@@ -902,6 +904,11 @@ function ItemRow({
    * check/explanatory Alert lives in the parent (it needs the whole
    * inventory to count), this just renders the toggle and calls back. */
   onToggleAttune?: () => void;
+  /** Opens the customise pop-up for this owned copy (name, description, uses, ability changes). */
+  onCustomize?: () => void;
+  /** The character's active modes, and switching one (engine/featureModes.ts); a feature with modes shows its switch. */
+  modeState?: Pick<Entity, 'featureModes'>;
+  onSetMode?: (key: string, modeId: string, label: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const item  = allItems.find(i => i.id === instance.itemId);
@@ -915,7 +922,7 @@ function ItemRow({
     <View style={styles.itemWrap}>
       <View style={styles.itemRow}>
         <Pressable style={styles.itemMain} onPress={() => setExpanded(e => !e)}>
-          {item?.imageUri && <Image source={{ uri: item.imageUri }} style={styles.itemThumb} />}
+          <RecordIcon record={item} size={36} />
           <View style={styles.itemInfo}>
             <Text style={styles.itemName}>{name}</Text>
             {props.length > 0 && (
@@ -958,6 +965,9 @@ function ItemRow({
           <Text style={styles.removeTxt}>✕</Text>
         </Pressable>
       </View>
+      {modeState && onSetMode && (item?.features ?? []).map(f => (
+        <ModeSwitch key={`mode-${f.id}`} feature={f} entity={modeState} modeKey={modeKey(f.id, instance.id)} onSet={onSetMode} />
+      ))}
       {expanded && desc && (
         <View style={styles.itemDesc}>
           <Text style={styles.itemDescTxt}>{desc}</Text>
@@ -997,6 +1007,11 @@ function ItemRow({
           </View>
         </View>
       )}
+      {expanded && onCustomize && (
+        <Pressable style={styles.customizeBtn} onPress={onCustomize} accessibilityRole="button" accessibilityLabel={`Customize ${name}`}>
+          <Text style={styles.customizeTxt}>✎ Customize: name, description, uses, ability scores</Text>
+        </Pressable>
+      )}
       {expanded && infusion && onRemoveInfusion && (
         <Pressable style={styles.removeInfusionBtn} onPress={onRemoveInfusion}>
           <Text style={styles.removeInfusionTxt}>Remove Infusion</Text>
@@ -1028,18 +1043,22 @@ interface Props {
   rules?:            CampaignRules;
   onApplyInfusion?:  (itemId: string, infusionId: string, damageType: string | undefined, instanceId: string) => void;
   onRemoveInfusion?: (itemId: string, instanceId?: string) => void;
-  onToggleAttune?:   (itemId: string, instanceId?: string) => void;
+  onToggleAttune?:   (itemId: string, instanceId?: string, overrule?: boolean) => void;
   /** Item 13 (loadouts) — save/apply/delete a named (equipped items,
    *  prepared spells) snapshot. Omitted entirely hides the section (same
    *  optional-prop pattern as onApplyInfusion). */
   onSaveLoadout?:    (name: string) => void;
   onApplyLoadout?:   (loadoutId: string) => void;
   onDeleteLoadout?:  (loadoutId: string) => void;
+  /** Customise one owned copy (see ItemCustomizeModal). */
+  onCustomizeItem?:  (instance: ItemInstance) => void;
+  /** Switches a mode of an owned item's feature (engine/featureModes.ts). */
+  onSetMode?:        (key: string, modeId: string, label: string) => void;
 }
 
 function TabInventoryInner({
   entity, onEquip, onUnequip, onAddItem, onRemoveItem, onUpdateQuantity, onSetQuantity, onUpdateCurrency, rules,
-  onApplyInfusion, onRemoveInfusion, onToggleAttune, onSaveLoadout, onApplyLoadout, onDeleteLoadout,
+  onApplyInfusion, onRemoveInfusion, onToggleAttune, onSaveLoadout, onApplyLoadout, onDeleteLoadout, onCustomizeItem, onSetMode,
 }: Props) {
   const { inventory } = entity;
   const { currency }  = inventory;
@@ -1087,7 +1106,10 @@ function TabInventoryInner({
   function handleAttuneToggle(inst: ItemInstance) {
     if (!onToggleAttune) return;
     if (!inst.attuned && attunedCount >= attuneCap) {
-      Alert.alert('Attunement Full', `You're already attuned to ${attuneCap} item${attuneCap === 1 ? '' : 's'} — un-attune from one first.`);
+      Alert.alert('Attunement Full', `You're already attuned to ${attuneCap} item${attuneCap === 1 ? '' : 's'}. Un-attune from one first, or overrule to attune one more.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Overrule', onPress: () => onToggleAttune(inst.itemId, inst.id, true) },
+      ]);
       return;
     }
     onToggleAttune(inst.itemId, inst.id);
@@ -1181,7 +1203,7 @@ function TabInventoryInner({
             <Text style={styles.sectionTitle}>LOADOUTS ({(entity.loadouts ?? []).length})</Text>
           </View>
           <View style={styles.loadoutSaveRow}>
-            <TextInput
+            <TextInput {...NAME_INPUT}
               style={styles.loadoutInput}
               value={loadoutName}
               onChangeText={setLoadoutName}
@@ -1240,6 +1262,9 @@ function TabInventoryInner({
               onRemove={() => confirmRemove(inst)}
               onRemoveInfusion={onRemoveInfusion ? () => onRemoveInfusion(inst.itemId, inst.id) : undefined}
               onToggleAttune={onToggleAttune ? () => handleAttuneToggle(inst) : undefined}
+              onCustomize={onCustomizeItem ? () => onCustomizeItem(inst) : undefined}
+              modeState={entity}
+              onSetMode={onSetMode}
             />
           ))
         )}
@@ -1270,6 +1295,9 @@ function TabInventoryInner({
               onQuantityChange={delta => onUpdateQuantity(inst.itemId, delta, inst.id)}
               onSetQuantity={qty => onSetQuantity(inst.itemId, qty, inst.id)}
               onToggleAttune={onToggleAttune ? () => handleAttuneToggle(inst) : undefined}
+              onCustomize={onCustomizeItem ? () => onCustomizeItem(inst) : undefined}
+              modeState={entity}
+              onSetMode={onSetMode}
             />
           ))
         )}
@@ -1380,7 +1408,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm, gap: Spacing.xs,
   },
   itemMain:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  itemThumb: { width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh },
   itemInfo:  { flex: 1 },
   itemName:  { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   itemProps: { fontSize: FontSize.xs, color: Colors.textDim, marginTop: 1, lineHeight: 14 },
@@ -1405,6 +1432,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border,
     paddingVertical: 2, paddingHorizontal: 4,
   },
+  customizeBtn: {
+    minHeight: 44, justifyContent: 'center', marginTop: Spacing.xs, paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gold + '66', backgroundColor: Colors.gold + '14',
+  },
+  customizeTxt: { color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   removeInfusionBtn: {
     alignItems: 'center', paddingVertical: Spacing.xs, marginBottom: Spacing.xs,
     backgroundColor: Colors.red + '11', borderRadius: Radius.sm,

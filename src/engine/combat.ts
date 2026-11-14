@@ -19,7 +19,8 @@ import { resolveResistance } from './resolver';
 import { tickDurations, applyCondition, removeCondition } from './conditions';
 import { lookupCondition } from '../content/conditions/index';
 import { rollD20 as rollD20Dice } from './dice';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
+import { CONCENTRATION_ADVANTAGE_FEATURE_IDS, WILD_SHAPE_CLASS_IDS } from './ruleset/dnd5e';
 import { deathSavesPersist } from './houseRules';
 
 // ── Initiative ────────────────────────────────────────────────────────────────
@@ -548,7 +549,7 @@ export function rollConcentrationSave(
   // feature id (feat_<id>); the old 'war_caster'/'resilient_con' ids never
   // matched anything created by the feats system.
   const hasWarCaster = entity.features.some(f =>
-    f.isActive && f.id === 'feat_war_caster'
+    f.isActive && CONCENTRATION_ADVANTAGE_FEATURE_IDS.includes(f.id)
   );
 
   const baseRoll = (): number => rollD20Dice(conSaveBonus).total;
@@ -639,6 +640,7 @@ export function applyDamage(
   let deathSaves = entity.resources.deathSaves;
   if (newCurrent === 0 && !wasAtZero) {
     deathSaves = {
+      ...deathSaves,
       successes: 0,
       failures:  deathSavesPersist(rules) ? deathSaves.failures : 0,
       stable:    false,
@@ -670,7 +672,8 @@ export function applyDamage(
   return recomputeDerived(suspended, rules);
 }
 
-/** Heals an entity, capped at maximum HP. Any healing above 0 HP clears death saves. */
+/** Heals an entity, capped at maximum HP. Any healing above 0 HP clears death saves, except failures under the deathSavesPersist house rule
+ *  (they carry over until a long rest, as the desktop keeps them). */
 export function applyHealing(
   entity:  Entity,
   amount:  number,
@@ -687,7 +690,7 @@ export function applyHealing(
       ...entity.resources,
       hp: { ...entity.resources.hp, current: newCurrent },
       deathSaves: newCurrent > 0
-        ? { successes: 0, failures: 0, stable: false }
+        ? { ...entity.resources.deathSaves, successes: 0, failures: deathSavesPersist(rules) ? entity.resources.deathSaves.failures : 0, stable: false }
         : entity.resources.deathSaves,
     },
   };
@@ -990,7 +993,7 @@ export function startWildShape(
 
   // Duration: half druid level in hours, minimum 1 (book rule). Falls back to
   // character level if this isn't (yet) tracked as a separate class level.
-  const druidLevel = (entity.identity.classes ?? []).find(c => String(c.classId) === 'druid' || String(c.classId) === 'druid_2024')?.level;
+  const druidLevel = (entity.identity.classes ?? []).find(c => WILD_SHAPE_CLASS_IDS.includes(String(c.classId)))?.level;
   const hours = Math.max(1, Math.floor((druidLevel ?? entity.identity.level) / 2));
 
   const updated: Entity = {

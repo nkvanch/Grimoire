@@ -10,7 +10,7 @@
 import { Entity, Feature, CampaignRules } from './types';
 import { applyGrant, removeFeature } from './leveling';
 import { recomputeDerived } from './pipeline';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 
 /** Highest tier of `trackId` the entity currently holds (0 = none). */
 export function currentRewardTier(entity: Entity, trackId: string): number {

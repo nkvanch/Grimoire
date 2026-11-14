@@ -1,12 +1,15 @@
 // app/homebrew/feature-editor.tsx
 // Homebrew feature editor — name, description, effects, activation toggle.
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useLocalSearchParams } from 'expo-router';
 import { Feature, Effect, Entity } from '../../src/engine/types';
 import { Alert } from '../../src/utils/alert';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
+import { useEdited } from '../../src/hooks/useDiscardGuard';
+import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { simulate } from '../../src/engine/simulate';
 import { applyGrant } from '../../src/engine/leveling';
@@ -15,6 +18,7 @@ import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTe
 import { makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
+import { NAME_INPUT } from '../../src/components/nameInput';
 
 const EFFECT_TYPES = [
   'stat_modifier', 'grant_proficiency', 'grant_resistance',
@@ -143,6 +147,7 @@ export default function FeatureEditorScreen() {
     const feature = buildFeature();
     try {
       await saveItem('feature', feature);
+      leave();
       goBack();
     } catch (e) {
       console.error('[feature-editor] save failed:', e);
@@ -151,6 +156,10 @@ export default function FeatureEditorScreen() {
       setSaving(false);
     }
   }
+
+  // Leaving with unsaved edits asks first; the save itself does not (src/hooks/useDiscardGuard.ts).
+  const edited = useEdited(() => buildFeature(), editing?.id);
+  const leave = useLeaveGuard(edited);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -163,7 +172,7 @@ export default function FeatureEditorScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.fieldLabel}>Feature Name *</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName}
+        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
           placeholder="e.g. Dark Vision Enhancement" placeholderTextColor={Colors.textDim} />
 
         <Text style={styles.fieldLabel}>Description</Text>

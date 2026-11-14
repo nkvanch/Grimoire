@@ -22,13 +22,18 @@
 // longRest's until_rest sweep) conditions already use, with zero new engine
 // code. A permanent grant keeps using applyGrant, unchanged from before.
 import { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, CampaignRules, DraftTrait, DurationTracker } from '../../engine/types';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal } from '../homebrew/TraitEditor';
 import { applyGrant } from '../../engine/leveling';
 import { applyCondition } from '../../engine/conditions';
 import { simulate } from '../../engine/simulate';
 import { buildFeatureGrantRows } from './featureGrantRows';
+import { ModesEditor } from './AbilityModesEditor';
+import { abilityChangeEffects, type ModeEdits } from '../../engine/itemCustomize';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 /** Compiles the draft and applies the resulting feature (+ any extra
@@ -44,11 +49,15 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
  *  today; disclosed in the preview screen when it applies. */
 export function grantCustomFeature(
   entity: Entity, draft: DraftTrait, rules: CampaignRules, duration: DurationTracker | null = null,
+  /** Modes to switch between on the sheet (engine/featureModes.ts), each with its own ability changes. */
+  modes: ModeEdits[] = [],
 ): Entity {
   const compiled = buildTraitFeature(draft, {
     idPrefix: draft.localId, sourceKind: 'manual', sourceRefId: draft.localId, level: null,
   });
-  const features = [compiled.feature, ...(compiled.extraFeatures ?? [])];
+  const authored = modes.map((m, i) => ({ id: m.id, name: m.name.trim() || `Mode ${i + 1}`, effects: abilityChangeEffects(m.abilities) }));
+  const main = authored.length ? { ...compiled.feature, modes: authored } : compiled.feature;
+  const features = [main, ...(compiled.extraFeatures ?? [])];
 
   let updated = entity;
   const manualSource = { kind: 'manual' as const, id: compiled.feature.id };
@@ -77,13 +86,16 @@ interface Props {
   onCancel:  () => void;
 }
 
-type Step = 'editing' | 'duration' | 'preview';
+type Step = 'editing' | 'modes' | 'duration' | 'preview';
 
 export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCancel }: Props) {
   const [draft, setDraft] = useState<DraftTrait>(() => newDraftTrait('New Feature'));
   const [step, setStep] = useState<Step>('editing');
   const [duration, setDuration] = useState<DurationTracker | null>(null);
   const [roundsText, setRoundsText] = useState('');
+  const [modes, setModes] = useState<ModeEdits[]>([]);
+  // Closing with edits asks first (src/hooks/useDiscardGuard.ts); an explicit Discard does not.
+  const close = closeAsking(useEdited(() => ({ draft, duration, roundsText, modes }), visible), onCancel);
 
   // Fresh draft every time this flow is (re)opened — visible flips false→true
   // between separate additions, this component instance stays mounted.
@@ -93,6 +105,7 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
       setStep('editing');
       setDuration(null);
       setRoundsText('');
+      setModes([]);
     }
   }, [visible]);
 
@@ -104,9 +117,33 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
         trait={draft}
         visible
         onChange={setDraft}
-        onDone={() => setStep('duration')}
+        onDone={() => setStep('modes')}
         onDelete={onCancel}
       />
+    );
+  }
+
+  if (step === 'modes') {
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={close}>
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
+          <View style={[styles.sheet, styles.modesSheet]}>
+            <Text style={styles.title}>Modes — {draft.name || 'New Feature'}</Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <ModesEditor idPrefix="custom-feature" modes={modes} onChange={setModes} />
+            </ScrollView>
+            <View style={styles.actions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setStep('editing')}>
+                <Text style={styles.cancelTxt}>← Back</Text>
+              </Pressable>
+              <Pressable style={styles.confirmBtn} onPress={() => setStep('duration')} testID="custom-feature-modes-next">
+                <Text style={styles.confirmTxt}>{modes.length ? 'Next' : 'No modes'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     );
   }
 
@@ -114,8 +151,8 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
     const rounds = parseInt(roundsText, 10);
     const roundsValid = !isNaN(rounds) && rounds >= 1;
     return (
-      <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-        <Pressable style={styles.backdrop} onPress={onCancel}>
+      <Modal visible transparent animationType="fade" onRequestClose={close}>
+        <Pressable style={styles.backdrop} onPress={close}>
           <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
             <Text style={styles.title}>How long — {draft.name || 'New Feature'}?</Text>
             <Pressable style={styles.durationItem} onPress={() => { setDuration(null); setStep('preview'); }}>
@@ -148,7 +185,7 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
                 </Pressable>
               </View>
             </View>
-            <Pressable style={styles.cancelBtn} onPress={() => setStep('editing')}>
+            <Pressable style={styles.cancelBtn} onPress={() => setStep('modes')}>
               <Text style={styles.cancelTxt}>← Back</Text>
             </Pressable>
           </Pressable>
@@ -157,7 +194,7 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
     );
   }
 
-  const { before, after } = simulate(entity, e => grantCustomFeature(e, draft, rules, duration), rules);
+  const { before, after } = simulate(entity, e => grantCustomFeature(e, draft, rules, duration, modes), rules);
   const rows = buildFeatureGrantRows(before, after);
   const durationLabel = duration === null ? 'Permanent'
     : duration.unit === 'until_rest' ? 'Until Next Rest'
@@ -166,8 +203,8 @@ export function AddCustomFeatureModal({ visible, entity, rules, onConfirm, onCan
   const grantsResource = !!compiled.resource || (compiled.extraResources ?? []).length > 0;
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
+    <Modal visible transparent animationType="fade" onRequestClose={close}>
+      <Pressable style={styles.backdrop} onPress={close}>
         <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
           <Text style={styles.title}>Add {draft.name || 'New Feature'}</Text>
           <Text style={styles.durationSummary}>Duration: {durationLabel}</Text>
@@ -216,6 +253,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.md, gap: Spacing.sm,
   },
+  modesSheet: { maxHeight: '90%' },
   title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gold, textAlign: 'center' },
   emptyTxt: { fontSize: FontSize.md, color: Colors.textDim, textAlign: 'center', paddingVertical: Spacing.md },
   durationSummary: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', marginTop: -4 },

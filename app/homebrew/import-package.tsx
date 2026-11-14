@@ -8,7 +8,8 @@
 // already established for personal backups.
 import { PackDownloadPanel } from '../../src/components/PackDownloadPanel';
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { makeHomebrewLookup } from '../../src/store/homebrewLookup';

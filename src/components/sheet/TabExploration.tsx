@@ -13,7 +13,9 @@
 //    until a race/item/spell grants them.
 import { findBeastForm } from '../../content/runtimeRules';
 import { useState, useMemo, memo } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import {
   Entity, Ability, SkillName, CampaignRules, SenseType, Sense, ItemInstance, Spell, DurationTracker,
 } from '../../engine/types';

@@ -25,7 +25,7 @@ import {
 } from './types';
 import { applySubclassToEntity } from './leveling';
 import { recomputeDerived } from './pipeline';
-import { DEFAULT_RULES } from '../store/characterStore';
+import { DEFAULT_RULES } from './defaults';
 
 /** The class level that gates this group: the level in `group.classId` (multiclass-aware). */
 export function modeClassLevel(entity: Entity, group: ModeGroup): number {

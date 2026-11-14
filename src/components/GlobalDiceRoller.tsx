@@ -2,9 +2,10 @@
 // Floating dice button + modal. Import and add to any screen that needs it.
 import { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Modal,
-  TextInput, ScrollView, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { useDiceLogStore } from '../store/diceLogStore';
 import { ManualRollInput } from './ManualRollInput';
 import { rollWithAdvantage, rollWithDisadvantage } from '../engine/dice';

@@ -132,10 +132,12 @@ describe('choiceDefinitionCompiler round-trips', () => {
   });
 
   test('definitionToDraftChoice returns null for a kind this editor does not author', () => {
-    const skillChoice: ChoiceDefinition = {
-      id: 'x', prompt: 'p', kind: 'skill', count: 1, pool: 'all', grants: [], required: true, resolved: false,
+    const equipment: ChoiceDefinition = {
+      id: 'x', prompt: 'p', kind: 'equipment', count: 1, pool: [], grants: [], required: true, resolved: false,
     };
-    expect(definitionToDraftChoice(skillChoice)).toBeNull();
+    expect(definitionToDraftChoice(equipment)).toBeNull();
+    // a class's own cantrip or spell choice (no filter of its own) stays the class's
+    expect(definitionToDraftChoice({ ...equipment, kind: 'spell', pool: 'all' })).toBeNull();
   });
 
   test('idsForCategories never includes ids outside the requested categories', () => {

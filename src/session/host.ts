@@ -18,7 +18,7 @@ import {
   STANDARD_MONSTER_VISIBILITY, MONSTER_VISIBILITY_PRESETS, MonsterVisibility, PublicPersona, Reward, RewardKind, RewardStatus,
   SessionLogEntry, SessionLogKind, CharacterVitals,
 } from './types';
-import { applyEvent, projectEvent, projectState, Viewer } from './state';
+import { applyEvent, projectEvent, projectState, publicCombatantName, Viewer } from './state';
 import { Connection, ServerTransport, decodeFrame, encodeFrame } from './transport';
 import { isAuthorized, sanitizeRequested, validChanges, describeChanges, GRANTABLE } from './roles';
 
@@ -27,6 +27,8 @@ export type DmPolicy = 'manual' | 'auto-first' | 'never';
 export type HostPersisted = {
   state:     LiveState;
   tokens:    Record<ParticipantId, string>;
+  /** Resume keys of participants that have not yet authenticated with their token (sealed connections only). */
+  resumeKeys?: Record<ParticipantId, string>;
   ledger:    Record<ParticipantId, OpResult[]>;
   nextSeq:   Record<ParticipantId, number>;
 };
@@ -123,6 +125,7 @@ export class SessionHost {
   private readonly persist?: (p: HostPersisted) => void;
 
   private tokens: Record<ParticipantId, string> = {};
+  private resumeKeys: Record<ParticipantId, string> = {};
   private ledger: Record<ParticipantId, OpResult[]> = {};
   private nextSeq: Record<ParticipantId, number> = {};
   private held: Record<ParticipantId, Map<number, Op>> = {};
@@ -141,6 +144,7 @@ export class SessionHost {
       const r = JSON.parse(JSON.stringify(opts.restoreFrom)) as HostPersisted;
       this.state = r.state;
       this.tokens = r.tokens;
+      this.resumeKeys = r.resumeKeys ?? {};
       this.ledger = r.ledger;
       this.nextSeq = r.nextSeq;
       // No connections survive a process restart.
@@ -181,6 +185,16 @@ export class SessionHost {
     return token;
   }
 
+  /** How many connected devices (other than this one) are on a connection that is not sealed. */
+  unprotectedCount(): number {
+    let n = 0;
+    for (const [pid, entry] of this.entries) {
+      if (!entry.conn || this.state.participants[pid]?.capabilities.includes('host')) continue;
+      if (entry.conn.sealed !== true) n++;
+    }
+    return n;
+  }
+
   /** Test/diagnostic access to canonical state. Never handed to a UI for a Host-only device. */
   debugState(): LiveState {
     return JSON.parse(JSON.stringify(this.state)) as LiveState;
@@ -188,7 +202,7 @@ export class SessionHost {
 
   toPersisted(): HostPersisted {
     return JSON.parse(JSON.stringify({
-      state: this.state, tokens: this.tokens, ledger: this.ledger, nextSeq: this.nextSeq,
+      state: this.state, tokens: this.tokens, resumeKeys: this.resumeKeys, ledger: this.ledger, nextSeq: this.nextSeq,
     })) as HostPersisted;
   }
 
@@ -250,13 +264,20 @@ export class SessionHost {
     const pid = msg.participantId;
     const known = this.state.participants[pid];
     let token: string;
+    // A resume key counts only inside a sealed connection (it is never sent plain), and only 16 to 128 characters long.
+    const resumeKey = conn.sealed === true && typeof msg.resumeKey === 'string' && msg.resumeKey.length >= 16 && msg.resumeKey.length <= 128
+      ? msg.resumeKey : null;
 
     if (known) {
-      if (!msg.token || msg.token !== this.tokens[pid]) {
+      const byToken = !!msg.token && msg.token === this.tokens[pid];
+      // the app that never received its token (the welcome was lost) is let back in by its key, and given the token again
+      const byResumeKey = !byToken && resumeKey !== null && this.resumeKeys[pid] === resumeKey;
+      if (!byToken && !byResumeKey) {
         this.send(conn, { type: 'error', message: 'authentication failed' });
         conn.close();
         return;
       }
+      if (byToken) delete this.resumeKeys[pid];   // it has its token now: the key opens nothing any more
       token = this.tokens[pid];
       const old = this.entries.get(pid)?.conn;
       if (old && old !== conn) { this.bound.delete(old); old.close(); }
@@ -290,6 +311,7 @@ export class SessionHost {
       }
       token = this.newToken();
       this.tokens[pid] = token;
+      if (resumeKey !== null) this.resumeKeys[pid] = resumeKey;
       const requested = sanitizeRequested(msg.requestedCapabilities);
       const caps: Capability[] = [];
       let requestedDm = false;
@@ -538,7 +560,7 @@ export class SessionHost {
           ...(typeof c.ac === 'number' ? { ac: c.ac } : {}),
         };
         this.commit({ t: 'combatant_added', encounterId: enc.id, combatant }, pid,
-          { kind: 'encounter', text: `${combatant.name} joined "${enc.name}"`, scope: 'all', refId: enc.id });
+          { kind: 'encounter', text: `${publicCombatantName(combatant)} joined "${enc.name}"`, scope: 'all', refId: enc.id });
         return done('applied');
       }
 
@@ -548,7 +570,7 @@ export class SessionHost {
         const target = enc.combatants.find(c => c.id === body.combatantId);
         if (!target) return done('rejected', 'unknown-combatant');
         this.commit({ t: 'combatant_removed', encounterId: enc.id, combatantId: target.id }, pid,
-          { kind: 'encounter', text: `${target.name} left "${enc.name}"`, scope: 'all', refId: enc.id });
+          { kind: 'encounter', text: `${publicCombatantName(target)} left "${enc.name}"`, scope: 'all', refId: enc.id });
         return done('applied');
       }
 
@@ -559,7 +581,7 @@ export class SessionHost {
         if (!target) return done('rejected', 'unknown-combatant');
         if (body.hpState !== 'healthy' && body.hpState !== 'bloodied' && body.hpState !== 'down') return done('rejected', 'malformed');
         this.commit({ t: 'combatant_hp_state_set', encounterId: enc.id, combatantId: target.id, hpState: body.hpState }, pid,
-          { kind: 'encounter', text: `${target.name} is now ${body.hpState}`, scope: 'all', refId: enc.id });
+          { kind: 'encounter', text: `${publicCombatantName(target)} is now ${body.hpState}`, scope: 'all', refId: enc.id });
         return done('applied');
       }
 

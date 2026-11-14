@@ -8,7 +8,7 @@
 // specifically for the richer package-import preview (src/io/packageIO.ts).
 import { GrimoirePack, HOMEBREW_SCHEMA_VERSION, GrimoirePackHomebrew } from './backup';
 import { Issue } from './types';
-import { HomebrewContent } from '../db/contentCacheRepo';
+import { HomebrewContent } from './contentRecords';
 import { validateGrimoirePack, validatePackContents } from './backup';
 import { findDuplicateIdsInPackage, flattenPackageContents } from './packageConflicts';
 import { buildDependencyClosure, DependencyRef } from './contentDependencies';

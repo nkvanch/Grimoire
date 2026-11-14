@@ -10,7 +10,9 @@
 // buildProjectionRows (ProgressionPlannerModal.tsx, unchanged) for the row
 // diff.
 import { useState, useMemo } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, ClassProgression, CharClass } from '../../engine/types';
 import { getClassLevels } from '../../engine/multiclass';
 import { projectMulticlassSequence, MulticlassPlanStep } from '../../engine/leveling';

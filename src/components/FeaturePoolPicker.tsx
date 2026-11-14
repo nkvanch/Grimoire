@@ -5,7 +5,8 @@
 // reason ASI/feat/subclass/infusion do — each option needs its own outcome,
 // not one shared `grants` array).
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from './AccessibleControls';
 import { applyPoolChoiceToEntity } from '../engine/leveling';
 import { checkPrerequisites, splitSelection, cantripQualifies, lookupSpell } from '../engine/prerequisites';
 import { originFeats } from '../content/runtimeRules';

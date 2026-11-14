@@ -13,7 +13,9 @@
 // (Math.random() inside applyHP), so re-invoking the mutator would apply
 // a DIFFERENT roll than the one just previewed. See LevelUpSection's
 // confirmPendingLevelUp().
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, DerivedStats, DERIVED_NUMERIC_KEYS } from '../../engine/types';
 import { DERIVED_LABELS } from './derivedStatLabels';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

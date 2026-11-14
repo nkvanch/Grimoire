@@ -259,6 +259,7 @@ export const wizardProgression: ClassProgression = {
         level, hpDie: 6 as const,
         choices: [
           ...(asi ? [asiChoice(asi)] : []),
+          ...(level === 4 || level === 10 ? [spellChoice(`wizard_cantrips_${level}`, 1, 'Choose 1 more wizard cantrip.')] : []),
           spellChoice(`wizard_spellbook_${level}`, 2, 'Choose 2 spells to add to your spellbook.'),
         ] as ChoiceDefinition[],
         grants: [],
@@ -291,6 +292,7 @@ export const clericProgression: ClassProgression = {
     {
       level: 1, hpDie: 8, choices: [
         clericSkillChoice,
+        spellChoice('cleric_cantrips_1', 3, 'Choose 3 cleric cantrips.'),
         equipmentChoice('cleric_equip_a', 'Choose a weapon: (a) a mace or (b) a warhammer', [
           { id: 'mace',      label: 'Mace',      items: ['mace'] },
           { id: 'warhammer', label: 'Warhammer (if proficient)', items: ['warhammer'] },
@@ -319,7 +321,7 @@ export const clericProgression: ClassProgression = {
     },
     { level: 2, hpDie: 8, choices: [], grants: [{ kind: 'feature', value: { id: 'channel_divinity', name: 'Channel Divinity: Turn Undead', description: 'You gain the ability to channel divine energy directly from your deity. The baseline every Cleric gets is Turn Undead — present each undead within 30 feet with your holy symbol, forcing a WIS save or fleeing you for 1 minute. Domain-specific Channel Divinity options are separate, individually-authored features.', source: { kind: 'class', refId: 'cleric' }, level: 2, effects: [], actions: [], choices: [], passive: false, activation: { actionType: 'action', resourceCost: { resourceId: 'channel_divinity_pool', quantity: 1 }, range: '30 feet', target: 'area', requiresSave: { ability: 'wis', dc: 'spell_save_dc' } } } }, { kind: 'resource', value: { resourceId: 'channel_divinity_pool', name: 'Channel Divinity', maximum: 1, recharge: 'short_rest' } }] },
     { level: 3, hpDie: 8, choices: [], grants: [] },
-    { level: 4, hpDie: 8, choices: [asiChoice('cleric_asi_4')], grants: [] },
+    { level: 4, hpDie: 8, choices: [asiChoice('cleric_asi_4'), spellChoice('cleric_cantrips_4', 1, 'Choose 1 more cleric cantrip.')], grants: [] },
     { level: 5, hpDie: 8, choices: [], grants: [{ kind: 'feature', value: { id: 'destroy_undead', name: 'Destroy Undead', description: 'When an undead fails its saving throw against your Turn Undead, the creature is instantly destroyed.', source: { kind: 'class', refId: 'cleric' }, level: 5, effects: [], actions: [], choices: [], passive: true } }] },
     { level: 6, hpDie: 8, choices: [], grants: [{ kind: 'resource_upgrade', value: { resourceId: 'channel_divinity_pool', newMaximum: 2 } }] },
     { level: 7, hpDie: 8, choices: [], grants: [] },
@@ -330,7 +332,7 @@ export const clericProgression: ClassProgression = {
     },
     ...stubEntries([9], 8),
     {
-      level: 10, hpDie: 8, choices: [], grants: [
+      level: 10, hpDie: 8, choices: [spellChoice('cleric_cantrips_10', 1, 'Choose 1 more cleric cantrip.')], grants: [
         { kind: 'feature', value: { id: 'divine_intervention', name: 'Divine Intervention', description: "You can call on your deity to intervene on your behalf. Describe the assistance sought and roll percentile dice; on a result at or below your cleric level, your deity intervenes (the DM chooses the nature of the effect, or picks a cleric spell of 9th level or lower). No engine hook for a percentile DM-adjudicated effect — the roll itself is manual. Recharge is simplified to long rest here (RAW is 7 days on a success, otherwise a long rest).", source: { kind: 'class', refId: 'cleric' }, level: 10, effects: [], actions: [], choices: [], passive: false, activation: { actionType: 'action', resourceCost: { resourceId: 'divine_intervention_pool', quantity: 1 }, range: 'self', target: 'self', requiresSave: null } } },
         { kind: 'resource', value: { resourceId: 'divine_intervention_pool', name: 'Divine Intervention', maximum: 1, recharge: 'long_rest' } },
       ],
@@ -671,6 +673,7 @@ export const druidProgression: ClassProgression = {
     {
       level: 1, hpDie: 8, choices: [
         druidSkillChoice,
+        spellChoice('druid_cantrips_1', 2, 'Choose 2 druid cantrips.'),
         equipmentChoice('druid_equip_a', 'Choose: (a) a wooden shield or (b) any simple weapon', [
           { id: 'shield', label: 'Wooden Shield', items: ['shield'] },
           { id: 'simple', label: 'A simple weapon', items: [], itemFilter: { constraint: { category: 'weapon', weaponClass: 'simple' }, quantity: 1 } },
@@ -694,7 +697,7 @@ export const druidProgression: ClassProgression = {
     ] },
     { level: 3, hpDie: 8, choices: [], grants: [] },
     {
-      level: 4, hpDie: 8, choices: [asiChoice('druid_asi_4')], grants: [
+      level: 4, hpDie: 8, choices: [asiChoice('druid_asi_4'), spellChoice('druid_cantrips_4', 1, 'Choose 1 more druid cantrip.')], grants: [
         { kind: 'feature', value: { id: 'wild_shape_swim', name: 'Wild Shape: Swim Speed Allowed', description: 'Your Wild Shape restriction eases: you can now transform into a beast with a swimming speed, up to Challenge Rating 1/2. The Wild Shape card lists the forms you can take.', source: { kind: 'class', refId: 'druid' }, level: 4, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
@@ -704,7 +707,9 @@ export const druidProgression: ClassProgression = {
         { kind: 'feature', value: { id: 'wild_shape_fly', name: 'Wild Shape: Fly Speed Allowed', description: 'Your Wild Shape restriction eases again: you can now transform into a beast with a flying speed, up to Challenge Rating 1. The Wild Shape card lists the forms you can take.', source: { kind: 'class', refId: 'druid' }, level: 8, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
-    ...stubEntries([9,10,11], 8),
+    ...stubEntries([9], 8),
+    { level: 10, hpDie: 8, choices: [spellChoice('druid_cantrips_10', 1, 'Choose 1 more druid cantrip.')], grants: [] },
+    ...stubEntries([11], 8),
     { level: 12, hpDie: 8, choices: [asiChoice('druid_asi_12')], grants: [] },
     ...stubEntries([13,14,15], 8),
     { level: 16, hpDie: 8, choices: [asiChoice('druid_asi_16')], grants: [] },
@@ -1125,25 +1130,25 @@ export const warlockProgression: ClassProgression = {
     { level: 9, hpDie: 8, choices: [spellChoice('warlock_spells_9', 1, 'Choose 1 more warlock spell known.')], grants: [] },
     { level: 10, hpDie: 8, choices: [spellChoice('warlock_cantrips_10', 1, 'Choose 1 more warlock cantrip.')], grants: [] },
     {
-      level: 11, hpDie: 8, choices: [], grants: [
+      level: 11, hpDie: 8, choices: [spellChoice('warlock_spells_11', 1, 'Choose 1 more warlock spell known.')], grants: [
         { kind: 'feature', value: { id: 'mystic_arcanum_6', name: 'Mystic Arcanum (6th level)', description: 'You learn one 6th-level spell of your choice from the warlock spell list. You can cast it once without expending a spell slot, regaining the ability to do so after a long rest. No engine picker for this one-off choose-and-learn — resolve manually and add the spell via the sheet.', source: { kind: 'class', refId: 'warlock' }, level: 11, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     { level: 12, hpDie: 8, choices: [asiChoice('warlock_asi_12')], grants: [] },
     {
-      level: 13, hpDie: 8, choices: [], grants: [
+      level: 13, hpDie: 8, choices: [spellChoice('warlock_spells_13', 1, 'Choose 1 more warlock spell known.')], grants: [
         { kind: 'feature', value: { id: 'mystic_arcanum_7', name: 'Mystic Arcanum (7th level)', description: 'You learn one 7th-level spell of your choice from the warlock spell list, usable once per long rest without a spell slot, same as your other Mystic Arcanum.', source: { kind: 'class', refId: 'warlock' }, level: 13, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     ...stubEntries([14], 8),
     {
-      level: 15, hpDie: 8, choices: [], grants: [
+      level: 15, hpDie: 8, choices: [spellChoice('warlock_spells_15', 1, 'Choose 1 more warlock spell known.')], grants: [
         { kind: 'feature', value: { id: 'mystic_arcanum_8', name: 'Mystic Arcanum (8th level)', description: 'You learn one 8th-level spell of your choice from the warlock spell list, usable once per long rest without a spell slot, same as your other Mystic Arcanum.', source: { kind: 'class', refId: 'warlock' }, level: 15, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     { level: 16, hpDie: 8, choices: [asiChoice('warlock_asi_16')], grants: [] },
     {
-      level: 17, hpDie: 8, choices: [], grants: [
+      level: 17, hpDie: 8, choices: [spellChoice('warlock_spells_17', 1, 'Choose 1 more warlock spell known.')], grants: [
         { kind: 'feature', value: { id: 'mystic_arcanum_9', name: 'Mystic Arcanum (9th level)', description: 'You learn one 9th-level spell of your choice from the warlock spell list, usable once per long rest without a spell slot, same as your other Mystic Arcanum.', source: { kind: 'class', refId: 'warlock' }, level: 17, effects: [], actions: [], choices: [], passive: true } },
       ],
     },

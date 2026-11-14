@@ -12,7 +12,7 @@ import { effectiveAbilityScores, modifier, recomputeDerived } from './pipeline';
 
 function reconcileConOverrideHp(previous: Entity, next: Entity): Entity {
   const level = next.identity.level;
-  if (level <= 0) return next;
+  if (level <= 0 || next.kind === 'character') return next;   // a character's hit points follow Constitution in the pipeline
   const delta = (modifier(effectiveAbilityScores(next).con) - modifier(effectiveAbilityScores(previous).con)) * level;
   if (delta === 0) return next;
   const maximum = Math.max(1, next.resources.hp.maximum + delta);

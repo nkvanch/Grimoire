@@ -5,12 +5,15 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Modal, View, Text, Pressable, TextInput, StyleSheet, ScrollView, Dimensions,
+  View, Text, StyleSheet, ScrollView, Dimensions,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Ability } from '../../engine/types';
 import { activeCharacterOverrides, applyCharacterOverride, removeCharacterOverride } from '../../engine/characterOverride';
 import { effectiveAbilityScores, recomputeDerived } from '../../engine/pipeline';
-import { reconcileConHp } from '../../engine/leveling';
+import { setAbilityTotal } from '../../engine/abilityTotal';
+import { Alert } from '../../utils/alert';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 interface Props {
@@ -22,6 +25,8 @@ interface Props {
 }
 
 const ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+/** What the total is made of, so the person sees that bonuses are already in it. */
+const totalHint = (base: number, total: number) => (total === base ? 'The score on the sheet' : `Base ${base}, ${total > base ? '+' : '−'}${Math.abs(total - base)} from race, class, feats or items`);
 const HIT_DICE   = [6, 8, 10, 12];
 const SLOT_TIERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const SECTION_STAGES = 5;
@@ -140,10 +145,12 @@ export function FreeEditModal({ visible, entity, rules, onApply, onClose }: Prop
 
   // ── Base-data editors (direct entity mutation) ──────────────────────────────
 
-  const setBaseAbility = useCallback((ab: Ability, n: number) => {
-    const entity = entityRef.current;
-    const next = { ...entity, stats: { ...entity.stats, [ab]: Math.max(1, Math.min(30, n)) } };
-    onApplyRef.current(ab === 'con' ? reconcileConHp(entity, next) : next);
+  // The number typed is the TOTAL on the sheet: the base moves by the difference, so race, background, class and item bonuses are not
+  // added on top of it again (abilityTotal.ts). When something else sets the score, nothing changes and the person is told why.
+  const setAbilityTotalFromRow = useCallback((ab: Ability, n: number) => {
+    const result = setAbilityTotal(entityRef.current, ab, n);
+    if (result.entity !== entityRef.current) onApplyRef.current(result.entity);
+    if (!result.ok) Alert.alert(`${ab.toUpperCase()} not set to ${n}`, result.reason);
   }, []);
 
   // Both setters clear `pools` (rather than spreading it through) — a
@@ -208,12 +215,12 @@ export function FreeEditModal({ visible, entity, rules, onApply, onClose }: Prop
 
   // One stable dispatcher for every NumRow — rows identify themselves by id.
   const handleNum = useCallback((id: string, n: number) => {
-    if (id.startsWith('base:')) setBaseAbility(id.slice(5) as Ability, n);
+    if (id.startsWith('total:')) setAbilityTotalFromRow(id.slice(6) as Ability, n);
     else if (id.startsWith('slot:')) setSlotTotal(id.slice(5), n);
     else if (id === 'hd_count') setHitDiceCount(n);
     else if (id === 'speed') setBaseSpeed(n);
     else if (id === 'ac') setBaseAc(n);
-  }, [setBaseAbility, setSlotTotal, setHitDiceCount, setBaseSpeed, setBaseAc]);
+  }, [setAbilityTotalFromRow, setSlotTotal, setHitDiceCount, setBaseSpeed, setBaseAc]);
 
   // ── Character override layer ─────────────────────────────────────────────
   const overrideDerived = useCallback((stat: string, value: number) => {
@@ -281,8 +288,8 @@ export function FreeEditModal({ visible, entity, rules, onApply, onClose }: Prop
 
             {/* Ability Scores */}
             {stage >= 1 && (<>
-            <Text style={styles.section}>CHARACTER VALUES — BASE</Text>
-            {ABILITIES.map(ab=><NumRow key={ab+'-base'} id={'base:'+ab} label={ab.toUpperCase()+' base'} value={entity.stats[ab]} onChange={handleNum} hint="Changes underlying character data" />)}
+            <Text style={styles.section}>ABILITY SCORES — TOTAL</Text>
+            {ABILITIES.map(ab=><NumRow key={ab+'-total'} id={'total:'+ab} label={ab.toUpperCase()} value={effectiveScores[ab]} onChange={handleNum} hint={totalHint(entity.stats[ab], effectiveScores[ab])} />)}
             </>)}
             {stage >= 2 && (<>
             <Text style={styles.section}>MANUAL OVERRIDES — ABILITIES</Text>

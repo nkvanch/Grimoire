@@ -4,7 +4,10 @@
 // instead they use the DM override system on every tappable stat.
 import { identityLabelsFor } from '../../../src/store/identityLabelsFor';
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../../../src/components/AccessibleControls';
+import { Alert } from '../../../src/utils/alert';
+import { STEP_OPERATIONS } from '../../../src/store/pinningService';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCharacterStore } from '../../../src/store/characterStore';
 import { useCampaignStore }  from '../../../src/store/campaignStore';
@@ -71,16 +74,18 @@ export default function DmCharacterView() {
     return { classDefs: db.classes, homebrewSpells: db.spells, races: db.races, items: db.items };
   }, [entity?.rulesetId, getMergedContentDB]);
 
-  const mutate = useCallback((updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory) => {
+  // `operations`: as the player's own sheet, a step a pinned character's versions cannot run is refused and the DM is told why (LIFE-004)
+  const mutate = useCallback((updater: (e: Entity) => Entity, label?: string, category?: TimelineCategory, operations?: readonly string[]) => {
     if (!id) return;
-    updateCharacter(id, e => recomputeDerived(updater(e), rules, cardContent), label, category);
+    const refusal = updateCharacter(id, e => recomputeDerived(updater(e), rules, cardContent), label, category, operations);
+    if (refusal) Alert.alert('Not done', refusal);
   }, [id, updateCharacter, rules, cardContent]);
   // Closure item 16: same 'End Turn'/'combat' label/category the player's
   // own app/sheet/[id].tsx uses for its identical handleEndTurn — the DM
   // view renders the SAME TabCharacter/TabActions components, so pressing
   // End Turn from here must produce identical timeline/sync/undo behavior,
   // not a DM-prefixed variant.
-  const handleEndTurn = useCallback(() => mutate(e => playerEndTurn(e, rules), 'End Turn', 'combat'), [mutate, rules]);
+  const handleEndTurn = useCallback(() => mutate(e => playerEndTurn(e, rules), 'End Turn', 'combat', STEP_OPERATIONS.endTurn), [mutate, rules]);
 
   if (!entity) {
     return (
@@ -143,8 +148,8 @@ export default function DmCharacterView() {
             // the player's real HP underneath — same rule app/sheet/[id].tsx's
             // own handleDamage/handleHeal already apply for player-side controls.
             onDamage={(amt, dt, isNonmagicalAttack) => mutate(e => dmDamageMutation(e, rules, amt, dt, isNonmagicalAttack),
-              `Took ${amt}${dt ? ` ${dt}` : ''} damage`, 'combat')}
-            onHeal={amt => mutate(e => e.wildShapeState?.active ? e : applyHealing(e, amt, rules), `Healed ${amt}`, 'combat')}
+              `Took ${amt}${dt ? ` ${dt}` : ''} damage`, 'combat', entity.wildShapeState?.active ? STEP_OPERATIONS.wildShapeDamage : STEP_OPERATIONS.damage)}
+            onHeal={amt => mutate(e => e.wildShapeState?.active ? e : applyHealing(e, amt, rules), `Healed ${amt}`, 'combat', STEP_OPERATIONS.heal)}
             onAddCondition={(cId, duration) => {
               // Merged (not official-only CONDITIONS_BY_ID) so a homebrew
               // condition's features attach and its real name displays —
@@ -154,9 +159,9 @@ export default function DmCharacterView() {
               // silently dropped here since this callback only declared
               // one parameter.
               const cond = getMergedContentDB(entity.rulesetId).conditions.find(c => c.id === cId);
-              mutate(e => applyCondition(e, cId, 'dm', rules, cond?.features, duration), `DM: Added condition: ${cond?.name ?? cId}`, 'combat');
+              mutate(e => applyCondition(e, cId, 'dm', rules, cond?.features, duration), `DM: Added condition: ${cond?.name ?? cId}`, 'combat', STEP_OPERATIONS.conditions);
             }}
-            onRemoveCondition={cId => mutate(e => removeCondition(e, cId, rules), `DM: Removed condition: ${getMergedContentDB(entity.rulesetId).conditions.find(c => c.id === cId)?.name ?? cId}`, 'combat')}
+            onRemoveCondition={cId => mutate(e => removeCondition(e, cId, rules), `DM: Removed condition: ${getMergedContentDB(entity.rulesetId).conditions.find(c => c.id === cId)?.name ?? cId}`, 'combat', STEP_OPERATIONS.conditions)}
             onResourceChange={(rId, delta) => mutate(e => ({
               ...e,
               resources: {
@@ -169,12 +174,12 @@ export default function DmCharacterView() {
             onSpendSlot={(tier, kind = 'normal') => mutate(e => {
               if (!e.spellcasting) return e;
               return commitSpellPayment(e, { kind, tier: tier as SlotTier });
-            }, `DM: Spent level ${tier} spell slot`, 'spells')}
+            }, `DM: Spent level ${tier} spell slot`, 'spells', STEP_OPERATIONS.spellSlots)}
             onRestoreSlot={(tier, kind = 'normal') => mutate(e => {
               if (!e.spellcasting) return e;
               const slots = restoreSpellSlot(e.spellcasting, { kind, tier: tier as SlotTier });
               return slots === e.spellcasting ? e : { ...e, spellcasting: slots };
-            }, `DM: Restored level ${tier} spell slot`, 'spells')}
+            }, `DM: Restored level ${tier} spell slot`, 'spells', STEP_OPERATIONS.spellSlots)}
             onEndConcentration={name => mutate(e => endConcentration(e, rules), `DM: Ended concentration on ${name}`, 'spells')}
             onEntityUpdate={updated => mutate(() => updated, 'DM: Character tab edit', 'other')}
             onEndTurn={handleEndTurn}

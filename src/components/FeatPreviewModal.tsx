@@ -7,7 +7,9 @@
 // written to entity.stats directly, so the row-builder diffs EFFECTIVE
 // stats (applyStatModifiers + collectAllEffects), the same computation
 // AsiFeatPicker.tsx already does for its own display.
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { Entity, Feat, Ability, SkillName, DerivedStats, DERIVED_NUMERIC_KEYS } from '../engine/types';
 import { applyStatModifiers, collectAllEffects } from '../engine/pipeline';
 import { diffEffectSets } from '../engine/effectDiff';

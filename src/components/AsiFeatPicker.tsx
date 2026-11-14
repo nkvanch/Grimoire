@@ -4,7 +4,9 @@
 // then hands the updated entity back via onResolved. Used by the creation
 // level-up screen and the in-play (sheet) level-up modal so the two never drift.
 import { useState, useMemo, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable, TextInput } from './AccessibleControls';
+import { Modal } from './AppModal';
 import { applyAsiToEntity, applyFeatToEntity } from '../engine/leveling';
 import { applyStatModifiers, collectAllEffects } from '../engine/pipeline';
 import { evaluatePrerequisite } from '../engine/featPrereq';
@@ -14,7 +16,7 @@ import {
   featGrantsAsi, featGrantsProficiency, featGrantsActivation, featSortOptions,
 } from '../content/feats/featBrowse';
 import { sortByOption } from '../content/contentQuery';
-import { asiMode as getAsiMode } from '../engine/houseRules';
+import { asiMode as getAsiMode, featsEnabled } from '../engine/houseRules';
 import { ALL_FEATS } from '../content/feats/index';
 import { globalContentDB } from '../content/classes/library';
 import { useHomebrewStore, homebrewWinsById } from '../store/homebrewStore';
@@ -454,6 +456,19 @@ export function AsiFeatPicker({
 
     setMode('+2'); setFirst(null); setSecond(null); setFeatId(null); setSearch('');
     onResolved(asiUpdated);
+  }
+
+  // the table turned feats off (the desktop refuses a feat pick the same way)
+  if (featOnly && !featsEnabled(rules)) {
+    return (
+      <View style={[styles.container, styles.content]}>
+        <View style={styles.headerRow}>
+          <Text style={styles.heading}>Choose a Feat</Text>
+          {onClose && <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close"><Text style={styles.close}>✕</Text></Pressable>}
+        </View>
+        <Text style={styles.sub}>Feats are off at this table. The house rules can turn them on.</Text>
+      </View>
+    );
   }
 
   return (

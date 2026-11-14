@@ -4,7 +4,8 @@
 // class-detail browse layers. Subclass selection itself happens through the
 // class's subclass-unlock pending choice at the appropriate level, so this
 // screen is purely informational — there's no "select" button here.
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../../src/components/AccessibleControls';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getSubclassEntryMerged, subclassFeaturesByLevel, subclassProgressionTable } from '../../src/content/subclasses/subclassBrowse';
@@ -14,6 +15,7 @@ import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
 import { EditionBadge } from '../../src/components/EditionBadge';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { RecordDetailPicture } from '../../src/components/RecordPicture';
 
 export default function SubclassDetailScreen() {
   const router = useRouter();
@@ -51,6 +53,7 @@ export default function SubclassDetailScreen() {
         {!homebrewSubclasses.some(hs => hs.id === sub.id) && <EditionBadge item={sub.progression} official />}
         {!homebrewSubclasses.some(hs => hs.id === sub.id) && isNonSrd(sub.progression.srd, sub.progression.rulesetId) && <NonSrdBadge />}
       </View>
+      <RecordDetailPicture record={homebrewSubclasses.find(hs => hs.id === sub.id)} />
       <Text style={styles.subheading}>
         {sub.classId.charAt(0).toUpperCase() + sub.classId.slice(1)} subclass · unlocks at level {sub.unlockLevel}
       </Text>

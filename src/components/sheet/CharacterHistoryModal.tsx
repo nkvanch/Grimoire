@@ -7,7 +7,9 @@
 // content version (undo/redo already covers "step back a few actions" —
 // see the plan's own reasoning), so this is deliberately look-only.
 import { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { loadTimeline, TimelineEntry, TimelineCategory } from '../../db/timelineRepo';
 import { SessionLogEntry } from '../../engine/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

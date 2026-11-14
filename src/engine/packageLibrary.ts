@@ -8,8 +8,8 @@
 // pack, and `packageKindOf` reports exactly that. The kind union exists so a
 // new registered package type has one obvious place to be added; nothing here
 // invents semantics for types the registry does not record.
-import type { ContentCacheType, HomebrewContent } from '../db/contentCacheRepo';
-import type { InstalledPack } from '../db/packRegistryRepo';
+import type { ContentCacheType, HomebrewContent } from './contentRecords';
+import type { InstalledPack } from './contentRecords';
 import { collectContentDependencies, DependencyRef } from './contentDependencies';
 import type { Issue } from './types';
 import type { SortOption } from '../content/contentQuery';

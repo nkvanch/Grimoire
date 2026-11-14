@@ -13,7 +13,8 @@
 import { gridProps, withGridCell } from '../../src/components/GridCell';
 import { useListColumns } from '../../src/platform/layout';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, TextInput, InteractionManager } from 'react-native';
+import { View, Text, ScrollView, FlatList, StyleSheet, InteractionManager } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { installedRulesReferences } from '../../src/content/rules/rulesReference';
 import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
@@ -39,7 +40,7 @@ import {
   flattenSubraces, attachParentClassNames, raceToBrowsable, subraceToBrowsable,
   classToBrowsable, subclassToBrowsable, backgroundToBrowsable, featToBrowsable,
   spellToBrowsable, itemToBrowsable, monsterToBrowsable, conditionToBrowsable,
-  summaryLine, entrySourceLabel, CONTENT_TYPE_VISUALS, SubraceWithParent, SubclassEntryWithParent,
+  summaryLine, entryDetail, entrySourceLabel, CONTENT_TYPE_VISUALS, SubraceWithParent, SubclassEntryWithParent,
 } from '../../src/content/compendiumBrowse';
 import {
   RACE_SIZE_ORDER, RACE_MOVEMENT_TYPES, hasDarkvision, raceMovementTypes, hasSubraces, raceSortOptions,
@@ -57,6 +58,8 @@ import {
   primaryPrereqCategory, featGrantsAsi, featGrantsProficiency, featGrantsActivation, featSortOptions,
 } from '../../src/content/feats/featBrowse';
 import { CompendiumSpellDetail } from '../../src/components/compendium/CompendiumSpellDetail';
+import { CompendiumItemDetail } from '../../src/components/compendium/CompendiumItemDetail';
+import { EditionBadge } from '../../src/components/EditionBadge';
 import { spellSortOptions } from '../../src/content/spells/spellBrowse';
 import { actionType, ACTION_TYPES } from '../../src/content/spellFilterUtils';
 import {
@@ -78,6 +81,7 @@ import { CompendiumMode, parseCompendiumMode } from '../../src/content/compendiu
 import { CompendiumModeSwitch } from '../../src/components/compendium/CompendiumModeSwitch';
 import { HomebrewLibraryView } from '../../src/components/compendium/HomebrewLibraryView';
 import { InstalledPackagesView } from '../../src/components/compendium/InstalledPackagesView';
+import { RecordIcon, RecordDetailPicture } from '../../src/components/RecordPicture';
 
 const SCREEN_KEY = 'compendium';
 const ABILITY_LABELS: Record<Ability, string> = { str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA' };
@@ -975,9 +979,6 @@ function OfficialCompendiumView() {
             const isFavorite = favorites.has(favoriteKey(entry.type, entry.id));
             const expanded = expandedId === `${entry.type}:${entry.id}`;
             const visual = CONTENT_TYPE_VISUALS[entry.type];
-            const featureNames: string[] = Array.isArray((entry.raw as { features?: { name: string }[] })?.features)
-              ? (entry.raw as { features: { name: string }[] }).features.map(f => f.name)
-              : (entry.type === 'feat' ? [(entry.raw as { feature?: { name: string } }).feature?.name].filter((n): n is string => !!n) : []);
             return (
               <Pressable
                 style={[styles.row, { borderLeftColor: visual.accent }]}
@@ -988,7 +989,9 @@ function OfficialCompendiumView() {
                     <View style={[styles.typeBadge, { borderColor: visual.accent + '88', backgroundColor: visual.accent + '22' }]}>
                       <Text style={[styles.typeBadgeTxt, { color: visual.accent }]}>{visual.icon} {CONTENT_TYPE_LABELS[entry.type]}</Text>
                     </View>
+                    <RecordIcon record={entry.raw} size={22} />
                     <Text style={styles.rowName}>{entry.name}</Text>
+                    <EditionBadge item={entry} official={!entry.isHomebrew} />
                     {!entry.isHomebrew && isNonSrd(entry.srd, entry.rulesetId) && <NonSrdBadge />}
                   </View>
                   <View style={styles.rowBadges}>
@@ -1001,22 +1004,28 @@ function OfficialCompendiumView() {
                   </View>
                 </View>
                 <Text style={styles.rowSummary}>{summaryLine(entry)}</Text>
-                {expanded && (
+                {expanded && (() => {
+                  const detail = entryDetail(entry);
+                  return (
                   <View style={styles.rowDetail}>
+                    <RecordDetailPicture record={entry.raw} />
                     {entry.type === 'feat' && (entry.raw as { prerequisite: string | null }).prerequisite && (
                       <Text style={styles.rowDesc}>Prerequisite: {(entry.raw as { prerequisite: string }).prerequisite}</Text>
                     )}
                     {entry.type === 'spell' && <CompendiumSpellDetail spellId={entry.id} rulesetId={rulesetFilter} />}
-                    {entry.type === 'condition' && (
-                      <Text style={styles.rowDesc}>{(entry.raw as { description: string }).description || 'No description.'}</Text>
-                    )}
-                    {featureNames.length > 0 && (
+                    {entry.type === 'item' && <CompendiumItemDetail itemId={entry.id} />}
+                    {detail.description && <Text style={styles.rowDesc}>{detail.description}</Text>}
+                    {detail.features.length > 0 && (
                       <View style={styles.featureList}>
-                        {featureNames.map((n, i) => <Text key={i} style={styles.featureTxt}>• {n}</Text>)}
+                        {detail.features.map((n, i) => <Text key={i} style={styles.featureTxt}>• {n}</Text>)}
                       </View>
                     )}
+                    {entry.type !== 'spell' && entry.type !== 'item' && !detail.description && detail.features.length === 0 && (
+                      <Text style={styles.rowDesc}>Nothing more is recorded for this entry.</Text>
+                    )}
                   </View>
-                )}
+                  );
+                })()}
               </Pressable>
             );
           })}

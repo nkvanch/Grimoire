@@ -1,7 +1,8 @@
 // src/components/dm/HiddenCheckPanel.tsx
 // DM-only: type a Stealth total or a DC and see which party members' passive scores reach it, without asking the players.
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { Entity } from '../../engine/types';
 import { hiddenCheck, hiddenCheckSummary, PassiveKind } from '../../engine/hiddenCheck';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

@@ -5,7 +5,9 @@
 // are enforced by the engine (replacePoolOption), and the reasons are shown here. Renders nothing when the
 // character has no replaceable choice that has been made.
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Feature } from '../../engine/types';
 import { replacePoolOption, replaceableOptions } from '../../engine/leveling';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

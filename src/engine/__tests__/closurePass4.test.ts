@@ -165,6 +165,14 @@ describe('Closure 4 micro-fix: resource upgrade ownership', () => {
     expect(e.resources.custom[0]).toEqual(expect.objectContaining({ maximum: 3, current: 1 }));
   });
 
+  it('raising an upgrade again keeps the members the contribution carries that this build does not know', () => {
+    let e = applyGrant(baseResource(), upgrade(5), 2, undefined, { kind: 'feat', id: 'a' });
+    e = { ...e, entitlements: (e.entitlements ?? []).map(x => (x.kind === 'resource_upgrade' ? { ...x, 'x-unknown': 'keep me' } as typeof x : x)) };
+    e = applyGrant(e, upgrade(6), 3, undefined, { kind: 'feat', id: 'a' });
+    const contribution = (e.entitlements ?? []).find(x => x.kind === 'resource_upgrade' && x.sourceId === 'a');
+    expect(contribution).toEqual(expect.objectContaining({ amount: 3, 'x-unknown': 'keep me' }));
+  });
+
   it('clamps safely when removing an upgrade below the number already spent', () => {
     let e = applyGrant(baseResource(), upgrade(5), 2, undefined, { kind: 'feat', id: 'a' });
     e = { ...e, resources: { ...e.resources, custom: e.resources.custom.map(r => ({ ...r, current: 0 })) } };

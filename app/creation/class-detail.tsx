@@ -1,7 +1,9 @@
 // app/creation/class-detail.tsx
 // Class detail with back button, collapsible sections, and safe re-selection.
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../../src/components/AccessibleControls';
+import { Modal } from '../../src/components/AppModal';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -26,6 +28,7 @@ import {
 import { SortControl } from '../../src/components/SortControl';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
+import { RecordDetailPicture } from '../../src/components/RecordPicture';
 
 type ClassDetail = {
   description: string;
@@ -323,6 +326,7 @@ export default function ClassDetailScreen() {
         {!isHomebrewClass && <EditionBadge item={cls} official />}
         {(!!detail || isOfficial2024) && isNonSrd(cls.srd, cls.rulesetId) && <NonSrdBadge />}
       </View>
+      <RecordDetailPicture record={cls} />
       <View style={styles.divider} />
 
       {/* ── Three-layer class browser (Summary / Features / Progression) ── */}

@@ -12,7 +12,9 @@
 // whichever buildXSummaryRows fits that content type (buildFeatSummaryRows
 // for feat-builder.tsx today; items/races/etc. would reuse or add their
 // own row-builder later without needing a new modal).
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 export type Row = { label: string; note?: string };

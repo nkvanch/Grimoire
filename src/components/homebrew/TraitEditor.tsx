@@ -11,9 +11,10 @@
 // file re-exports that logic alongside the React components that edit it.
 import { useState, useMemo } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, TextInput, Modal,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
 import { DraftTrait, TraitEffectKind, Ability } from '../../engine/types';
 import {
   ABILITIES, SENSE_TYPES, MOVE_TYPES, SKILLS, ACTION_TYPES, RECHARGE_TYPES,
@@ -32,6 +33,7 @@ import { SafeBottomView } from '../SafeBottomView';
 import { TraitAdvancedEditor } from './TraitAdvancedEditor';
 import type { ResourceChoice } from '../../content/classes/knownResources';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { NAME_INPUT } from '../nameInput';
 
 export {
   ABILITIES, SENSE_TYPES, MOVE_TYPES, SKILLS, ACTION_TYPES, RECHARGE_TYPES,
@@ -506,7 +508,7 @@ export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, e
                 {(trait.gearKind ?? 'armor') === 'weapon' && (
                   <>
                     <Text style={styles.inlineLabel}>Or a specific weapon</Text>
-                    <TextInput style={styles.input} value={trait.gearName ?? ''} onChangeText={v => set({ gearName: v })}
+                    <TextInput {...NAME_INPUT} style={styles.input} value={trait.gearName ?? ''} onChangeText={v => set({ gearName: v })}
                       placeholder="e.g. rapier, longbow" placeholderTextColor={Colors.textDim} />
                   </>
                 )}
@@ -553,7 +555,7 @@ export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, e
             {trait.effectKind === 'tool_proficiency' && (
               <View style={styles.effectPanel}>
                 <Text style={styles.inlineLabel}>Tool or kit name</Text>
-                <TextInput style={styles.input} value={trait.toolName}
+                <TextInput {...NAME_INPUT} style={styles.input} value={trait.toolName}
                   onChangeText={v => set({ toolName: v })}
                   placeholder="Search or type your own — e.g. Thieves' Tools"
                   placeholderTextColor={Colors.textDim} />
@@ -1062,7 +1064,7 @@ export function TraitListEditor({ traits, onChange, excludeKinds }: {
         </Pressable>
       ))}
       <View style={styles.senseInputRow}>
-        <TextInput
+        <TextInput {...NAME_INPUT}
           style={[styles.input, { flex: 1 }]}
           value={newName}
           onChangeText={setNewName}

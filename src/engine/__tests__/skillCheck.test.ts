@@ -65,4 +65,14 @@ describe('skill check', () => {
     const expert = { ...e, skills: { ...e.skills, skills: { ...e.skills.skills, perception: { trained: true, expertise: true, bonus: 0 } } } } as Entity;
     expect(skillCheck(expert, 'perception', 'wis').bonus).toBe(2 + 2 * e.derived.proficiencyBonus);
   });
+  it('reads the ability score an override set, as the passive scores do', () => {
+    const base = withFeatures([]);
+    const e = {
+      ...base, stats: { ...base.stats, wis: 10 },
+      characterOverrides: [{ id: 'o1', entityId: 't', stat: 'wis', operation: 'set', value: 16, label: 'Headband', active: true, appliedAt: 1, cancelledAt: null }],
+    } as unknown as Entity;
+    const recomputed = recomputeDerived(e, DEFAULT_RULES);
+    expect(skillCheck(recomputed, 'perception', 'wis').bonus).toBe(3);
+    expect(recomputed.derived.passivePerception).toBe(13);
+  });
 });

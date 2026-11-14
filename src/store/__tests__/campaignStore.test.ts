@@ -12,7 +12,7 @@ import { useSessionStore } from '../sessionStore';
 import { syncManager } from '../../sync/syncManager';
 import * as campaignRepo from '../../db/campaignRepo';
 import * as appMetaRepo from '../../db/appMetaRepo';
-import { DEFAULT_RULES } from '../characterStore';
+import { DEFAULT_RULES, useCharacterStore, makeEmptyEntity } from '../characterStore';
 import { Campaign, DeviceSession } from '../../engine/types';
 
 function makeCampaign(overrides: Partial<Campaign> = {}): Campaign {
@@ -225,6 +225,22 @@ describe('campaignStore', () => {
       expect(appMetaRepo.setMeta).toHaveBeenCalledWith('claimed_character_id', 'char1');
     });
 
+    it('a campaign locked to a ruleset refuses a character of another one, and changes nothing (LIFE-004)', async () => {
+      jest.spyOn(campaignRepo, 'loadCampaign').mockResolvedValue(makeCampaign({ rulesetId: 'dnd5e-2024' as never, rulesetRevision: '1' }));
+      const claimSpy = jest.spyOn(syncManager, 'claimCharacter').mockImplementation(() => {});
+      const old = makeEmptyEntity('char2014', 'character');
+      useCharacterStore.setState({ characters: [{ ...old, rulesetId: 'dnd5e-2014' as never }, { ...old, id: 'char2024', rulesetId: 'dnd5e-2024' as never }] });
+      useCampaignStore.setState({ isDm: false });
+
+      await expect(useCampaignStore.getState().assignCharacterToCampaign('char2014', 'camp1'))
+        .rejects.toThrow('This campaign is locked to dnd5e-2024, and this character is dnd5e-2014.');
+      expect(saveCampaignSpy).not.toHaveBeenCalled();
+      expect(claimSpy).not.toHaveBeenCalled();
+      await useCampaignStore.getState().assignCharacterToCampaign('char2024', 'camp1');
+      expect(saveCampaignSpy).toHaveBeenCalledWith(expect.objectContaining({ characterIds: ['char2024'] }));
+      useCharacterStore.setState({ characters: [] });
+    });
+
     it('switchToCampaign (player path) re-announces a previously-claimed character instead of null', async () => {
       jest.spyOn(appMetaRepo, 'getMeta').mockResolvedValue('char1');
       const joined = makeCampaign({ id: 'joined1', dmDeviceId: 'the-real-dm', joinCode: 'ZZZ9999' });
@@ -263,11 +279,13 @@ describe('campaignStore', () => {
       });
       expect(full.description).toBe('A tale of woe');
       expect(full.rulesetId).toBe('dnd5e-2024');
+      expect(full.rulesetRevision).toBe('1');          // the campaign is locked to the ruleset at the revision it has now (LIFE-004)
       expect(full.bannedPackIds).toEqual(['pack1']);
 
       const bare = await useCampaignStore.getState().createCampaign({ name: 'Bare Campaign' });
       expect(bare.description).toBeUndefined();
       expect(bare.rulesetId).toBeUndefined();
+      expect(bare.rulesetRevision).toBeUndefined();
       expect(bare.bannedPackIds).toBeUndefined();
     });
 

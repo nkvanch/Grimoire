@@ -11,7 +11,7 @@
 //
 import { Entity, Race, Subrace, CharClass, HomebrewSubclass, Item, Spell, Background, Feature, Feat, Condition, SpellList, RulesetId } from './types';
 import { MonsterTemplate } from '../content/monsters/types';
-import { ContentCacheType } from '../db/contentCacheRepo';
+import { ContentCacheType } from './contentRecords';
 import { validateContent, validateFeature, validateEntityShape } from './homebrewValidator';
 import { migrateEntity } from './multiclass';
 
@@ -222,6 +222,12 @@ export function validateGrimoirePack(data: unknown): string | null {
   }
   if (!Array.isArray(p.characters)) {
     return 'Missing characters list — this file may be corrupted.';
+  }
+  // The desktop app carries content of the person's own categories here. This version can neither keep nor re-export it, so it refuses
+  // instead of importing the rest and losing that part (docs/PHONE_APP_GENERIC_DEFINITIONS_RISK.md, option 2).
+  const generic = (data as { genericDefinitions?: unknown }).genericDefinitions;
+  if (Array.isArray(generic) && generic.length > 0) {
+    return 'This file has content of custom categories made on the desktop app, which this version cannot keep. Import it on the desktop app instead.';
   }
   return null;
 }

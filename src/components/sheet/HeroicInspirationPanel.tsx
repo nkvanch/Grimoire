@@ -4,7 +4,8 @@
 // give it to a player character who lacks it, which is what Give away records). Shown for 2024-ruleset
 // characters, and for anyone who currently holds it.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from '../AccessibleControls';
 import { Entity } from '../../engine/types';
 import { hasHeroicInspiration, gainHeroicInspiration, spendHeroicInspiration, grantsHeroicInspirationOnLongRest } from '../../engine/heroicInspiration';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

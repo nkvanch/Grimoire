@@ -12,7 +12,10 @@
 // driven skill choice trained the same skill with no backing Effect — see
 // swapBackground's own doc comment).
 import { useState, useEffect } from 'react';
-import { Modal, View, Text, Pressable, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
+import { Modal } from '../AppModal';
+import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, CampaignRules, Background, Ability, SkillName } from '../../engine/types';
 import { swapBackground } from '../../engine/leveling';
 import { simulate } from '../../engine/simulate';
@@ -62,6 +65,8 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
   const [flexPicks, setFlexPicks] = useState<Ability[]>([]);
   const [flexSubMode, setFlexSubMode] = useState<'2_1' | '3x1'>('2_1');
   const [skillChecklist, setSkillChecklist] = useState<Partial<Record<SkillName, boolean>>>({});
+  // Closing with edits asks first (src/hooks/useDiscardGuard.ts); an explicit Discard does not.
+  const close = closeAsking(useEdited(() => ({ bg: selectedBg?.id, flexPicks, flexSubMode, skillChecklist }), visible), onCancel);
 
   // Search/filter/sort for the picker step. No Ruleset filter here (unlike
   // app/creation/background.tsx) — the character's own ruleset already
@@ -141,10 +146,10 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
     function clearAllFilters() { setOfficialFilter('all'); setSkillFilter(new Set()); setToolFilter(new Set()); }
 
     return (
-      <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
+      <Modal visible transparent animationType="slide" onRequestClose={close}>
         <View style={styles.backdrop}>
           {/* SCROLL-TOUCH-1: backdrop is a sibling, not an ancestor, of the sheet (see TabInventory AddItemModal) */}
-          <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessible={false} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
           <View style={styles.sheet}>
             <Text style={styles.title}>Change Background</Text>
             <TextInput
@@ -227,8 +232,8 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
   const rows = buildFeatureGrantRows(before, after);
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
+    <Modal visible transparent animationType="slide" onRequestClose={close}>
+      <Pressable style={styles.backdrop} onPress={close}>
         <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
           <Text style={styles.title}>Change Background → {selectedBg.name}</Text>
 

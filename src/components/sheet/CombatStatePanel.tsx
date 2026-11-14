@@ -6,7 +6,8 @@
 //   - auras of party members you can mark yourself as being inside.
 // Everything here is bookkeeping the table drives: the app never decides who is in range or who is the target.
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, TextInput } from '../AccessibleControls';
 import { Entity } from '../../engine/types';
 import { damageTakenSince } from '../../engine/damageLog';
 import { resumeFeature, isFeatureSuspended } from '../../engine/suspension';
@@ -15,6 +16,7 @@ import { aurasOffered, setInAura, isInAura } from '../../engine/auras';
 import { useCampaignStore } from '../../store/campaignStore';
 import { useCharacterStore } from '../../store/characterStore';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { NAME_INPUT } from '../nameInput';
 
 export function hasCombatState(entity: Entity, party: Entity[]): boolean {
   return (entity.damageLog?.length ?? 0) > 0
@@ -79,7 +81,7 @@ export function CombatStatePanel({ entity, onEntityUpdate }: { entity: Entity; o
             </View>
             {!x.targetName && (
               <View style={styles.row}>
-                <TextInput
+                <TextInput {...NAME_INPUT}
                   style={styles.input} placeholder="Target name" placeholderTextColor={Colors.textSecondary}
                   value={drafts[x.id] ?? ''} onChangeText={t => setDrafts(d => ({ ...d, [x.id]: t }))}
                 />
