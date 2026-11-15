@@ -22,6 +22,7 @@ import { spellRepo } from '../../content/spellRepo';
 import { resolveSpellById } from '../../content/contentResolution';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { getClassLevels } from '../../engine/multiclass';
+import { officialClasses } from '../../content/runtimeRules';
 import { castConcentrationSpell, concentrationLinkedEffectNames } from '../../engine/combat';
 import { castButtonStates, castHistoryLabel, confirmEndConcentration } from './spellTabUi';
 import { doubleDiceCount } from '../../engine/dice';
@@ -30,6 +31,7 @@ import { UseModal, applyActionCardUse, ActivationOptionModal } from './TabAction
 import { AddSpellModal } from './AddSpellModal';
 import { PREPARED_CASTER_CLASS_IDS, formatCastingContextLabel, CardGenOptions, isContextLegalForCastMode, needsPreparationOverride } from '../../engine/actionCards';
 import { Alert } from '../../utils/alert';
+import { forgetSpell, preparedSpellCount } from '../../engine/leveling';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -109,6 +111,7 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
 
   const homebrewSpells = useHomebrewStore(s => s.spells);
   const [addSpellOpen, setAddSpellOpen] = useState(false);
+  const [prepareClass, setPrepareClass] = useState<string | null>(null);   // preparing from this class's full list
 
   // Rules-engine blocker RE-AUDIT closure (dependency inversion, 1B/1D):
   // the ONE place this tab resolves the authoritative merged official +
@@ -151,7 +154,7 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
   // Add a spell/cantrip to the character. Initialises the spellcasting block
   // if the entity didn't have one. Cantrips (level 0) go to .cantrips; leveled
   // spells go to .known.
-  async function addSpell(spellId: string, level: number) {
+  async function addSpell(spellId: string, level: number, prepare = false) {
     // Warm Tier 2 before this id ever reaches the engine pipeline (spellMap
     // lookup / generateAllActionCards on the next render).
     await spellRepo.ensureLoaded([spellId]);
@@ -165,7 +168,7 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
     };
     const next = level === 0
       ? { ...block, cantrips: [...new Set([...block.cantrips, spellId])] }
-      : { ...block, known:    [...new Set([...block.known,    spellId])] };
+      : { ...block, known:    [...new Set([...block.known,    spellId])], ...(prepare ? { prepared: [...new Set([...block.prepared, spellId])] } : {}) };
     const addedSpell = resolveSpellById(spellId, homebrewSpells);
     const spellName = addedSpell?.name ?? spellId;
     // Rules-engine blocker fix (closure 1C, re-audit 1F): this used to
@@ -436,6 +439,19 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
 
   // ── Prepared toggle (prepared casters only) ──────────────────────────────
 
+  // Preparing past a class's limit (leveling.ts preparedSpellCount) asks first and is allowed: a warning, not a rule the app keeps.
+  function prepareWithinLimit(spellId: string, classId: string | null, spellName: string, go: () => void) {
+    const ownClass = classId
+      ?? entity.entitlements?.find(e => e.kind === 'spell_access' && e.sourceKind === 'class' && e.key === spellId)?.sourceId
+      ?? (getClassLevels(entity).length === 1 ? getClassLevels(entity)[0].classId : null);
+    const count = ownClass ? preparedSpellCount(entity, ownClass) : null;
+    if (!count || count.prepared < count.limit) { go(); return; }
+    const className = officialClasses().find(c => c.id === ownClass)?.name ?? 'This class';
+    Alert.alert(`Prepare ${spellName} anyway?`,
+      `${className} can prepare ${count.limit} spells at this level and already has ${count.prepared} prepared. The rules allow no more; your table may.`,
+      [{ text: 'Cancel', style: 'cancel' }, { text: 'Prepare anyway', onPress: go }]);
+  }
+
   const togglePrepared = useCallback((spellId: string) => {
     if (!entity.spellcasting) return;
     const alreadyPrepared = entity.spellcasting.prepared.includes(spellId);
@@ -443,11 +459,24 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
       ? entity.spellcasting.prepared.filter(id => id !== spellId)
       : [...entity.spellcasting.prepared, spellId];
     const spellName = spellMap.get(spellId)?.name ?? spellId;
-    onEntityUpdate({
+    const apply = () => onEntityUpdate({
       ...entity,
-      spellcasting: { ...entity.spellcasting, prepared: newPrepared },
+      spellcasting: { ...entity.spellcasting!, prepared: newPrepared },
     }, alreadyPrepared ? `Unprepared ${spellName}` : `Prepared ${spellName}`);
+    if (alreadyPrepared) apply(); else prepareWithinLimit(spellId, null, spellName, apply);
   }, [entity, onEntityUpdate, spellMap]);
+
+  // Removing a spell after creation (engine/leveling.ts forgetSpell); asked first, it cannot be undone except by adding it again.
+  function confirmForget(spellId: string) {
+    const spellName = spellMap.get(spellId)?.name ?? spellId;
+    Alert.alert(`Remove ${spellName}?`, 'This character will no longer know it. You can add it again with Add Spell.', [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => {
+        const updated = forgetSpell(entity, spellId, rules);
+        if (updated !== entity) onEntityUpdate(updated, `Removed ${spellName}`);
+      } },
+    ]);
+  }
 
   function rollForCard(crit: boolean) {
     if (!activeCard) return null;
@@ -467,6 +496,15 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
       <Pressable style={styles.addSpellBtn} onPress={() => setAddSpellOpen(true)}>
         <Text style={styles.addSpellBtnTxt}>+ Add Spell or Cantrip</Text>
       </Pressable>
+      {/* A class that prepares from its whole list (Cleric, Druid, Paladin) has no spells to learn: it picks them here. */}
+      {getClassLevels(entity).map(c => officialClasses().find(def => def.id === c.classId)).filter(def => def?.spellPreparationPolicy === 'full_list_prepared').map(def => (
+        <Pressable key={def!.id} style={styles.addSpellBtn} onPress={() => setPrepareClass(def!.id)}>
+          <Text style={styles.addSpellBtnTxt}>Prepare {def!.name} spells from the class list{(() => {
+            const count = preparedSpellCount(entity, def!.id);
+            return count ? ` (${count.prepared} of ${count.limit} prepared)` : '';
+          })()}</Text>
+        </Pressable>
+      ))}
 
       {/* Closure item 16: calls the ONE shared onEndTurn handler
           (app/sheet/[id].tsx's handleEndTurn) instead of computing
@@ -695,6 +733,11 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
                       {!card.available && card.unavailableReason && (
                         <Text style={styles.unavailNote}>{card.unavailableReason}</Text>
                       )}
+                      {[...spellcasting.cantrips, ...spellcasting.known, ...spellcasting.prepared].includes(card.featureId) && (
+                        <Pressable onPress={() => confirmForget(card.featureId)} accessibilityLabel={`Remove ${card.name} from this character`} hitSlop={6}>
+                          <Text style={styles.modalRemove}>Remove spell</Text>
+                        </Pressable>
+                      )}
                     </View>
                   )}
                 </View>
@@ -722,10 +765,16 @@ function TabSpellsInner({ entity, rules, onEntityUpdate, onEndTurn, onRestoreSlo
 
       {/* Add Spell picker modal — rich multi-axis filtering */}
       <AddSpellModal
-        visible={addSpellOpen}
+        visible={addSpellOpen || prepareClass !== null}
         entity={entity}
-        onAdd={(spellId, isCantrip) => { void addSpell(spellId, isCantrip ? 0 : 1); }}
-        onClose={() => setAddSpellOpen(false)}
+        initialClassFilter={prepareClass}
+        addLabel={prepareClass ? 'Prepare' : 'Add'}
+        onAdd={(spellId, isCantrip) => {
+          if (prepareClass === null || isCantrip) { void addSpell(spellId, isCantrip ? 0 : 1, prepareClass !== null); return; }
+          const name = spellRepo.getIndex().find(s => s.id === spellId)?.name ?? 'this spell';
+          prepareWithinLimit(spellId, prepareClass, name, () => { void addSpell(spellId, 1, true); });
+        }}
+        onClose={() => { setAddSpellOpen(false); setPrepareClass(null); }}
       />
     </ScrollView>
   );

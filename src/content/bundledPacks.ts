@@ -49,3 +49,24 @@ export async function installBundledPacks(ids: readonly string[], store: PackSto
   }
   return { ok: true };
 }
+
+/**
+ * At app start, after the stored packs are restored: an installed pack that this app also ships is replaced by the shipped copy
+ * when their content differs, through the same install path (signature required). A phone that installed the SRD packs on its
+ * first run otherwise keeps that copy for good, and fixes to the content in a newer app never reach it. A pack that is not
+ * installed is left alone. Stops at the first problem and leaves the stored copy in use.
+ */
+export async function refreshBundledPacks(store: PackStore): Promise<ServiceResult & { refreshed?: string[] }> {
+  const refreshed: string[] = [];
+  for (const id of withDependencies(BUNDLED_PACKS.map(p => p.id))) {
+    const current = installedOfficialPacks().find(p => p.manifest.id === id);
+    if (!current) continue;
+    const pack = BUNDLED_PACKS.find(p => p.id === id)!;
+    const shipped = pack.load() as { manifest?: { contentHash?: string } };
+    if (shipped.manifest?.contentHash === current.manifest.contentHash) continue;
+    const result = await installOfficialPack(shipped, store, { signed: 'require' });
+    if (!result.ok) return { ok: false, problems: [`${pack.name} could not be updated:`, ...result.problems] };
+    refreshed.push(id);
+  }
+  return { ok: true, refreshed };
+}

@@ -7,6 +7,7 @@ import { recordPendingOutcomes } from './outcomes';
 import { legalSpellPaymentOptions, commitSpellPayment, SpellPaymentOption, hasLegalSpellPayment } from './spellPayment';
 import { recomputeDerived } from './pipeline';
 import { spellRepo } from '../content/spellRepo';
+import { EXTRA_ACTION_FEATURE_IDS } from './ruleset/dnd5e';
 
 /**
  * Applies one use after selection. Activation options specify a requirement;
@@ -163,6 +164,14 @@ export function applyActionCardUse(
 ): Entity {
   let updated = entity;
   const isRitual = castMode === 'ritual';
+
+  // A weapon attack used on its own (a card tapped on the Actions or Favorites tab, or by the DM) is one attack of the Attack
+  // action: with Extra Attack it continues the Attack action this character has under way, or starts one, instead of spending
+  // a whole Action on a single attack. The engine's own record decides which; the id is only a name for it.
+  if (!attackSequence && card.isWeaponAttack && card.activation.actionType === 'action' && (entity.derived.attackActionAttacks ?? 1) > 1) {
+    const open = entity.attackSequence;
+    attackSequence = { sequenceId: open && open.actorId === entity.id && open.usedAttacks < open.maxAttacks ? open.sequenceId : 'attack-action' };
+  }
 
   // Extra Attack sequence closure: resolve the caller's attackSequence
   // REQUEST (an opaque token) against this entity's OWN authoritative
@@ -393,6 +402,11 @@ export function applyActionCardUse(
     // reuse attempt is uniformly handled by the "no active sequence → treat
     // as a fresh lead attack, blocked by ordinary action economy" path.
     updated = { ...updated, attackSequence: usedAttacks >= active.maxAttacks ? null : { ...active, usedAttacks } };
+  }
+
+  // Action Surge and the like: one more action this turn (only counted while a turn is being tracked)
+  if (EXTRA_ACTION_FEATURE_IDS.includes(card.featureId) && updated.turnState) {
+    updated = { ...updated, turnState: { ...updated.turnState, extraActions: (updated.turnState.extraActions ?? 0) + 1 } };
   }
 
   return recomputeDerived(updated, rules, content);

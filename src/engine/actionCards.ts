@@ -23,7 +23,7 @@ import { isWeapon } from '../content/items/itemBrowse';
 import { toItemIndexEntry } from '../content/itemRepo.types';
 import { usesLargeCreatureWeaponDice } from './houseRules';
 import { hasLegalSpellPayment } from './spellPayment';
-import { isIncapacitated, isDead, incapacitationReason } from './combat';
+import { isIncapacitated, isDead, incapacitationReason, actionSpent } from './combat';
 import { CampaignRules } from './types';
 import { getClassLevels } from './multiclass';
 import { damageTakenSince } from './damageLog';
@@ -1096,14 +1096,14 @@ function resourceAndEconomyLegal(
 ): { legal: boolean; reason: string | null } {
   const actionType = feature.activation?.actionType;
   if (!bypassActionEconomySlot && entity.turnState && actionType && actionType in ACTION_ECONOMY_LABEL) {
-    const used = actionType === 'action' ? entity.turnState.actionUsed
+    const used = actionType === 'action' ? actionSpent(entity.turnState)
       : actionType === 'bonus_action' ? entity.turnState.bonusActionUsed
       : entity.turnState.reactionUsed;
     if (used) {
       return { legal: false, reason: `Already used your ${ACTION_ECONOMY_LABEL[actionType]} this turn.` };
     }
     const also = feature.activation?.alsoCosts;
-    if (also && also !== actionType && (also === 'action' ? entity.turnState.actionUsed : entity.turnState.bonusActionUsed)) {
+    if (also && also !== actionType && (also === 'action' ? actionSpent(entity.turnState) : entity.turnState.bonusActionUsed)) {
       return { legal: false, reason: `Needs your ${ACTION_ECONOMY_LABEL[also]} as well, and it is already used this turn.` };
     }
   }
@@ -1606,9 +1606,17 @@ export function generateAllActionCards(
     }
   }
 
+  // An Attack action under way (Extra Attack) has attacks left: its weapon attacks stay usable though the Action is spent.
+  const open = entity.attackSequence;
+  const attacksLeft = !!open && open.actorId === entity.id && open.usedAttacks < open.maxAttacks;
   return cards.map(c => {
     const riders = ridersForCard(entity, c);
-    return riders.length ? { ...c, riders } : c;
+    let card = riders.length ? { ...c, riders } : c;
+    if (attacksLeft && !card.available && card.isWeaponAttack && card.activation.actionType === 'action'
+      && isFeatureAvailable({ activation: card.activation }, entity, false, true).available) {
+      card = { ...card, available: true, unavailableReason: null };
+    }
+    return card;
   });
 }
 

@@ -1,6 +1,6 @@
-import { BUNDLED_PACKS, withDependencies, installBundledPacks } from '../bundledPacks';
+import { BUNDLED_PACKS, withDependencies, installBundledPacks, refreshBundledPacks } from '../bundledPacks';
 import { buildSrd51Pack, buildSrd521Pack, serializePack } from '../packs/srdPacks';
-import { PackStore, installedOfficialPacks, resetOfficialPackService } from '../officialPackService';
+import { PackStore, installedOfficialPacks, resetOfficialPackService, bootOfficialPacks } from '../officialPackService';
 import { clearOfficialPacks } from '../officialPacks';
 import { globalContentDB } from '../classes/library';
 import { rulesetHasContent } from '../../components/MissingRulesetContentBanner';
@@ -8,6 +8,8 @@ import { editionLabel } from '../../components/EditionBadge';
 import { isNonSrd } from '../../components/NonSrdBadge';
 import { RulesetId } from '../../engine/types';
 import { verifyPackSignature } from '../packSigning';
+import { packHashInput } from '../../engine/contentPackManifest';
+import { sha256Hex } from '../../engine/sha256';
 
 const R2024 = 'dnd5e-2024' as RulesetId;
 const R2014 = 'dnd5e-2014' as RulesetId;
@@ -50,6 +52,32 @@ describe('the SRD packs bundled with the app', () => {
     const result = await installBundledPacks(['grimoire.srd.5.1'], failing);
     expect(result.ok).toBe(false);
     expect(result.ok ? '' : result.problems.join(' ')).toMatch(/SRD 5\.1 could not be installed.*disk full/);
+  });
+});
+
+describe('an installed bundled pack is brought up to the copy this app ships', () => {
+  // Found 2026-11-11: a phone that installed SRD 5.1 on its first run kept that copy for good, so new class picks and texts in an
+  // updated app never reached it (the pack keeps its id and version, and boot reads the stored copy).
+  const bundled51 = () => BUNDLED_PACKS.find(p => p.id === 'grimoire.srd.5.1')!.load() as { manifest: { contentHash: string } };
+
+  it('replaces a stored copy whose content differs, and leaves alone what is current or not installed', async () => {
+    // an older build of the same pack: one text differs, its hash says so (the stored copy is not re-checked for a signature at boot)
+    const older = JSON.parse(JSON.stringify(bundled51())) as { homebrew: { backgrounds: { features: { description: string }[] }[] }; manifest: { contentHash: string } };
+    older.homebrew.backgrounds[0].features[1].description = 'An older text.';
+    const oldHash = sha256Hex(packHashInput(older as never));
+    const old = { ...older, manifest: { ...older.manifest, contentHash: oldHash } };
+    const store = memoryStore();
+    const stored: PackStore = { ...store, load: async () => [{ id: 'grimoire.srd.5.1', version: '1.0.0', pack: old }] as never };
+    expect((await bootOfficialPacks(stored)).ok).toBe(true);
+    expect(installedOfficialPacks()[0].manifest.contentHash).toBe(oldHash);
+
+    expect(await refreshBundledPacks(stored)).toEqual({ ok: true, refreshed: ['grimoire.srd.5.1'] });
+    expect(installedOfficialPacks().map(p => p.manifest.contentHash)).toEqual([bundled51().manifest.contentHash]);
+    expect((store.rows.get('grimoire.srd.5.1') as { manifest: { contentHash: string } }).manifest.contentHash).toBe(bundled51().manifest.contentHash);
+
+    // now current; SRD 5.2.1 was never installed and is not installed by this
+    expect(await refreshBundledPacks(stored)).toEqual({ ok: true, refreshed: [] });
+    expect(installedOfficialPacks().map(p => p.manifest.id)).toEqual(['grimoire.srd.5.1']);
   });
 });
 

@@ -2,6 +2,25 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.5 alpha
+
+Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.5-alpha).
+
+Same signing key as 0.2.4, so it installs over 0.2.0 to 0.2.4 as a normal update and keeps your characters.
+
+### New
+
+- Tap an action card or a resource to see its full description. Tapping never uses it.
+- Cleric, Druid and Paladin prepare spells from their class list on the Spells tab, which shows how many are prepared and asks before going past the limit (a warning, not a rule).
+- Remove a spell from a character after creation.
+- An updated app brings fixes to its SRD packs to devices that installed them with an earlier version. Your characters, homebrew and imported packs are left as they are.
+
+### Fixed
+
+- A weapon attack used from its card is one attack of the Attack action, so Extra Attack works from any attack card instead of asking to overrule the second attack.
+- Action Surge gives an additional action.
+- Renaming an item renames its own feature too, so its mode switch and other labels follow, including items renamed before.
+
 ## 0.2.4 alpha
 
 Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.4-alpha).

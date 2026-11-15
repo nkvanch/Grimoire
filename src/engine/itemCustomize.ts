@@ -81,7 +81,9 @@ export function customizedItem(item: Item, edits: ItemEdits, id: string): Item {
   const modes = (edits.modes ?? []).map((m, i) => ({ id: m.id, name: m.name.trim() || `Mode ${i + 1}`, effects: abilityChangeEffects(m.abilities) }));
   const retag = (f: Feature): Feature => (f.source?.kind === 'item' && f.source.refId === item.id ? { ...f, source: { ...f.source, refId: id } } : f);
   const renamed = (n: string) => (name !== item.name && n.startsWith(item.name) ? name + n.slice(item.name.length) : n);
-  const kept = (item.features ?? []).map(f => retag({ ...f, name: renamed(f.name), effects: (f.effects ?? []).filter(e => !formAbilityEffect(e)) }));
+  // the item's own description feature (id `<item>_desc`) is its name on the sheet: it always carries the current name, so an item
+  // renamed before renames carried over is put right on its next save
+  const kept = (item.features ?? []).map(f => retag({ ...f, name: f.id.endsWith('_desc') ? name : renamed(f.name), effects: (f.effects ?? []).filter(e => !formAbilityEffect(e)) }));
   const first: Feature = kept[0] ?? {
     id: `${id}_desc`, name, description: '', source: { kind: 'item', refId: id }, level: null, effects: [], actions: [], choices: [], passive: true,
   };

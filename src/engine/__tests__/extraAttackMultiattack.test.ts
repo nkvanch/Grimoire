@@ -414,16 +414,18 @@ describe('Extra Attack sequence closure — applyActionCardUse `attackSequence` 
     expect(afterChained.turnState?.actionUsed).toBe(true); // still exactly once — never double-marked
   });
 
-  it('regression: WITHOUT an attackSequence token at all, a second action-type card use in the same turn is correctly blocked (economy still enforced normally)', () => {
+  it('WITHOUT an attackSequence token, a weapon card used on its own is an attack of the Attack action: the second is the Extra Attack, a third is refused', () => {
+    // A card tapped directly (Actions or Favorites tab) used to spend a whole Action on one attack, so a Fighter's second attack
+    // was refused; with Extra Attack it now continues the Attack action the engine itself has under way.
     const e = twoDaggersEntity();
     const cards = generateAllActionCards(e, DEFAULT_RULES, weaponContent).filter(c => c.isWeaponAttack);
     const cardA = cards.find(c => c.sourceId === 'dagger-a')!;
     const afterLead = applyActionCardUse(e, cardA, DEFAULT_RULES, undefined, undefined, undefined, undefined, weaponContent);
     const cardBFresh = generateAllActionCards(afterLead, DEFAULT_RULES, weaponContent).find(c => c.sourceId === 'dagger-b')!;
-    // No attackSequence param at all — must be refused exactly as any
-    // ordinary second Action attempt always has been.
-    const blocked = applyActionCardUse(afterLead, cardBFresh, DEFAULT_RULES, undefined, undefined, undefined, undefined, weaponContent);
-    expect(blocked).toBe(afterLead);
+    const second = applyActionCardUse(afterLead, cardBFresh, DEFAULT_RULES, undefined, undefined, undefined, undefined, weaponContent);
+    expect(second).not.toBe(afterLead);
+    const cardAThird = generateAllActionCards(second, DEFAULT_RULES, weaponContent).find(c => c.sourceId === 'dagger-a')!;
+    expect(applyActionCardUse(second, cardAThird, DEFAULT_RULES, undefined, undefined, undefined, undefined, weaponContent)).toBe(second);
   });
 
   it('Q7/K9/K15: the SAME weapon instance used twice as two separate attack opportunities both apply, exact instance identity preserved', () => {

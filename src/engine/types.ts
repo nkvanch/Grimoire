@@ -475,6 +475,9 @@ export type CharClass  = {
   spellcastingAbilityOptions?: Ability[];
   spellcastingStyle?:     'full' | 'half' | 'pact'; // slot table to use
   spellPreparationPolicy?: SpellPreparationPolicy;
+  /** How many spells a preparing class may prepare at each class level 1..20 (the 2024 tables' Prepared Spells column). Absent:
+   *  the 2014 rule, the casting ability modifier plus the class level (half of it for a half caster), at least 1. */
+  preparedSpellsByLevel?: number[];
   ritualCastingPolicy?: 'none' | 'known' | 'prepared' | 'spellbook';
   spellcastingStartLevel?: number;       // first level that gets spell slots (default 1)
   asiLevels?:             number[];      // defaults to [4,8,12,16,19]
@@ -2236,6 +2239,8 @@ export type TurnState = {
   actionUsed:      boolean;
   bonusActionUsed: boolean;
   reactionUsed:    boolean;
+  /** Further actions this turn, beyond the one `actionUsed` tracks (Action Surge: "take one additional action"). Absent = none. */
+  extraActions?:   number;
 };
 
 /**

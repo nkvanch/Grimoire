@@ -1,6 +1,7 @@
 // app/sheet/TabActions.tsx
 // Tab 2 — Action Cards. [Use] consumes resources and shows a dice result modal.
 import { useState, useCallback, useEffect, memo } from 'react';
+import { cardDescription } from '../../engine/featureText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { Pressable } from '../AccessibleControls';
@@ -429,6 +430,7 @@ interface CardRowProps {
  */
 export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorite, onOverrule }: CardRowProps) {
   const borderColor = CARD_COLORS[card.color];
+  const [showText, setShowText] = useState(false);   // tapping the card shows what it does
   const blockedOnlyByPreparation = card.preparationOverridable === true;
   const blockedByIncapacitation = card.incapacitatedOverridable === true;
   const overridable = blockedOnlyByPreparation || blockedByIncapacitation;
@@ -576,7 +578,7 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
           <Text style={[styles.star, isFavorite && styles.starActive]}>{isFavorite ? '★' : '☆'}</Text>
         </Pressable>
       )}
-      <View style={styles.cardBody}>
+      <Pressable style={styles.cardBody} onPress={() => setShowText(s => !s)} accessibilityLabel={`${card.name}: ${showText ? 'hide' : 'show'} what it does`}>
         <Text style={styles.cardName}>{card.name}</Text>
         <Text style={styles.cardL1}>{card.layer1}</Text>
         <Text style={styles.cardL2}>{card.layer2}</Text>
@@ -588,7 +590,8 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
         {!card.available && card.unavailableReason && (
           <Text style={styles.cardUnavail}>{card.unavailableReason}</Text>
         )}
-      </View>
+        {showText && <Text style={styles.cardText}>{cardDescription(entity, card) ?? 'Nothing more is recorded for this.'}</Text>}
+      </Pressable>
       {stops.length > 0 ? (
         <Pressable style={styles.useBtn} onPress={pressOverrule} accessibilityLabel={`Overrule and use ${card.name}`}>
           <Text style={styles.useBtnTxt}>Overrule</Text>
@@ -1082,6 +1085,7 @@ const styles = StyleSheet.create({
   cardL1:      { fontSize: FontSize.xs, color: Colors.textDim },
   cardL2:      { fontSize: FontSize.sm, color: Colors.textSecondary },
   cardL3:      { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic' },
+  cardText:    { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
   cardOutcome: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 },
   cardUnavail: { fontSize: FontSize.xs, color: Colors.red, marginTop: 2 },
 

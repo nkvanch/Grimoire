@@ -1401,6 +1401,52 @@ export function replaceSpellChoiceSelection(
   return recomputeDerived(updated, rules);
 }
 
+/**
+ * The character stops knowing a spell it holds in its own lists (cantrips, known, prepared), after creation: every grant of it is
+ * taken back and a spell choice that picked it no longer records it, so a later recompute or grant never brings it back. Ending
+ * concentration on it is left to its own flow. A spell a feature grants by itself is not in those lists and is untouched.
+ */
+export function forgetSpell(entity: Entity, spellId: string, rules: CampaignRules): Entity {
+  const sc = entity.spellcasting;
+  if (!sc || ![...sc.cantrips, ...sc.known, ...sc.prepared].includes(spellId)) return entity;
+  const base = initializeEntitlementInputs(entity);
+  const drop = (ids: string[]) => ids.filter(id => id !== spellId);
+  const bsc = base.spellcasting!;
+  return recomputeDerived({
+    ...base,
+    entitlements: (base.entitlements ?? []).filter(e => !(e.key === spellId && (e.kind === 'spell_access' || e.kind === 'cantrip_access'))),
+    spellcasting: { ...bsc, cantrips: drop(bsc.cantrips), known: drop(bsc.known), prepared: drop(bsc.prepared) },
+    choices: base.choices.map(c => (c.definition.kind === 'spell' && c.selections.includes(spellId) ? { ...c, selections: drop(c.selections) } : c)),
+  }, rules);
+}
+
+/**
+ * How many spells a preparing class (Cleric, Druid, Paladin, Wizard) may prepare, and how many of that class's spells are
+ * prepared now: the class's own table where it has one (2024), otherwise the 2014 rule, its casting ability modifier plus its
+ * level (half of it for a half caster), at least 1. null for a class that does not prepare. The app warns past it, never blocks.
+ */
+/** A half caster (Paladin): its slot table never goes past 5th-level slots, or the class says so itself. */
+function isHalfCaster(def: CharClass): boolean {
+  if (def.spellcastingStyle) return def.spellcastingStyle === 'half';
+  const top = getSpellSlotsForClassLevel(def.id, 20);
+  return !!top && top.some(n => n > 0) && top.slice(5).every(n => !n);
+}
+
+export function preparedSpellCount(entity: Entity, classId: string, classDefs: readonly CharClass[] = officialClasses()): { prepared: number; limit: number } | null {
+  const def = classDefs.find(c => c.id === classId);
+  const policy = def?.spellPreparationPolicy;
+  if (!def || (policy !== 'full_list_prepared' && policy !== 'spellbook_prepared')) return null;
+  const level = getClassLevels(entity).find(c => c.classId === classId)?.level ?? 0;
+  if (level <= 0) return null;
+  const ability = def.spellcastingAbility ?? entity.spellcasting?.ability ?? 'int';
+  const limit = def.preparedSpellsByLevel?.[level - 1]
+    ?? Math.max(1, modifier(effectiveAbilityScores(entity)[ability]) + (isHalfCaster(def) ? Math.floor(level / 2) : level));
+  const ownSpells = new Set((entity.entitlements ?? []).filter(e => e.kind === 'spell_access' && e.sourceKind === 'class' && e.sourceId === classId).map(e => e.key));
+  const single = getClassLevels(entity).length <= 1;   // one class: everything prepared is its; several: only what it granted
+  const prepared = (entity.spellcasting?.prepared ?? []).filter(id => single || ownSpells.has(id)).length;
+  return { prepared, limit };
+}
+
 // ── Expertise / Tool / Language choices ──────────────────────────────────────
 
 /**

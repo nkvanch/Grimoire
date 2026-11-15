@@ -182,6 +182,7 @@ export function buildClass2024(def: ClassDef): { cls: CharClass; subclass: Subcl
     ...(caster ? {
       spellcastingAbility: caster.ability, spellcastingStyle: caster.style === 'pact' ? 'pact' : caster.style,
       spellPreparationPolicy: caster.policy, ...(caster.ritual ? { ritualCastingPolicy: caster.ritual } : {}),
+      ...(caster.policy === 'full_list_prepared' || caster.policy === 'spellbook_prepared' ? { preparedSpellsByLevel: caster.prepared } : {}),
       ...(caster.startLevel && caster.startLevel > 1 ? { spellcastingStartLevel: caster.startLevel } : {}),
     } : {}),
     rawProgression: { classId, srd: false, rulesetId: RULESET_2024, entries },

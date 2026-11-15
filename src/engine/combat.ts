@@ -225,8 +225,17 @@ export function markActionSlotUsed(
   slot:   'action' | 'bonus_action' | 'reaction',
 ): Entity {
   if (!entity.turnState) return entity;
+  // the turn's own action first, then one granted on top of it (Action Surge)
+  if (slot === 'action' && entity.turnState.actionUsed && (entity.turnState.extraActions ?? 0) > 0) {
+    return { ...entity, turnState: { ...entity.turnState, extraActions: entity.turnState.extraActions! - 1 } };
+  }
   const key = slot === 'action' ? 'actionUsed' : slot === 'bonus_action' ? 'bonusActionUsed' : 'reactionUsed';
   return { ...entity, turnState: { ...entity.turnState, [key]: true } };
+}
+
+/** Whether the turn has no action left: its own is spent and nothing granted another (Action Surge). */
+export function actionSpent(turn: NonNullable<Entity['turnState']>): boolean {
+  return turn.actionUsed && !((turn.extraActions ?? 0) > 0);
 }
 
 /** Flips one action-economy slot, for a player directly tapping the

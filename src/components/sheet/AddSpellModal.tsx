@@ -40,11 +40,15 @@ interface Props {
    *  Library" vs "Browse Homebrew" split in an "+ Add Additional Spell"
    *  menu. Defaults to 'all'; the chip stays fully editable afterward. */
   initialOfficialFilter?: 'all' | 'official' | 'homebrew';
+  /** Opens filtered to one class's list (preparing from it); the chip stays editable. */
+  initialClassFilter?: string | null;
+  /** The add button's word ("Prepare" when preparing from a class list). */
+  addLabel?: string;
 }
 
 const LEVEL_LABELS = ['Cantrip', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
-export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficialFilter = 'all' }: Props) {
+export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficialFilter = 'all', initialClassFilter = null, addLabel = 'Add' }: Props) {
   const insets = useSafeAreaInsets();
   const homebrewSpells = useHomebrewStore(s => s.spells);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
@@ -101,6 +105,7 @@ export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficial
   useEffect(() => {
     setRulesetFilter(null);
   }, [entity.rulesetId]);
+  useEffect(() => { if (visible) setClassFilter(initialClassFilter); }, [visible, initialClassFilter]);
   const sortOptions = spellSortOptions(s => homebrewIds.has(s.id));
   const [sort,         setSort]         = useState('level');
 
@@ -346,7 +351,7 @@ export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficial
                     <Text style={s.ownedBadge}>Known</Text>
                   ) : (
                     <Pressable style={s.addBtn} onPress={() => onAdd(spell.id, spell.level === 0)}>
-                      <Text style={s.addBtnTxt}>+ Add</Text>
+                      <Text style={s.addBtnTxt}>+ {addLabel}</Text>
                     </Pressable>
                   )}
                 </View>

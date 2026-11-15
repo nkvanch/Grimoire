@@ -78,3 +78,9 @@ it('a rename carries to what is named after the item (its feature, so the mode s
   expect(mine.resources?.[0]?.name).toBe('Belt of the Twisted Giant uses');
   expect(customizedItem(withMore, edits(), 'belt_mine').features[0].name).toBe('Belt of Hill Giant Strength');   // no rename, no change
 });
+
+it('an item renamed before renames carried over gets its name onto its feature at the next save, even with the name unchanged', () => {
+  const stale: Item = { ...belt, name: 'Belt of the Twisted Giant' };   // the item renamed, its feature still named the old way
+  expect(stale.features[0].name).toBe('Belt of Hill Giant Strength');
+  expect(customizedItem(stale, itemEditsOf(stale), 'belt_mine').features[0].name).toBe('Belt of the Twisted Giant');
+});

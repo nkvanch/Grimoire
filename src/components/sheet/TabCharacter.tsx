@@ -16,7 +16,8 @@ import { Modal } from '../AppModal';
 import { Entity, CampaignRules, CharClass, ActionCard, asClassId, DurationTracker, ActivationOption, matchesRuleset, Ability } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
 import { hasActiveOverride } from '../../engine/dmOverride';
-import { toggleActionEconomy, parseRechargeThreshold, rollRecharge, concentrationLinkedEffectNames } from '../../engine/combat';
+import { resourceDescription } from '../../engine/featureText';
+import { toggleActionEconomy, actionSpent, parseRechargeThreshold, rollRecharge, concentrationLinkedEffectNames } from '../../engine/combat';
 import { isResetByHand, rechargeLabel } from '../../engine/recharge';
 import { confirmEndConcentration } from './spellTabUi';
 import { recomputeDerived, modifier, effectiveAbilityScores } from '../../engine/pipeline';
@@ -1045,6 +1046,7 @@ function TabCharacterInner({
   // whenever the spendable set changes shape (a spend/rest/level-up) so a
   // stale selection (e.g. a pool that just hit 0) can't linger.
   const [selectedHitDieSize, setSelectedHitDieSize] = useState<number | null>(null);
+  const [openResource, setOpenResource] = useState<string | null>(null);   // a tapped resource shows what it is for
   const spendableHitDice = spendableHitDicePools(entity.resources.hitDice);
   const hitDieChoiceNeeded = spendableHitDice.length > 1;
   const effectiveHitDieSize = hitDieChoiceNeeded
@@ -1629,10 +1631,11 @@ function TabCharacterInner({
             an actual action-type card gets used, via applyActionCardUse. */}
         <View style={styles.turnEconomyRow}>
           {(['action', 'bonus_action', 'reaction'] as const).map(slot => {
-            const used = slot === 'action' ? entity.turnState?.actionUsed
+            const used = slot === 'action' ? (entity.turnState ? actionSpent(entity.turnState) : false)
               : slot === 'bonus_action' ? entity.turnState?.bonusActionUsed
               : entity.turnState?.reactionUsed;
-            const label = slot === 'action' ? 'Action' : slot === 'bonus_action' ? 'Bonus' : 'Reaction';
+            const extra = slot === 'action' ? entity.turnState?.extraActions ?? 0 : 0;   // Action Surge's further action
+            const label = slot === 'action' ? (extra > 0 ? `Action +${extra}` : 'Action') : slot === 'bonus_action' ? 'Bonus' : 'Reaction';
             return (
               <Pressable
                 key={slot}
@@ -1740,11 +1743,13 @@ function TabCharacterInner({
             // homebrew text) show no roll button — nothing invented for them.
             const rechargeThreshold = parseRechargeThreshold(r.recharge);
             return (
-            <View key={r.id} style={styles.resourceRow}>
-              <View style={styles.resourceInfo}>
+            <View key={r.id}>
+            <View style={styles.resourceRow}>
+              <Pressable style={styles.resourceInfo} onPress={() => setOpenResource(o => (o === r.id ? null : r.id))}
+                accessibilityLabel={`${r.name}: ${openResource === r.id ? 'hide' : 'show'} what it is for`}>
                 <Text style={styles.resourceName}>{r.name}</Text>
                 <Text style={styles.resourceRecharge}>{rechargeLabel(r.recharge)}</Text>
-              </View>
+              </Pressable>
               <View style={styles.resourceControls}>
                 <Pressable style={styles.resBtn} onPress={() => onResourceChange(r.id, -1)} disabled={r.current <= 0}>
                   <Text style={[styles.resBtnTxt, r.current <= 0 && styles.disabled]}>−</Text>
@@ -1774,6 +1779,17 @@ function TabCharacterInner({
                   </Pressable>
                 )}
               </View>
+            </View>
+            {openResource === r.id && (() => {
+              const parts = resourceDescription(entity, r);
+              return (
+                <View style={styles.resourceDesc}>
+                  {parts.length ? parts.map(p => (
+                    <Text key={p.name} style={styles.resourceDescTxt}><Text style={styles.resourceDescName}>{p.name}. </Text>{p.text}</Text>
+                  )) : <Text style={styles.resourceDescTxt}>Nothing on this character describes it.</Text>}
+                </View>
+              );
+            })()}
             </View>
             );
           })}
@@ -2338,6 +2354,9 @@ const styles = StyleSheet.create({
   resourceInfo:     { flex: 1 },
   resourceName:     { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: FontWeight.bold },
   resourceRecharge: { fontSize: FontSize.xs, color: Colors.textDim },
+  resourceDesc:     { paddingVertical: Spacing.xs, gap: 4 },
+  resourceDescTxt:  { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
+  resourceDescName: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
   resourceControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   resBtn: {
     width: 32, height: 32, borderRadius: Radius.full,

@@ -46,3 +46,6 @@ export const SPELL_CARD_KEYWORDS = {
   buffName: ['bless', 'haste', 'shield', 'stoneskin', 'mage armor', 'invisib'],
   buffDescription: ['bonus', 'advantage'],
 };
+
+/** Features whose use gives one more action this turn (Action Surge: "take one additional action"), 2014 and 2024. */
+export const EXTRA_ACTION_FEATURE_IDS: readonly string[] = ['action_surge', 'fighter_2024_action_surge'];

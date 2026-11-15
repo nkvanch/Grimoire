@@ -2,6 +2,7 @@
 // Root layout — initializes SQLite DB + loads characters + hydrates session
 // on startup, then renders the navigation stack.
 import { ensureBundledPacks } from '../src/content/firstRunPacks';
+import { refreshBundledPacks } from '../src/content/bundledPacks';
 import { bootOfficialPacks, installedOfficialPacks } from '../src/content/officialPackService';
 import { ContentPacksPrompt } from '../src/components/ContentPacksPrompt';
 import { sqlitePackStore } from '../src/content/officialPackStore';
@@ -141,6 +142,10 @@ export default function RootLayout() {
         await bootOfficialPacks(sqlitePackStore);
         // With no built-in catalog the app needs packs: the first run with none installed installs the ones that ship with it.
         await ensureBundledPacks(sqlitePackStore, { get: getMeta, set: setMeta });
+        // An installed SRD pack older than the copy this app ships is replaced by it, so content fixes reach phones that installed
+        // the packs on an earlier version. A problem is logged and the stored copy stays in use.
+        const refresh = await refreshBundledPacks(sqlitePackStore);
+        if (!refresh.ok) console.error('[officialPacks] Could not update a bundled pack:', refresh.problems);
 
         // 4. Load characters + session. Runs regardless of whether steps
         //    1-3 fully succeeded — a character can still open in a
