@@ -6,6 +6,8 @@ One entry per build that testers can install. To see which build you have, open 
 
 Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.6-alpha).
 
+APK SHA-256: 979451627d9642d6958fea9bc6a72852318d63075abb8961da5402e53a394653
+
 Same signing key as 0.2.5, so it installs over 0.2.0 to 0.2.5 as a normal update and keeps your characters.
 
 ### Fixed
