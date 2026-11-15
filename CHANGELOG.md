@@ -2,9 +2,22 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.6 alpha
+
+Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.6-alpha).
+
+Same signing key as 0.2.5, so it installs over 0.2.0 to 0.2.5 as a normal update and keeps your characters.
+
+### Fixed
+
+- Equipped armor sets your Armor Class from the armor itself, for example Plate Armor gives 18, also for armor whose data had no AC rule of its own. A shield adds 2, and a magic bonus stated in the name or text is added.
+- Screen readers name each Use button after its card, and the label no longer stays on "Overrule" after the card is available again.
+
 ## 0.2.5 alpha
 
 Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.5-alpha).
+
+APK SHA-256: 149f1a76e718f9b16dbb6fa9bb14aeda6de3f6b867db5c106e2d1e69441662ef
 
 Same signing key as 0.2.4, so it installs over 0.2.0 to 0.2.4 as a normal update and keeps your characters.
 
@@ -24,8 +37,6 @@ Same signing key as 0.2.4, so it installs over 0.2.0 to 0.2.4 as a normal update
 ## 0.2.4 alpha
 
 Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.4-alpha).
-
-APK SHA-256: 149f1a76e718f9b16dbb6fa9bb14aeda6de3f6b867db5c106e2d1e69441662ef
 
 APK SHA-256: f657c44bd4a7c08b9064488d6184fa3579e302c38f0266256746ac972ec41252
 

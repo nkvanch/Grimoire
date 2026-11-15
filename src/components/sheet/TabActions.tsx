@@ -601,6 +601,8 @@ export function ActionCardRow({ card, entity, onUse, isFavorite, onToggleFavorit
         style={[styles.useBtn, genuinelyUnavailable && styles.useBtnDisabled]}
         disabled={genuinelyUnavailable}
         onPress={handlePress}
+        // its own label: Android reuses this button's view when it replaces the Overrule button and kept "Overrule and use ..."
+        accessibilityLabel={`Use ${card.name}`}
       >
         <Text style={[styles.useBtnTxt, genuinelyUnavailable && styles.useBtnTxtDisabled]}>
           {card.available || overridable || card.ritualEligible ? 'Use' : 'N/A'}

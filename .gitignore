@@ -61,6 +61,8 @@ outreach/to-send/
 
 # Generated first-party packs (scripts/build-srd-packs.ts)
 /release/
+# the private build copies its non-SRD packs here (scripts/build-apk-local.ps1); never committed
+/assets/packs/private/
 
 # Editor state
 .obsidian/

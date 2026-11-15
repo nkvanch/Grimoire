@@ -49,3 +49,15 @@ export const SPELL_CARD_KEYWORDS = {
 
 /** Features whose use gives one more action this turn (Action Surge: "take one additional action"), 2014 and 2024. */
 export const EXTRA_ACTION_FEATURE_IDS: readonly string[] = ['action_surge', 'fighter_2024_action_surge'];
+
+/**
+ * The SRD armor table: each base armor's AC and how much Dexterity it adds (null: all of it; 0: none), and a shield's bonus. Read
+ * when a piece of armor carries no AC effect of its own (itemMechanics.ts statedArmorAc); longer names are matched first.
+ */
+export const BASE_ARMOR_AC: Readonly<Record<string, { ac: number; dexCap: number | null }>> = {
+  padded: { ac: 11, dexCap: null }, leather: { ac: 11, dexCap: null }, 'studded leather': { ac: 12, dexCap: null },
+  hide: { ac: 12, dexCap: 2 }, 'chain shirt': { ac: 13, dexCap: 2 }, 'scale mail': { ac: 14, dexCap: 2 }, breastplate: { ac: 14, dexCap: 2 },
+  'half plate': { ac: 15, dexCap: 2 }, 'ring mail': { ac: 14, dexCap: 0 }, 'chain mail': { ac: 16, dexCap: 0 }, splint: { ac: 17, dexCap: 0 },
+  plate: { ac: 18, dexCap: 0 },
+};
+export const SHIELD_AC_BONUS = 2;

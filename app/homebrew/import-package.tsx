@@ -7,6 +7,7 @@
 // same rule app/backup.tsx's own pickAndValidateBackup()/preview flow
 // already established for personal backups.
 import { PackDownloadPanel } from '../../src/components/PackDownloadPanel';
+import { PRIVATE_BUNDLED_HOMEBREW } from '../../src/content/privateBundledPacks';
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Pressable } from '../../src/components/AccessibleControls';
@@ -279,6 +280,13 @@ export default function ImportPackageScreen() {
             {picking ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.actionBtnTxt}>Choose Package File…</Text>}
           </Pressable>
           <PackDownloadPanel onDownloaded={handleDownloaded} disabled={picking} />
+          {/* the private build's own homebrew package: the same preview and conflict choices as a picked file */}
+          {PRIVATE_BUNDLED_HOMEBREW.map(h => (
+            <Pressable key={h.fileName} style={[styles.actionBtn, picking && styles.btnDisabled]} disabled={picking}
+              onPress={() => { void handleDownloaded(JSON.stringify(h.load()), h.fileName); }}>
+              <Text style={styles.actionBtnTxt}>Import {h.name} (bundled)</Text>
+            </Pressable>
+          ))}
           {resultMsg && (
             <View style={styles.resultBox}><Text style={styles.resultTxt}>✓ {resultMsg}</Text></View>
           )}

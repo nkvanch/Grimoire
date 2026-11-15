@@ -24,7 +24,7 @@ import { resolveEffectsForTarget, resolveBinary, resolveCombine, resolveExtraAtt
 import { generateAllActionCards, CardGenOptions } from './actionCards';
 import { itemRepo } from '../content/itemRepo';
 import { isMartialWeapon } from '../content/items/itemBrowse';
-import { effectiveItemFeatures, effectiveWeaponAttackFeatures, isItemMechanicallyActive, itemWearsArmorOrShield, resolveItemDefinition, wornGearOf, WornGear } from './itemMechanics';
+import { effectiveItemFeatures, effectiveWeaponAttackFeatures, isItemMechanicallyActive, itemWearsArmorOrShield, resolveItemDefinition, statedArmorAc, wornGearOf, WornGear } from './itemMechanics';
 import { getClassEntry } from './multiclass';
 import { deriveProficienciesFromEntitlements, initializeEntitlementInputs, recomputeResourceMaximums } from './entitlements';
 
@@ -777,6 +777,9 @@ export function collectAllEffects(entity: Entity, homebrewItems: readonly import
         });
       }
     }
+    // Armor or a shield whose data carries no AC effect of its own gives the AC it states, or its base armor's (statedArmorAc).
+    const stated = definition ? statedArmorAc({ id: definition.id, name: definition.name, properties: definition.properties, features: itemFeatures }) : null;
+    if (stated) effects.push({ effect: stated, sourceName: definition!.name, sourceId: item.id ?? item.itemId, appliedAt: 0, sourceKind: 'item' });
   }
 
   // 3. Rules-engine blocker RE-AUDIT closure (Closure 3C — native BeastForm

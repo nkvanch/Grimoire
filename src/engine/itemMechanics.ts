@@ -1,6 +1,7 @@
-import { Entity, Item, ItemInstance } from './types';
+import { Effect, Entity, Item, ItemInstance } from './types';
+import { BASE_ARMOR_AC, SHIELD_AC_BONUS } from './ruleset/dnd5e';
 import { itemRepo } from '../content/itemRepo';
-import { armorWeight, baseWeaponIdFromName, isShield, isWeapon } from '../content/items/itemBrowse';
+import { armorWeight, baseWeaponIdFromName, isShield, isToolOrKit, isWeapon } from '../content/items/itemBrowse';
 import { ItemIndexEntry, toItemIndexEntry } from '../content/itemRepo.types';
 
 const KNOWN_ATTUNEMENT_ITEM_IDS = new Set([
@@ -152,6 +153,33 @@ export function wornGearOf(equipped: readonly ItemInstance[], resolve: (itemId: 
     if (entry ? isShield(entry) : i.isShield === true) shield = true;
   }
   return { armor, shield };
+}
+
+export function statedArmorAc(item: Pick<Item, 'name' | 'properties' | 'features'> & { id?: string }): Effect | null {
+  const ownAc = (item.features ?? []).some(f => (f.effects ?? []).some(e => e.target === 'ac'));
+  if (ownAc) return null;
+  const entry = toItemIndexEntry({ id: item.id ?? item.name, weight: 0, cost: '', ...item } as Item);
+  const text = [item.name, ...(item.features ?? []).map(f => f.description ?? '')].join(' ');
+  // a bonus that only counts sometimes ("+2 bonus to AC against ranged attacks") is not added
+  const bonus = parseInt(item.name.match(/\+(\d)/)?.[1] ?? text.match(/\+(\d) bonus to (?:AC|Armor Class)(?! against)/i)?.[1] ?? '0', 10);
+  if (isShield(entry)) return { type: 'stat_modifier', target: 'ac', operation: 'add', value: SHIELD_AC_BONUS + bonus, condition: null };
+  const weight = armorWeight(entry);
+  if (!weight || isToolOrKit(entry)) return null;
+  // armor by its own name only when the name says armor: Dragonhide Belt or Leatherworker's Tools are not hide or leather armor
+  const saysArmor = item.properties.some(p => /armor/i.test(p)) || /armor|mail|plate|breastplate|chain shirt|splint/i.test(item.name);
+  if (!saysArmor) return null;
+  const stated = item.properties.map(p => p.toLowerCase().match(/^ac (\d+)(.*)$/)).find(Boolean);
+  const name = item.name.toLowerCase();
+  const base = Object.keys(BASE_ARMOR_AC).sort((a, b) => b.length - a.length).find(k => name.includes(k));
+  const ac = stated ? parseInt(stated[1], 10) : base ? BASE_ARMOR_AC[base].ac + bonus : null;
+  if (ac === null) return null;
+  const dexCap = stated
+    ? (/dexterity/.test(stated[2]) ? (stated[2].match(/max (\d+)/) ? parseInt(stated[2].match(/max (\d+)/)![1], 10) : null) : 0)
+    : base ? BASE_ARMOR_AC[base].dexCap : (weight === 'light' ? null : weight === 'medium' ? 2 : 0);
+  return {
+    type: 'base_ac_formula', target: 'ac', operation: 'set', value: ac, condition: null,
+    ...(dexCap === 0 ? {} : { formulaAbilities: ['dex'], ...(dexCap === null ? {} : { formulaAbilityCap: { dex: dexCap } }) }),
+  } as Effect;
 }
 
 export function itemWearsArmorOrShield(item: Item | undefined): boolean {

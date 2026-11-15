@@ -6,6 +6,7 @@
 // (hash check, validation, dependencies, all or nothing). Each file is only read when a pack is actually installed.
 // ============================================================================
 import { installOfficialPack, installedOfficialPacks, PackStore, ServiceResult } from './officialPackService';
+import { PRIVATE_BUNDLED_PACKS } from './privateBundledPacks';
 
 export type BundledPack = { id: string; name: string; summary: string; ruleset: string; load: () => unknown };
 
@@ -22,6 +23,8 @@ export const BUNDLED_PACKS: readonly BundledPack[] = [
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     load: () => require('../../assets/packs/grimoire.srd.5.2.1.json'),
   },
+  // the private build's non-SRD packs, when its build put them there (none in the public and web builds)
+  ...PRIVATE_BUNDLED_PACKS,
 ];
 
 /** The pack ids to install for a request, with what each depends on added first (SRD 5.2.1 brings SRD 5.1). */
