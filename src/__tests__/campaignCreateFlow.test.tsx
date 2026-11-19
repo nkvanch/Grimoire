@@ -1,11 +1,13 @@
 // End-to-end regression for the Create Campaign device failure: completing the normal wizard must land on an OFFLINE DM campaign
-// (Host Session offered, no Stop Hosting, no room code, no QR, no server), and hosting happens only through the explicit
-// Host Session button. The store tests alone passed while the device showed "Stop Hosting", because the screen drew an unconditional
+// (Host Live Table offered, no Stop Hosting, no room code), and hosting happens only through the Live Session dialog that button
+// opens. The store tests alone passed while the device showed "Stop Hosting", because the screen drew an unconditional
 // Stop Hosting button, so this renders the real screen and presses the real buttons.
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn() }), useLocalSearchParams: () => ({}) }));
-jest.mock('react-native-qrcode-svg', () => { const { Text } = require('react-native'); return { __esModule: true, default: () => <Text>QR-CODE</Text> }; });
-jest.mock('../components/live/LiveSessionStart', () => ({ HostModal: () => null, JoinModal: () => null }));
+jest.mock('../components/live/LiveSessionStart', () => {
+  const { Text } = require('react-native');
+  return { HostModal: ({ visible }: { visible: boolean }) => (visible ? <Text>HOST-MODAL</Text> : null), JoinModal: () => null };
+});
 jest.mock('../components/CampaignPacksNote', () => ({ CampaignPacksNote: () => null }));
 jest.mock('../db/packRegistryRepo', () => ({ loadInstalledPacks: () => Promise.resolve([]) }));
 jest.mock('../db/customRuleProfileRepo', () => ({ loadCustomRuleProfiles: () => Promise.resolve([]), saveCustomRuleProfile: jest.fn(), deleteCustomRuleProfile: jest.fn() }));
@@ -18,11 +20,8 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import CampaignsScreen from '../../app/(tabs)/campaigns';
 import { useCampaignStore } from '../store/campaignStore';
-import { useSessionStore } from '../store/sessionStore';
-import { useSyncStore } from '../store/syncStore';
-import { syncManager } from '../sync/syncManager';
+import { useDeviceStore } from '../store/deviceStore';
 import * as campaignRepo from '../db/campaignRepo';
-import * as appMetaRepo from '../db/appMetaRepo';
 import { Campaign } from '../engine/types';
 
 const texts = (r: TestRenderer.ReactTestRenderer): string[] => {
@@ -46,34 +45,20 @@ const pressLabel = (r: TestRenderer.ReactTestRenderer, label: string) => {
 };
 
 let saved: Campaign[];
-let startAsServer: jest.SpyInstance, stopAll: jest.SpyInstance, announceClosing: jest.SpyInstance, startAsClient: jest.SpyInstance;
 
 function resetStores() {
-  useCampaignStore.setState({ campaigns: [], activeCampaign: null, isDm: false, liveSession: false });
-  useSyncStore.getState().setStatus({ role: 'offline', connected: false, clientCount: 0, roomCode: null, sessionId: null, roster: [], lastError: null });
+  useCampaignStore.setState({ campaigns: [], activeCampaign: null, isDm: false });
 }
 
 beforeEach(() => {
   saved = [];
   jest.spyOn(campaignRepo, 'saveCampaign').mockImplementation(async c => { saved = [...saved.filter(x => x.id !== c.id), JSON.parse(JSON.stringify(c))]; });
   jest.spyOn(campaignRepo, 'loadAllCampaigns').mockImplementation(async () => JSON.parse(JSON.stringify(saved)));
-  jest.spyOn(appMetaRepo, 'getMeta').mockResolvedValue(null);
-  jest.spyOn(appMetaRepo, 'setMeta').mockResolvedValue(undefined);
-  // The real manager reports through the sync store; the spy does the same so the screen sees what a started server would show.
-  startAsServer = jest.spyOn(syncManager, 'startAsServer').mockImplementation(async () => {
-    useSyncStore.getState().setStatus({ role: 'dm', connected: true, clientCount: 0, roomCode: 'ROOM123', sessionId: 's', roster: [], lastError: null });
-    return 'ROOM123';
-  });
-  startAsClient = jest.spyOn(syncManager, 'startAsClient').mockResolvedValue(undefined);
-  announceClosing = jest.spyOn(syncManager, 'announceClosing').mockResolvedValue(undefined);
-  stopAll = jest.spyOn(syncManager, 'stopAll').mockImplementation(() => {
-    useSyncStore.getState().setStatus({ role: 'offline', connected: false, clientCount: 0, roomCode: null, sessionId: null, roster: [], lastError: null });
-  });
   // the device session is persisted, so the active campaign id survives a restart exactly as it does on the device
-  jest.spyOn(useSessionStore.getState(), 'setCampaignId').mockImplementation(async id => {
-    useSessionStore.setState(st => ({ session: st.session ? { ...st.session, campaignId: id } : st.session }));
+  jest.spyOn(useDeviceStore.getState(), 'setCampaignId').mockImplementation(async id => {
+    useDeviceStore.setState(st => ({ session: st.session ? { ...st.session, campaignId: id } : st.session }));
   });
-  useSessionStore.setState({ session: { deviceId: 'dm-device', nickname: 'DM', role: 'dm', campaignId: null } as never });
+  useDeviceStore.setState({ session: { deviceId: 'dm-device', nickname: 'DM', role: 'dm', campaignId: null } as never });
   resetStores();
 });
 const mounted: TestRenderer.ReactTestRenderer[] = [];
@@ -98,90 +83,65 @@ async function mountAndCreate(): Promise<TestRenderer.ReactTestRenderer> {
   return r;
 }
 
+// the first test renders the whole Campaigns screen; with a cold transform cache and the suite running in parallel (CI) that passes 5 s
+jest.setTimeout(20000);
+
 describe('Create Campaign wizard, through the real screen', () => {
-  it('finishing the wizard lands on an offline DM campaign: Host Session offered, nothing hosting', async () => {
+  it('finishing the wizard lands on an offline DM campaign: Host Live Table offered, nothing hosting', async () => {
     const r = await mountAndCreate();
     const t = screenText(r);
 
     // what the user sees
     expect(t).toContain('OfflineAudit');
     expect(t).toContain('Open DM Dashboard');
-    expect(hasId(r, 'campaign-host-session')).toBe(true);
-    expect(t).toContain('Host Session');
+    expect(hasId(r, 'campaign-host-live-session')).toBe(true);
+    expect(t).toContain('🛰 Host Live Table');
+    expect(t).not.toContain('(advanced)');
+    expect(t).not.toContain('Host Session');
+    expect(hasId(r, 'campaign-host-session')).toBe(false);
     expect(t).not.toContain('Stop Hosting');
     expect(hasId(r, 'campaign-stop-hosting')).toBe(false);
     expect(hasId(r, 'campaign-end-live-session')).toBe(false);
     expect(t).not.toContain('ROOM CODE');
-    expect(t).not.toContain('QR-CODE');
-    expect(t).toContain('Offline campaign, no live session');
+    expect(t).toContain('This campaign works offline');
+    expect(t).not.toContain('HOST-MODAL');
 
     // what actually exists, independent of any button text
     const s = useCampaignStore.getState();
     expect(s.activeCampaign?.name).toBe('OfflineAudit');
     expect(s.isDm).toBe(true);
-    expect(s.liveSession).toBe(false);
     expect(s.activeCampaign?.joinCode).toBe('');
     expect(saved).toHaveLength(1);
     expect(saved[0].joinCode).toBe('');
-    expect(startAsServer).not.toHaveBeenCalled();
-    expect(startAsClient).not.toHaveBeenCalled();
-    expect(useSyncStore.getState().status.roomCode).toBeNull();
-    expect(syncManager.getStatus()).toMatchObject({ role: 'offline', connected: false, roomCode: null, sessionId: null });
 
     // the DM tools do not depend on a session
     await pressLabel(r, '🎲 Open DM Dashboard');
     expect(mockPush).toHaveBeenCalledWith('/dm/dashboard');
   });
 
-  it('Host Session starts the server once and shows the room code, QR and Stop Hosting; End Live Session returns to the offline campaign', async () => {
+  it('Host Live Table opens the Live Session host dialog and leaves the campaign itself untouched', async () => {
     const r = await mountAndCreate();
-    await press(r, 'campaign-host-session');
+    await press(r, 'campaign-host-live-session');
 
-    expect(startAsServer).toHaveBeenCalledTimes(1);
-    expect(useCampaignStore.getState().liveSession).toBe(true);
-    let t = screenText(r);
-    expect(t).toContain('ROOM CODE');
-    expect(t).toContain('ROOM123');
-    expect(t).toContain('QR-CODE');
-    expect(t).toContain('Stop Hosting');
-    expect(hasId(r, 'campaign-host-session')).toBe(false);
-    expect(hasId(r, 'campaign-end-live-session')).toBe(true);
-
-    await press(r, 'campaign-end-live-session');
-
-    expect(announceClosing).toHaveBeenCalled();
-    expect(stopAll).toHaveBeenCalled();
-    t = screenText(r);
-    expect(t).not.toContain('Stop Hosting');
+    const t = screenText(r);
+    expect(t).toContain('HOST-MODAL');
     expect(t).not.toContain('ROOM CODE');
-    expect(t).not.toContain('QR-CODE');
-    expect(hasId(r, 'campaign-host-session')).toBe(true);
+    expect(t).not.toContain('Stop Hosting');
     const s = useCampaignStore.getState();
-    expect(s.liveSession).toBe(false);
     expect(s.activeCampaign?.name).toBe('OfflineAudit');
     expect(s.isDm).toBe(true);
     expect(s.activeCampaign?.joinCode).toBe('');
-    expect(useSyncStore.getState().status.roomCode).toBeNull();
-    expect(startAsServer).toHaveBeenCalledTimes(1);
-  });
-
-  it('Stop Hosting at the bottom of the page ends the live session too', async () => {
-    const r = await mountAndCreate();
-    await press(r, 'campaign-host-session');
-    await press(r, 'campaign-stop-hosting');
-    expect(useCampaignStore.getState().liveSession).toBe(false);
-    expect(hasId(r, 'campaign-stop-hosting')).toBe(false);
-    expect(screenText(r)).toContain('Host Session');
+    expect(saved).toHaveLength(1);
+    expect(saved[0].joinCode).toBe('');
   });
 });
 
 describe('restart', () => {
   async function coldBoot() {
-    // a new process: the stores start empty, the database is what survives (the layout runs loadCampaigns then resumeSync)
+    // a new process: the stores start empty, the database is what survives (the layout runs loadCampaigns)
     for (const m of mounted.splice(0)) act(() => { m.unmount(); });
     resetStores();
     await useCampaignStore.getState().loadCampaigns();
-    await useCampaignStore.getState().resumeSync();
   }
 
   it('an offline campaign comes back offline: restored, DM-owned, nothing hosting', async () => {
@@ -190,35 +150,11 @@ describe('restart', () => {
     const s = useCampaignStore.getState();
     expect(s.activeCampaign?.name).toBe('OfflineAudit');
     expect(s.isDm).toBe(true);
-    expect(s.liveSession).toBe(false);
-    expect(startAsServer).not.toHaveBeenCalled();
-    expect(useSyncStore.getState().status.roomCode).toBeNull();
     const r = await (async () => { let x!: TestRenderer.ReactTestRenderer; await act(async () => { x = TestRenderer.create(<CampaignsScreen />); await Promise.resolve(); }); mounted.push(x); return x; })();
+    expect(screenText(r)).toContain('OfflineAudit');
     expect(screenText(r)).not.toContain('Stop Hosting');
-    expect(hasId(r, 'campaign-host-session')).toBe(true);
-  });
-
-  it('a campaign that was hosting does not resume hosting after a restart, and its old room code is discarded', async () => {
-    const r = await mountAndCreate();
-    await press(r, 'campaign-host-session');
-    expect(saved[0].joinCode).toBe('ROOM123');            // the code was persisted while live
-    startAsServer.mockClear();
-
-    await coldBoot();                                      // app killed and reopened
-
-    const s = useCampaignStore.getState();
-    expect(s.activeCampaign?.name).toBe('OfflineAudit');
-    expect(s.isDm).toBe(true);
-    expect(s.liveSession).toBe(false);
-    expect(s.activeCampaign?.joinCode).toBe('');
-    expect(startAsServer).not.toHaveBeenCalled();
-    expect(useSyncStore.getState().status.roomCode).toBeNull();
-    let x!: TestRenderer.ReactTestRenderer;
-    await act(async () => { x = TestRenderer.create(<CampaignsScreen />); await Promise.resolve(); });
-    mounted.push(x);
-    expect(screenText(x)).not.toContain('Stop Hosting');
-    expect(screenText(x)).not.toContain('ROOM CODE');
-    expect(hasId(x, 'campaign-host-session')).toBe(true);
+    expect(screenText(r)).not.toContain('ROOM CODE');
+    expect(hasId(r, 'campaign-host-live-session')).toBe(true);
   });
 });
 
@@ -235,32 +171,16 @@ describe('leaving a campaign (the navigation trap)', () => {
     expect(useCampaignStore.getState().activeCampaign).toBeNull();
     expect(useCampaignStore.getState().campaigns.map(c => c.name)).toEqual(['OfflineAudit']);   // kept, not deleted
     expect(saved.map(c => c.name)).toEqual(['OfflineAudit']);
-    expect(startAsServer).not.toHaveBeenCalled();
 
     await createNamed(r, 'SecondCampaign');                                                       // a second, separate campaign
     t = screenText(r);
     expect(t).toContain('SecondCampaign');
     expect(useCampaignStore.getState().campaigns.map(c => c.name).sort()).toEqual(['OfflineAudit', 'SecondCampaign']);
-    expect(useCampaignStore.getState().liveSession).toBe(false);
-    expect(hasId(r, 'campaign-host-session')).toBe(true);
+    expect(hasId(r, 'campaign-host-live-session')).toBe(true);
 
     await press(r, 'campaign-close');
     await pressLabel(r, 'Open Existing Campaign');
     expect(screenText(r)).toContain('OfflineAudit');
     expect(screenText(r)).toContain('SecondCampaign');
-  });
-
-  it('closing while hosting ends the live session first and leaves the campaign saved', async () => {
-    const r = await mountAndCreate();
-    await press(r, 'campaign-host-session');
-    expect(useCampaignStore.getState().liveSession).toBe(true);
-    await press(r, 'campaign-close');
-    expect(announceClosing).toHaveBeenCalled();
-    expect(stopAll).toHaveBeenCalled();
-    expect(useCampaignStore.getState().liveSession).toBe(false);
-    expect(useCampaignStore.getState().activeCampaign).toBeNull();
-    expect(screenText(r)).toContain('No Active Campaign');
-    expect(useSyncStore.getState().status.roomCode).toBeNull();
-    expect(useCampaignStore.getState().campaigns).toHaveLength(1);
   });
 });

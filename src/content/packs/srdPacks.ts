@@ -22,7 +22,7 @@ import { GRIMOIRE_PACK_FORMAT_VERSION } from '../../engine/backup';
 import {
   CONTENT_PACK_MANIFEST_VERSION, ContentPackManifest, RecordProvenance, PackSource, PackDependency, canonicalJson,
 } from '../../engine/contentPackManifest';
-import type { CharClass, Item, Spell } from '../../engine/types';
+import type { Item } from '../../engine/types';
 import { ALL_CHAR_CLASSES_CATALOG } from '../classes/index';
 import { ALL_CLASS_PROGRESSIONS } from '../classes/index';
 import { FULL_SUBCLASS_LIBRARY } from '../subclasses/index';
@@ -138,10 +138,38 @@ export function assemble(
 
 // ── SRD 5.1 ──────────────────────────────────────────────────────────────────
 
+/**
+ * The starting gear the 5.1 classes hand out (as a choice, or as a fixed 'starting_item' grant) that did not pass the
+ * public-provenance gate: Leather Armor, the light crossbow and its bolts, the arcane focus, the holy symbol, the druidic
+ * focus and the seven adventuring packs. Taken from the item library, as equipment521 does for the 2024 classes, so a
+ * character made from this pack alone holds items the pack describes. The build fails if a named item is not in the
+ * library or is not marked SRD, so nothing outside the SRD can slip in.
+ */
+function startingGear51(classes: AnyRecord[]): AnyRecord[] {
+  type Entry = { grants: { kind: string; value: unknown }[]; choices: { kind: string; pool?: unknown }[] };
+  const wanted = new Set<string>();
+  for (const c of classes) for (const e of (c.rawProgression as { entries: Entry[] } | undefined)?.entries ?? []) {
+    for (const g of e.grants) if (g.kind === 'starting_item') wanted.add(parseStartingItem(String(g.value)).itemId);
+    for (const ch of e.choices) if (ch.kind === 'equipment' && Array.isArray(ch.pool)) {
+      for (const o of ch.pool as { value?: unknown }[]) if (Array.isArray(o.value)) for (const v of o.value) wanted.add(parseStartingItem(String(v)).itemId);
+    }
+  }
+  const library = new Map((FULL_ITEM_LIBRARY).map(i => [i.id, i]));
+  const gear: Item[] = [];
+  for (const id of [...wanted].sort()) {
+    if (hasVerifiedPublicItemProvenance(id)) continue;
+    const item = library.get(id);
+    if (!item) throw new Error(`The 5.1 pack needs the item "${id}", which is not in the item library.`);
+    if (item.srd !== true) throw new Error(`The 5.1 pack needs the item "${id}", which is not marked SRD.`);
+    gear.push(item);
+  }
+  return gear.map(i => stamp(plain(i), srdProvenance('5.1', { sourceLocation: 'Equipment' })) as AnyRecord);
+}
+
 export function buildSrd51Pack(): SrdPack {
   const prov = srdProvenance('5.1');
   const progressionFor = (classId: string) => ALL_CLASS_PROGRESSIONS.find(p => p.classId === classId);
-  const classes = (ALL_CHAR_CLASSES_CATALOG as CharClass[])
+  const classes = (ALL_CHAR_CLASSES_CATALOG)
     .filter(c => c.srd === true && !CLASSES_2024.some(c24 => c24.id === c.id))
     .map(c => stamp(plain({ ...c, ...(c.rawProgression ? {} : (progressionFor(c.id) ? { rawProgression: progressionFor(c.id) } : {})) }), prov) as AnyRecord);
   const srdClassIds = new Set(classes.map(c => c.id));
@@ -154,9 +182,9 @@ export function buildSrd51Pack(): SrdPack {
     backgrounds: FULL_BACKGROUND_LIBRARY.filter(b => b.srd === true && b.rulesetId !== ('dnd5e-2024' as never)).map(b => stamp(plain(b), prov) as AnyRecord),
     feats: FULL_FEAT_LIBRARY.filter(f => f.srd === true && f.rulesetId !== ('dnd5e-2024' as never)).map(f => stamp(plain(f), prov) as AnyRecord),
     // Class tags are limited to the classes this pack carries: the library also tags spells for classes outside the SRD
-    spells: (FULL_SPELL_LIBRARY as Spell[]).filter(s => s.srd === true && s.rulesetId !== ('dnd5e-2024' as never))
+    spells: (FULL_SPELL_LIBRARY).filter(s => s.srd === true && s.rulesetId !== ('dnd5e-2024' as never))
       .map(s => stamp(plain({ ...s, classes: (s.classes ?? []).filter(c => srdClassIds.has(c)) }), prov) as AnyRecord),
-    items: GENERATED_SRD_ITEMS.filter(i => hasVerifiedPublicItemProvenance(i.id)).map(i => stamp(plain(i), prov) as AnyRecord),
+    items: [...GENERATED_SRD_ITEMS.filter(i => hasVerifiedPublicItemProvenance(i.id)).map(i => stamp(plain(i), prov) as AnyRecord), ...startingGear51(classes)],
     monsters: FULL_MONSTER_LIBRARY.filter(m => m.srd === true).map(m => stamp(plain(m), prov) as AnyRecord),
     conditions: ALL_CONDITIONS.map(c => stamp(plain(c), prov) as AnyRecord),
   };
@@ -186,11 +214,11 @@ function equipment521(): AnyRecord[] {
   const addEntries = (entries: unknown[]) => { for (const e of entries) wanted.add(parseStartingItem(String(e)).itemId); };
   const choicesOf = (choices: { kind: string; pool?: unknown }[]) => choices.filter(c => c.kind === 'equipment')
     .forEach(c => (Array.isArray(c.pool) ? c.pool : []).forEach((o: { value?: unknown }) => Array.isArray(o.value) && addEntries(o.value)));
-  for (const c of CLASSES_2024) for (const e of c.rawProgression!.entries) choicesOf(e.choices as never);
-  for (const b of BACKGROUNDS_2024) choicesOf((b.pendingChoices ?? []) as never);
+  for (const c of CLASSES_2024) for (const e of c.rawProgression!.entries) choicesOf(e.choices);
+  for (const b of BACKGROUNDS_2024) choicesOf((b.pendingChoices ?? []));
   for (const w of WEAPON_MASTERY_TABLE) wanted.add(w.id);
   for (const id of ARMOR_IDS_2024) wanted.add(id);
-  const library = new Map((FULL_ITEM_LIBRARY as Item[]).map(i => [i.id, i]));
+  const library = new Map((FULL_ITEM_LIBRARY).map(i => [i.id, i]));
   // Items that read the same in both editions (a Longsword, Chain Mail) are one shared record, taken from the item library.
   const shared: Item[] = [];
   for (const id of [...wanted].sort()) {
@@ -214,12 +242,12 @@ export function buildSrd521Pack(): SrdPack {
   const ruleset = 'dnd5e-2024';
   // Every spell the SRD 5.2.1 describes: the library record with the 5.2.1 text applied (the library keeps the 2014
   // wording under the same id), plus the spells new in 2024. The class tags are the 2024 lists.
-  const lib = new Map((FULL_SPELL_LIBRARY as Spell[]).map(s => [s.id, s]));
+  const lib = new Map((FULL_SPELL_LIBRARY).map(s => [s.id, s]));
   const spells: AnyRecord[] = Object.entries(SPELL_VERSIONS_2024).map(([id, version]) => {
     const base = lib.get(id)!;
-    return stamp(plain({ ...base, ...version, rulesetId: ruleset, classes: (base.classes ?? []).filter(c => c.endsWith('_2024')) }), derived) as AnyRecord;
+    return stamp(plain({ ...base, ...version, rulesetId: ruleset, classes: (base.classes ?? []).filter(c => c.endsWith('_2024')) }), derived);
   });
-  for (const s of NEW_SPELLS_2024) spells.push(stamp(plain(s), prov) as AnyRecord);
+  for (const s of NEW_SPELLS_2024) spells.push(stamp(plain(s), prov));
 
   const content: PackContent = {
     classes: CLASSES_2024.map(c => stamp(plain(c), prov) as AnyRecord),

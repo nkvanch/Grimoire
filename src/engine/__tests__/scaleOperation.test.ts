@@ -1,16 +1,17 @@
 // 'scale' = multiply the FULLY RESOLVED stat ("double your speed"). 'multiply' keeps its long-standing,
 // separately documented meaning (it multiplies the accumulated bonus pool of a target; expertise markers reuse it).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived, effectiveAbilityScores } from '../pipeline';
-import { applyGrant, applyAsiToEntity } from '../leveling';
+import { applyAsiToEntity } from '../levelingAsiFeats';
+import { applyGrant } from '../levelingGrants';
 import { explainValue } from '../audit';
 import type { Entity, Feature, Effect } from '../types';
 
 const fx = (o: Partial<Effect> & Pick<Effect, 'target' | 'operation'>): Effect =>
-  ({ type: 'stat_modifier', value: null, condition: null, ...o } as Effect);
+  ({ type: 'stat_modifier', value: null, condition: null, ...o });
 const feat = (id: string, effects: Effect[]): Feature => ({
   id, name: id, description: '', source: { kind: 'feat', refId: id }, level: null, effects, actions: [], choices: [], passive: true,
-} as Feature);
+});
 const base = (): Entity => recomputeDerived({ ...makeEmptyEntity('s'), identity: { ...makeEmptyEntity('s').identity, level: 5 } }, DEFAULT_RULES);
 const give = (e: Entity, ...fs: Feature[]): Entity =>
   recomputeDerived(fs.reduce((acc, f) => applyGrant(acc, { kind: 'feature', value: f }, 1), e), DEFAULT_RULES);
@@ -74,7 +75,7 @@ describe("'scale' on AC, initiative and ability scores", () => {
   });
 
   it('AC: a base-AC formula with a per-ability cap is respected BEFORE scaling', () => {
-    const e0 = { ...base(), stats: { ...base().stats, dex: 20 } } as Entity;
+    const e0 = { ...base(), stats: { ...base().stats, dex: 20 } };
     const medium = feat('medium', [fx({ type: 'base_ac_formula', target: 'ac', operation: 'set', value: 14, formulaAbilities: ['dex'], formulaAbilityCap: { dex: 2 } })]);
     const ward = feat('ward', [fx({ target: 'ac', operation: 'scale', value: 2 })]);
     expect(give(e0, medium).derived.ac).toBe(16);        // 14 + capped +2
@@ -82,20 +83,20 @@ describe("'scale' on AC, initiative and ability scores", () => {
   });
 
   it('initiative is scaled after the DEX modifier and bonuses', () => {
-    const e0 = { ...base(), stats: { ...base().stats, dex: 16 } } as Entity; // +3
+    const e0 = { ...base(), stats: { ...base().stats, dex: 16 } }; // +3
     const bonus = feat('bonus', [fx({ target: 'initiative', operation: 'add', value: 1 })]);
     const dbl = feat('dbl', [fx({ target: 'initiative', operation: 'scale', value: 2 })]);
     expect(give(e0, bonus, dbl).derived.initiative).toBe(8); // (3 + 1) x 2
   });
 
   it('ability score: STR 14 x2 = 28 effective; the ability modifier follows', () => {
-    const e0 = { ...base(), stats: { ...base().stats, str: 14 } } as Entity;
+    const e0 = { ...base(), stats: { ...base().stats, str: 14 } };
     const dbl = feat('dbl', [fx({ target: 'str', operation: 'scale', value: 2 })]);
     expect(effectiveAbilityScores(give(e0, dbl)).str).toBe(28);
   });
 
   it('interaction with the ASI cap: a scaled score has no headroom left, so an ASI is refused', () => {
-    const e0 = { ...base(), stats: { ...base().stats, str: 14 } } as Entity;
+    const e0 = { ...base(), stats: { ...base().stats, str: 14 } };
     const dbl = feat('dbl', [fx({ target: 'str', operation: 'scale', value: 2 })]);
     const scaled = give(e0, dbl); // effective 28, already over the default cap of 20
     const after = recomputeDerived(applyAsiToEntity(scaled, 'asi', { str: 2 }, DEFAULT_RULES), DEFAULT_RULES);

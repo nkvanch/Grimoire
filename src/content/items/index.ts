@@ -8,6 +8,7 @@ import { EQUIPMENT_2024 } from './equipment2024';
 import { Item, Ability, Effect, Feature } from '../../engine/types';
 import { IMPORTED_ITEMS } from './importedItems';
 import importedSrdClassification from './srdClassification.json';
+import srd51AttunementIds from './srd51AttunementIds.json';
 import { hasVerifiedPublicItemProvenance } from './srdProvenance';
 import { GENERATED_SRD_ITEMS } from './generatedSrdItems';
 import { ContentRegistry } from '../ContentRegistry';
@@ -908,6 +909,7 @@ const CORE_ITEMS: Item[] = [
  * mechanically-correct hand-authored version always wins.
  */
 const CORE_IDS = new Set(CORE_ITEMS.map(i => i.id));
+const SRD51_ATTUNEMENT_IDS = new Set<string>(srd51AttunementIds);
 
 // ── Item mechanical-effect overrides ────────────────────────────────────────
 // Most of the auto-imported catalog (importedItems.ts) is description-only —
@@ -1165,7 +1167,13 @@ export const FULL_ITEM_LIBRARY: Item[] = [
   ...GEAR_2024.filter(i => !CATALOG_ITEM_IDS_5E.has(i.id)),
   // The rest of the SRD 5.2.1 Equipment chapter (tools, gear, variants, mounts, vehicles, firearms, padded and hide armor).
   ...EQUIPMENT_2024.filter(i => !CATALOG_ITEM_IDS_5E.has(i.id)),
-];
+].map(withSrd51Attunement);
+
+/** Marks the items the SRD 5.1 text says require attunement (scripts/gen-srd51-attunement.ts); never removes a mark. */
+function withSrd51Attunement(item: Item): Item {
+  if (!SRD51_ATTUNEMENT_IDS.has(item.id) || item.properties.some(p => /requires attunement/i.test(p))) return item;
+  return { ...item, properties: [...item.properties, 'requires attunement'] };
+}
 
 const SRD_ONLY = process.env.EXPO_PUBLIC_SRD_ONLY === 'true';
 

@@ -14,7 +14,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
-import { rollConcentrationSave, resolveConcentrationOutcome } from '../../engine/combat';
+import { rollConcentrationSave, resolveConcentrationOutcome } from '../../engine/concentration';
 import { recomputeDerived } from '../../engine/pipeline';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 

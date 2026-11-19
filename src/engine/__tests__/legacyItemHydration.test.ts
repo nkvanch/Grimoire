@@ -1,5 +1,5 @@
 import { FULL_ITEM_LIBRARY } from '../../content/items';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { hydrateEntityItemDefinitionFacts } from '../itemMechanics';
 import { recomputeDerived } from '../pipeline';
 import { generateAllActionCards } from '../actionCards';

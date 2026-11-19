@@ -5,8 +5,9 @@
 import { buildAsterTestPack, ASTER_IDS } from '../asterTestPack';
 import { validateGrimoirePack, validatePackContents } from '../../../src/engine/backup';
 import { collectContentDependencies, buildDependencyClosure } from '../../../src/engine/contentDependencies';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../src/store/characterStore';
-import { applyGrant, applyFeatToEntity } from '../../../src/engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../src/engine/defaults';
+import { applyFeatToEntity } from '../../../src/engine/levelingAsiFeats';
+import { applyGrant } from '../../../src/engine/levelingGrants';
 import { equipItem, toggleAttunement } from '../../../src/engine/inventory';
 import { applyCondition } from '../../../src/engine/conditions';
 import { recomputeDerived, applyStatModifiers, collectAllEffects } from '../../../src/engine/pipeline';

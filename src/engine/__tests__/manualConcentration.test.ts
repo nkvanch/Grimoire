@@ -1,7 +1,7 @@
 // Manual End Concentration (player/DM ends it by hand) + the pure rules the
 // Spells tab uses to tell a spell-slot cast from a ritual cast.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { castConcentrationSpell, concentrationLinkedEffectNames, endConcentration } from '../combat';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { castConcentrationSpell, concentrationLinkedEffectNames, endConcentration } from '../concentration';
 import { castButtonStates, castHistoryLabel } from '../../components/sheet/spellTabUi';
 import type { Entity, FeatureInstance, Spell } from '../types';
 
@@ -17,12 +17,12 @@ const caster = (): Entity => ({
 const buffFeature = (name: string): FeatureInstance => ({
   id: 'f_' + name, name, description: '', level: null, effects: [], actions: [], choices: [],
   passive: true, isActive: true, source: { kind: 'spell', refId: 'bless' },
-}) as FeatureInstance;
+});
 const bless = (): Spell => ({
   id: 'bless', name: 'Bless', level: 1, school: 'enchantment', castingTime: '1 action', range: '30 feet',
   components: ['V', 'S'], duration: 'Concentration, up to 1 minute', description: '', upcast: null,
   ritual: false, concentration: true, onConcentrationFeatures: [buffFeature('Blessed')],
-} as Spell);
+});
 
 describe('endConcentration (manual)', () => {
   it('ends concentration, clears the duration tracker and removes the spell\'s linked effects', () => {
@@ -38,7 +38,7 @@ describe('endConcentration (manual)', () => {
   });
 
   it('leaves unrelated features alone', () => {
-    const other: FeatureInstance = { ...buffFeature('Racial Trait'), source: { kind: 'race', refId: 'elf' } } as FeatureInstance;
+    const other: FeatureInstance = { ...buffFeature('Racial Trait'), source: { kind: 'race', refId: 'elf' } };
     const e = castConcentrationSpell({ ...caster(), features: [other] }, bless(), DEFAULT_RULES);
     expect(endConcentration(e, DEFAULT_RULES).features.map(f => f.name)).toContain('Racial Trait');
   });

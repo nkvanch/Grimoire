@@ -52,9 +52,13 @@ import { NEW_SPELLS_2024 } from '../classes2024/spells2024';
 // convert-spells.mjs after a classification-only change leaves
 // generated.ts completely untouched: only this tiny JSON updates, so a
 // classification pass no longer rewrites the entire 500+KB spell file.
+// SRD 5.1 class lists the vault has wrong, put right here so a re-run of the converter keeps them: Gate is a cleric, sorcerer and wizard spell
+// in 2014 (warlocks gained it in 2024, whose lists are spellLists2024.ts).
+const SRD51_CLASS_LISTS: Record<string, string[]> = { gate: ['cleric', 'sorcerer', 'wizard'] };
 const CLASSIFIED_VAULT_SPELLS: Spell[] = ALL_VAULT_SPELLS.map(s => ({
   ...s,
   srd: (srdClassification as Record<string, boolean>)[s.id],
+  ...(SRD51_CLASS_LISTS[s.id] ? { classes: SRD51_CLASS_LISTS[s.id] } : {}),
 }));
 
 // ── Original cantrips (level 0) ───────────────────────────────────────────────

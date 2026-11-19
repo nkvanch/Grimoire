@@ -8,7 +8,8 @@
 // initiative and reroll uses are plain effects/resources that simply stop existing with the old tier.
 // ============================================================================
 import { Entity, Feature, CampaignRules } from './types';
-import { applyGrant, removeFeature } from './leveling';
+import { removeFeature } from './levelingAsiFeats';
+import { applyGrant } from './levelingGrants';
 import { recomputeDerived } from './pipeline';
 import { DEFAULT_RULES } from './defaults';
 

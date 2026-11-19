@@ -12,8 +12,7 @@ import { Entity, CampaignRules } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
 import { createCompanion, syncCompanionFromOwner } from '../../engine/companion';
 import { companionTemplates } from '../../content/runtimeRules';
-import { applyDamage, applyHealing } from '../../engine/combat';
-import { syncManager } from '../../sync/syncManager';
+import { applyDamage, applyHealing } from '../../engine/combatDamage';
 import { HpModal } from './HpModal';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
@@ -43,26 +42,16 @@ export function CompanionSection({ owner, rules }: { owner: Entity; rules: Campa
 
   if (availableGrants.length === 0) return null;
 
-  // Bug fix (architecture review U8): these used to call applyIncomingEntity
-  // for genuinely LOCAL, player-initiated actions — that function's own doc
-  // comment says it's the sync-RECEIVE path ("no sync broadcast, we are the
-  // receiver, not the sender"). A companion's summon/damage/heal were
-  // silently invisible to the DM and every other connected device.
   function summon(templateId: string) {
     const tpl = availableGrants.find(t => t.id === templateId);
     if (!tpl) return;
     const newCompanion = createCompanion(owner, tpl, rules);
-    // applyIncomingEntity is still the right call for the actual insert —
+    // applyIncomingEntity is the right call for the insert —
     // it's the only store action that upserts a brand-new entity id
     // (updateCharacter only ever maps over entities already in the store).
-    // What it doesn't do is broadcast, so do that explicitly — mirrors
-    // syncEntityPatch's own documented behavior for a brand-new entity
-    // (previous:null → a full-snapshot syncEntity() push, same as any other
-    // first save). Companion summon isn't undo/timeline-tracked (a rare,
-    // one-off action, unlike damage/heal below) — a smaller, disclosed gap,
-    // not silently dropped.
+    // Companion summon isn't undo/timeline-tracked (a rare,
+    // one-off action, unlike damage/heal below).
     void applyIncomingEntity(newCompanion);
-    syncManager.syncEntityPatch(newCompanion.id, null, newCompanion);
   }
 
   function handleDamage(amount: number, damageType?: string) {

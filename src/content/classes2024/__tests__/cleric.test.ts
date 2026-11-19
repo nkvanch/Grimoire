@@ -1,6 +1,6 @@
 import { newChar, toLevel, bindSubclass, sub } from '../testKit';
-import { applyPoolChoiceToEntity } from '../../../engine/leveling';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 
 describe('Cleric (2024)', () => {
   it('Wisdom caster, full caster slots, 3 cantrips to pick and no prepared-spell picks (prepares from the whole list)', () => {

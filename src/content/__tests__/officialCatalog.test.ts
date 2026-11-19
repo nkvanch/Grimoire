@@ -17,6 +17,8 @@ import { FULL_ITEM_LIBRARY } from '../items/index';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+// the Official view is the screen file plus the files it was split into
+const readCompendium = () => [read('app/(tabs)/compendium.tsx'), ...fs.readdirSync(path.join(root, 'src/components/compendium/official')).map(f => read('src/components/compendium/official/' + f))].join('\n');
 const hb = (o: Record<string, unknown>) => o as never;
 
 const MARK = 'Zzqx';
@@ -84,7 +86,7 @@ describe('Official mode cannot return user Homebrew', () => {
 
   it('the Official data module never reads the homebrew store, and the view no longer uses it', () => {
     expect(read('src/content/officialCatalog.ts')).not.toMatch(/homebrewStore|getMergedContentDB/);
-    const view = read('app/(tabs)/compendium.tsx');
+    const view = readCompendium();
     expect(view).not.toContain('useHomebrewStore');
     expect(view).not.toContain('getMergedContentDB');
   });
@@ -105,7 +107,7 @@ describe('Homebrew mode returns user Homebrew', () => {
 
   it('is the only library: the old Homebrew-tab library is gone', () => {
     expect(read('app/(tabs)/homebrew.tsx')).not.toMatch(/function LibraryPanel/);
-    expect(read('app/(tabs)/compendium.tsx')).toMatch(/mode === 'homebrew' && <HomebrewLibraryView/);
+    expect(readCompendium()).toMatch(/mode === 'homebrew' && <HomebrewLibraryView/);
   });
 });
 
@@ -133,14 +135,14 @@ describe('SRD-only exposure still hides broader official content', () => {
   });
 
   it('the Official view still applies the exposure decision to every row', () => {
-    const view = read('app/(tabs)/compendium.tsx');
+    const view = readCompendium();
     expect(view).toContain('currentContentExposure');
     expect(view).toMatch(/isContentExposed\(\{ isHomebrew, srd, type \}, CONTENT_EXPOSURE\)/);
   });
 });
 
 describe('No redundant Official/Homebrew source selector in Official mode', () => {
-  const view = read('app/(tabs)/compendium.tsx');
+  const view = readCompendium();
 
   it('the selector, its state and its active-filter chip are gone', () => {
     expect(view).not.toContain('OfficialHomebrewChipRow');

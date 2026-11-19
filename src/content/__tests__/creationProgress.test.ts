@@ -1,5 +1,5 @@
 // src/content/__tests__/creationProgress.test.ts
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 import {
   readCreationPicks, writeCreationPicks, spellProgressFor, SPELLS_AT_L1, groupPendingSpellChoices,
 } from '../creationProgress';
@@ -177,5 +177,16 @@ describe('groupPendingSpellChoices — TabFeatures.tsx PENDING CHOICES row colla
   it('returns empty groups when nothing spell-related is pending', () => {
     const pending = [choiceState(asiDef(), 4)];
     expect(groupPendingSpellChoices(pending)).toEqual({ cantripPending: [], knownSpellPending: [] });
+  });
+});
+
+describe('usesSpellsStep: creation shows Spells only to a character that picks spells', () => {
+  const { newChar } = require('../classes2024/testKit');
+  const { usesSpellsStep } = require('../creationProgress');
+  it('a Fighter or Barbarian has no Spells step; a Wizard or Cleric does', () => {
+    expect(usesSpellsStep(newChar('fighter'))).toBe(false);
+    expect(usesSpellsStep(newChar('barbarian'))).toBe(false);
+    expect(usesSpellsStep(newChar('wizard'))).toBe(true);
+    expect(usesSpellsStep(newChar('cleric'))).toBe(true);
   });
 });

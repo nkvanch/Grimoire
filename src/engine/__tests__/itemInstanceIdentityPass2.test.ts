@@ -9,7 +9,7 @@ import { applyActionCardUse } from '../actionUse';
 import { recomputeDerived } from '../pipeline';
 import { captureLoadout, applyLoadout } from '../loadout';
 import { addAdditionalEquipment, additionalEquipment } from '../../content/items/equipmentDisplay';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { Entity, Item, ItemInstance, Feature } from '../types';
 
 function twoIdenticalRings(): { entity: Entity; ringDef: Item } {

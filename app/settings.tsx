@@ -4,7 +4,8 @@
 // Campaign Settings instead (app/creation/rules.tsx) — moved there since
 // those are campaign concerns, not app-level ones. This screen links to it.
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../src/components/Lists';
 import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useSafeGoBack } from '../src/hooks/useSafeGoBack';
@@ -18,7 +19,7 @@ export default function SettingsScreen() {
   const safeGoBack = useSafeGoBack('/(tabs)');
   // The look of the exported PDF character sheet. Shown at once, saved in the background; a failed save leaves the old choice in force.
   const [sheetTheme, setSheetTheme] = useState<SheetTheme>(DEFAULT_SHEET_THEME);
-  useEffect(() => { savedSheetTheme().then(setSheetTheme); }, []);
+  useEffect(() => { void savedSheetTheme().then(setSheetTheme); }, []);
   const chooseSheetTheme = (id: SheetTheme) => {
     setSheetTheme(id);
     setMeta(SHEET_THEME_KEY, id).catch(e => console.error('[settings] could not save the PDF sheet style:', e));

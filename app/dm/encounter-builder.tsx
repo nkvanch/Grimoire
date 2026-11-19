@@ -5,11 +5,12 @@
 // uses (race-builder.tsx, class-builder.tsx, etc.) rather than autosaving
 // every keystroke.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert } from '../../src/utils/alert';
+import { Alert, reportFailure } from '../../src/utils/alert';
 import { useEncounterStore, trySavePreparedEncounter } from '../../src/store/encounterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { mergeMonsterIndex } from '../../src/content/contentResolution';
@@ -26,6 +27,7 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_INPUT } from '../../src/components/nameInput';
+import { newId } from '../../src/engine/ids';
 
 const HP_MODE_LABEL: Record<PreparedCombatantHpMode, string> = {
   average: 'Average', max: 'Max', roll: 'Roll', manual: 'Manual',
@@ -372,7 +374,7 @@ export default function EncounterBuilderScreen() {
     if (!draft || saving) return; // reentrancy guard — ignore a second tap while a save is in flight
     const ok = await trySave();
     if (!ok) return; // trySave already showed the right alert (validation failure or save failure)
-    router.push({ pathname: '/dm/encounter', params: { preparedId: draft.id } } as any);
+    router.push({ pathname: '/dm/encounter', params: { preparedId: draft.id } });
   }
 
   function addMonster(monsterId: string) {
@@ -388,7 +390,7 @@ export default function EncounterBuilderScreen() {
       if (!d) return d;
       const source = d.combatants.find(c => c.id === cid);
       if (!source) return d;
-      const copy = { ...source, id: `pc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}` };
+      const copy = { ...source, id: newId('pc') };
       return { ...d, combatants: [...d.combatants, copy] };
     });
   }
@@ -457,7 +459,7 @@ export default function EncounterBuilderScreen() {
           <Text style={styles.backTxt}>← Back</Text>
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>{draft.name || 'Untitled Encounter'}</Text>
-        <Pressable style={styles.saveBtn} onPress={() => { void handleSave(); }} disabled={saving}>
+        <Pressable style={styles.saveBtn} onPress={() => { void handleSave().catch(reportFailure('save the encounter')); }} disabled={saving}>
           <Text style={styles.saveBtnTxt}>{saving ? 'Saving…' : 'Save'}</Text>
         </Pressable>
       </View>
@@ -615,7 +617,7 @@ export default function EncounterBuilderScreen() {
 
         <Pressable
           style={[styles.startBtn, saving && styles.btnDisabled]}
-          onPress={() => { void handleReviewAndStart(); }}
+          onPress={() => { void handleReviewAndStart().catch(reportFailure('save the encounter')); }}
           disabled={saving}
         >
           <Text style={styles.startBtnTxt}>{saving ? 'Saving…' : '▶ Review & Start Encounter'}</Text>

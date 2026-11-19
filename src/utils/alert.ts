@@ -46,3 +46,6 @@ function alert(title: string, message?: string, buttons?: AlertButton[]): void {
 }
 
 export const Alert = { alert };
+
+/** For a handler started with `void`: its failure is shown to the user instead of lost. `what` finishes "Could not ...". */
+export const reportFailure = (what: string) => (e: unknown): void => alert(`Could not ${what}`, e instanceof Error ? e.message : String(e));

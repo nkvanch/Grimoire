@@ -16,7 +16,9 @@
 // resolution itself stays with the player, as everywhere else in the app.
 // ============================================================================
 import { Entity } from './types';
-import { collectAllEffects, effectiveAbilityScores, modifier } from './pipeline';
+import { effectiveAbilityScores } from './derivedStats';
+import { collectAllEffects } from './collectEffects';
+import { modifier } from './abilityMath';
 
 /** The longest `set` range (in feet) any active effect gives this spell, or null for no override. */
 export function spellRangeOverride(entity: Entity, spellId: string): number | null {

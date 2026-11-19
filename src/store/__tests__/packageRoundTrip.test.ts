@@ -49,16 +49,16 @@ const CATEGORY_KEY: Record<ContentCacheType, keyof GrimoirePackHomebrew> = {
  *  test's ids sharing this same store module instance. */
 /** Every fixture carries a source, so the round trip also proves `origin` (name and link) survives export, import and resolution. */
 function fixtureFor(type: ContentCacheType): HomebrewContent {
-  return { ...baseFixtureFor(type), origin: { name: 'Example Post', link: 'https://example.com/post' } } as HomebrewContent;
+  return { ...baseFixtureFor(type), origin: { name: 'Example Post', link: 'https://example.com/post' } };
 }
 
 function baseFixtureFor(type: ContentCacheType): HomebrewContent {
   switch (type) {
-    case 'race': return { id: 'rt_race', name: 'RT Race', features: [] } as unknown as HomebrewContent;
-    case 'subrace': return { id: 'rt_subrace', name: 'RT Subrace', parentId: 'rt_race', features: [] } as unknown as HomebrewContent;
-    case 'class': return { id: 'rt_class', name: 'RT Class', hitDie: 8, features: [] } as unknown as HomebrewContent;
+    case 'race': return { id: 'rt_race', name: 'RT Race', features: [] };
+    case 'subrace': return { id: 'rt_subrace', name: 'RT Subrace', parentId: 'rt_race', features: [] };
+    case 'class': return { id: 'rt_class', name: 'RT Class', hitDie: 8, features: [] };
     case 'subclass': return { id: 'rt_subclass', name: 'RT Subclass', classId: 'rt_class', entries: [] } as unknown as HomebrewContent;
-    case 'background': return { id: 'rt_background', name: 'RT Background', features: [] } as unknown as HomebrewContent;
+    case 'background': return { id: 'rt_background', name: 'RT Background', features: [] };
     case 'feat': return {
       id: 'rt_feat', name: 'RT Feat', prerequisite: null, description: 'A round-trip test feat.', source: 'Homebrew',
       feature: { id: 'rt_feat_feature', name: 'RT Feat', description: '', source: { kind: 'feat', refId: 'rt_feat' }, level: null, effects: [], actions: [], choices: [], passive: true },
@@ -67,11 +67,11 @@ function baseFixtureFor(type: ContentCacheType): HomebrewContent {
       id: 'rt_spell', name: 'RT Spell', level: 1, school: 'Evocation',
       castingTime: '1 action', range: '30 feet', duration: 'Instantaneous', description: 'A round-trip test spell.',
     } as unknown as HomebrewContent;
-    case 'item': return { id: 'rt_item', name: 'RT Item', weight: 1, cost: '1 gp', properties: [], features: [] } as unknown as HomebrewContent;
+    case 'item': return { id: 'rt_item', name: 'RT Item', weight: 1, cost: '1 gp', properties: [], features: [] };
     case 'monster': return { id: 'rt_monster', name: 'RT Monster', cr: 1, size: 'medium', type: 'beast', alignment: 'unaligned', stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, hp: { dice: '2d8', average: 9 }, ac: { value: 12, source: 'natural armor' }, speed: 30, features: [], savingThrows: [], skills: {}, senses: [], languages: [] } as unknown as HomebrewContent;
-    case 'condition': return { id: 'rt_condition', name: 'RT Condition', description: '', features: [] } as unknown as HomebrewContent;
+    case 'condition': return { id: 'rt_condition', name: 'RT Condition', description: '', features: [] };
     case 'feature': return { id: 'rt_feature', name: 'RT Feature', description: '', source: { kind: 'race', refId: 'rt_race' }, level: null, effects: [], actions: [], choices: [], passive: true } as unknown as HomebrewContent;
-    case 'spellList': return { id: 'rt_spellList', name: 'RT Spell List', classId: 'rt_class', spellIds: ['rt_spell'] } as unknown as HomebrewContent;
+    case 'spellList': return { id: 'rt_spellList', name: 'RT Spell List', classId: 'rt_class', spellIds: ['rt_spell'] };
   }
 }
 
@@ -139,7 +139,7 @@ describe('full package round trip — every supported content type (item 5)', ()
       // standalone subrace onto its parent Race's own .subraces array —
       // there is no top-level ContentDB.subraces field.
       useHomebrewStore.setState(state => ({
-        races: [{ id: 'rt_race', name: 'RT Race', features: [] } as never, ...state.races],
+        races: [{ id: 'rt_race', name: 'RT Race', features: [] }, ...state.races],
         subraces: [...state.subraces, toSave[0].item as never],
       }));
       const merged = useHomebrewStore.getState().getMergedContentDB();
@@ -172,8 +172,8 @@ describe('full package round trip — every supported content type (item 5)', ()
       // race/class/background/feat/spell/item/feature/condition all resolve
       // through the shared getMergedContentDB() merge point.
       useHomebrewStore.setState(state => {
-        const key = CATEGORY_KEY[type] as keyof HomebrewArrays;
-        return { [key]: [...(state as unknown as HomebrewArrays)[key], toSave[0].item] } as never;
+        const key = CATEGORY_KEY[type];
+        return { [key]: [...(state as unknown as HomebrewArrays)[key], toSave[0].item] };
       });
       const merged = useHomebrewStore.getState().getMergedContentDB();
       const resolvedKey = CATEGORY_KEY[type] as keyof typeof merged;
@@ -250,7 +250,7 @@ describe('ruleset preservation (items 7-9)', () => {
     // No 'unsupported ruleset' warning for a ruleset this device DOES support.
     expect(validation.issues.filter(i => i.code === 'package_unsupported_ruleset')).toEqual([]);
     const { toSave } = planPackageImport(roundTripped, [], new Map());
-    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] } as never));
+    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] }));
     const resolved = useHomebrewStore.getState().getMergedContentDB().races.find(r => r.id === 'rt_ruleset_race');
     expect(resolved?.rulesetId).toBe(rulesetId);
   });
@@ -265,7 +265,7 @@ describe('ruleset preservation (items 7-9)', () => {
     expect(validation.issues.filter(i => i.code === 'package_unsupported_ruleset')).toEqual([]);
     const { toSave } = planPackageImport(roundTripped, [], new Map());
     expect((toSave[0].item as unknown as { rulesetId: string }).rulesetId).toBe('ose');
-    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] } as never));
+    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] }));
     const resolved = useHomebrewStore.getState().getMergedContentDB().races.find(r => r.id === 'rt_ose_race');
     expect(resolved?.rulesetId).toBe('ose');
   });
@@ -285,7 +285,7 @@ describe('ruleset preservation (items 7-9)', () => {
     const { toSave } = planPackageImport(roundTripped, [], new Map());
     // Not discarded, not retagged to a supported ruleset — exact string preserved.
     expect((toSave[0].item as unknown as { rulesetId: string }).rulesetId).toBe('some-future-scifi-ttrpg');
-    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] } as never));
+    useHomebrewStore.setState(state => ({ races: [...state.races, toSave[0].item as never] }));
     const resolved = useHomebrewStore.getState().getMergedContentDB().races.find(r => r.id === 'rt_scifi_race');
     expect(resolved).toBeDefined();
     expect(resolved?.rulesetId).toBe('some-future-scifi-ttrpg');
@@ -332,7 +332,7 @@ describe('conflict resolution end-to-end: plan + commit (item 10)', () => {
   it('Keep Local: the local definition is untouched, and a newly-imported dependent resolves to the KEPT LOCAL definition', () => {
     resetStore();
     useHomebrewStore.setState(state => ({
-      races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL, edited)', features: [] } as never],
+      races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL, edited)', features: [] }],
     }));
     const incomingRace = { id: 'tideborn', name: 'Tideborn (incoming)', features: [] } as unknown as HomebrewContent;
     const incomingSubrace = { id: 'reefborn', name: 'Reefborn', parentId: 'tideborn', features: [] } as unknown as HomebrewContent;
@@ -361,7 +361,7 @@ describe('conflict resolution end-to-end: plan + commit (item 10)', () => {
   it('Replace: the local definition is overwritten at the SAME id, and an existing "character" reference (by id) still resolves', () => {
     resetStore();
     useHomebrewStore.setState(state => ({
-      races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL, stale)', features: [] } as never],
+      races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL, stale)', features: [] }],
     }));
     const characterRaceId = 'tideborn'; // stands in for entity.identity.raceId — resolution is purely id-based
     const incomingRace = { id: 'tideborn', name: 'Tideborn (updated)', features: [] } as unknown as HomebrewContent;
@@ -478,7 +478,7 @@ describe('apply-to-all conflict resolution, then a per-entry override (item 11)'
     const conflicts = races.map(r => ({ type: 'race' as const, id: r.id, localName: `${r.name} (local)`, incomingName: r.name }));
 
     // "Apply Keep Local to all"
-    let resolutions: Map<string, ConflictResolution> = new Map(conflicts.map(c => [`${c.type}:${c.id}`, 'keep_local' as ConflictResolution]));
+    let resolutions: Map<string, ConflictResolution> = new Map(conflicts.map(c => [`${c.type}:${c.id}`, 'keep_local']));
     // Then override just race_b to Copy.
     resolutions = new Map(resolutions).set('race:race_b', 'copy');
 
@@ -502,7 +502,7 @@ describe('apply-to-all conflict resolution, then a per-entry override (item 11)'
     );
     const conflicts = races.map(r => ({ type: 'race' as const, id: r.id, localName: `${r.name} (local)`, incomingName: r.name }));
 
-    let resolutions: Map<string, ConflictResolution> = new Map(conflicts.map(c => [`${c.type}:${c.id}`, 'replace' as ConflictResolution]));
+    let resolutions: Map<string, ConflictResolution> = new Map(conflicts.map(c => [`${c.type}:${c.id}`, 'replace']));
     resolutions = new Map(resolutions).set('race:race_a', 'keep_local');
 
     const { toSave, skipped } = planPackageImport(pack, conflicts, resolutions);
@@ -543,7 +543,7 @@ describe('round-trip semantic equivalence: A -> B -> C (item 21)', () => {
     const raceB = useHomebrewStore.getState().races.find(r => r.id === 'tideborn')!;
     const subraceB = useHomebrewStore.getState().subraces.find(s => s.id === 'reefborn')!;
     const packB = createPackageContentPack(
-      { races: [raceB as never], subraces: [subraceB as never] }, contentsA,
+      { races: [raceB], subraces: [subraceB] }, contentsA,
       { name: 'Tideborn Collection', packageVersion: '1.0' }, 'device-b', '1.0.0',
     );
     const roundTrippedB = JSON.parse(JSON.stringify(packB));
@@ -585,7 +585,7 @@ describe('export/import of a previously-copied conflict (item 22)', () => {
     // Step 1: device B already has a local "tideborn" race; imports a
     // package with a conflicting "tideborn" + a dependent subrace, resolves Copy.
     resetStore();
-    useHomebrewStore.setState(state => ({ races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL)', features: [] } as never] }));
+    useHomebrewStore.setState(state => ({ races: [...state.races, { id: 'tideborn', name: 'Tideborn (LOCAL)', features: [] }] }));
     const incomingRace = { id: 'tideborn', name: 'Tideborn (incoming)', features: [] } as unknown as HomebrewContent;
     const incomingSubrace = { id: 'reefborn', name: 'Reefborn', parentId: 'tideborn', features: [] } as unknown as HomebrewContent;
     const pack1 = createPackageContentPack(
@@ -613,7 +613,7 @@ describe('export/import of a previously-copied conflict (item 22)', () => {
     // content — no back-reference to the original package or original id).
     const copiedRace = useHomebrewStore.getState().races.find(r => r.id === copiedRaceId)!;
     const pack2 = createPackageContentPack(
-      { races: [copiedRace as never], subraces: [importedSubrace as never] },
+      { races: [copiedRace], subraces: [importedSubrace] },
       [
         { type: 'race', id: copiedRaceId, name: copiedRace.name, included: 'selected' },
         { type: 'subrace', id: 'reefborn', name: 'Reefborn', included: 'dependency' },

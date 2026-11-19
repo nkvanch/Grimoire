@@ -24,10 +24,8 @@ import { Entity, Item, CampaignRules, Loadout } from './types';
 import { equipItem, unequipItem } from './inventory';
 import { recomputeDerived } from './pipeline';
 import { DEFAULT_RULES } from './defaults';
+import { newId } from './ids';
 
-function genId(): string {
-  return `loadout_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 /** Snapshots the entity's CURRENT equipped items + prepared spells into a
  *  new named Loadout. Does not mutate the entity or save it anywhere —
@@ -41,7 +39,7 @@ function genId(): string {
  *  would collapse them if ever de-duplicated through a Set. */
 export function captureLoadout(entity: Entity, name: string): Loadout {
   return {
-    id:                      genId(),
+    id:                      newId('loadout'),
     name:                    name.trim() || 'Loadout',
     equippedItemIds:         entity.inventory.equipped.map(i => i.itemId),
     equippedItemInstanceIds: entity.inventory.equipped.map(i => i.id ?? i.itemId),

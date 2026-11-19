@@ -6,7 +6,8 @@
 // shortcuts to them and redirects the old `?view=library|packages` links.
 import { useListColumns } from '../../src/platform/layout';
 import { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
@@ -48,7 +49,7 @@ function CreatePanel() {
           <Pressable
             key={item.route + item.label}
             style={[styles.createBtn, columns > 1 && { flexGrow: 0, width: columns >= 3 ? '31.8%' : '48.8%' }]}
-            onPress={() => router.push(item.route as any)}
+            onPress={() => router.push(item.route)}
           >
             <Text style={styles.createBtnTxt}>{item.label}</Text>
           </Pressable>
@@ -56,7 +57,7 @@ function CreatePanel() {
       </View>
       {ruleProfiles.length > 0 && <View style={{ marginTop: Spacing.sm }}>
         <Text style={styles.panelSub}>Saved Custom Rule Profiles</Text>
-        {ruleProfiles.map(profile => <Pressable key={profile.id} style={styles.createBtn} onPress={() => router.push(('/homebrew/rule-profile?editId=' + profile.id) as any)}><Text style={styles.createBtnTxt}>⚙️ {profile.name}</Text></Pressable>)}
+        {ruleProfiles.map(profile => <Pressable key={profile.id} style={styles.createBtn} onPress={() => router.push(('/homebrew/rule-profile?editId=' + profile.id))}><Text style={styles.createBtnTxt}>⚙️ {profile.name}</Text></Pressable>)}
       </View>}
     </View>
   );

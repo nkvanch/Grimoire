@@ -1,7 +1,8 @@
 // Per-target state: marks and accepted challenges the owner placed, damage recorded on a marked target, and due-not-removed.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { startTurn, applyAbilityEffects } from '../combat';
+import { startTurn } from '../combat';
+import { applyAbilityEffects } from '../combatAbilityEffects';
 import {
   addTrackedEffect, endTrackedEffect, setTrackedTarget, trackedEffectStatus, recordDamageOnTarget, recordDamageAcross, recordedFraction,
   effectsOnTarget,

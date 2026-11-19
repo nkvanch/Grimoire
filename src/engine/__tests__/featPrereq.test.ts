@@ -6,7 +6,7 @@
 // ("elf") — a deterministic string fact, not a runtime edge case
 // (architecture review E4).
 import { evaluatePrerequisite } from '../featPrereq';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import { Entity } from '../types';
 
 function withRace(raceId: string, subRaceId: string | null = null): Entity {

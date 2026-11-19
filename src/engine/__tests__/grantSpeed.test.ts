@@ -1,5 +1,5 @@
 // grant_speed: an ability that gives a movement speed for a while now does (the creator audit's grant_speed finding).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { generateActionCard } from '../actionCards';
 import { applyActionCardUse } from '../actionUse';

@@ -6,7 +6,7 @@
 // connection technique already established by combatRepo.test.ts.
 // ============================================================================
 import { Entity } from '../../engine/types';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 
 describe('draftRepo', () => {
   let repo: typeof import('../draftRepo');

@@ -7,10 +7,16 @@ import React from 'react';
 import { View } from 'react-native';
 import type { ListRenderItemInfo } from 'react-native';
 
-/** Props to spread on a FlatList. `key` must change with the column count (React Native cannot change numColumns in place). */
-export function gridProps(columns: number): { key: string; numColumns: number; columnWrapperStyle?: { gap: number } } {
+/** The FlatList's own `key`: must change with the column count (React Native cannot change numColumns in place) and
+ *  must be passed directly as JSX's `key` attribute, never through a spread object -- React only recognizes `key`
+ *  when it's written on the element itself, so bundling it into gridProps()'s return value silently did nothing. */
+export function gridKey(columns: number): string {
+  return `cols-${columns}`;
+}
+
+/** Props to spread on a FlatList. */
+export function gridProps(columns: number): { numColumns: number; columnWrapperStyle?: { gap: number } } {
   return {
-    key: `cols-${columns}`,
     numColumns: columns,
     ...(columns > 1 ? { columnWrapperStyle: { gap: 12 } } : {}),
   };

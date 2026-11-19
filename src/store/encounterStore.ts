@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { PreparedEncounter } from '../engine/types';
 import { saveEncounter, loadAllEncounters, deleteEncounter } from '../db/encounterRepo';
 import { newPreparedEncounter, hasInvalidManualHp } from '../engine/preparedEncounter';
-import { getMeta, setMeta } from '../db/appMetaRepo';
+import { newId } from '../engine/ids';
 
 type EncounterStore = {
   encounters: PreparedEncounter[];
@@ -45,7 +45,7 @@ export const useEncounterStore = create<EncounterStore>((set, get) => ({
   loadEncounters: async () => {
     set({ isLoading: true });
     try {
-      let encounters = await loadAllEncounters();
+      const encounters = await loadAllEncounters();
       set({ encounters, isLoading: false });
     } catch (e) {
       console.error('[encounterStore] loadEncounters failed:', e);
@@ -76,7 +76,7 @@ export const useEncounterStore = create<EncounterStore>((set, get) => ({
     const now = Date.now();
     const copy: PreparedEncounter = {
       ...source,
-      id: `enc_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      id: newId('enc'),
       name: `${source.name} (Copy)`,
       status: 'draft',
       combatants:  source.combatants.map(c => ({ ...c })),

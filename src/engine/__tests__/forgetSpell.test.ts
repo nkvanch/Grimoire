@@ -6,7 +6,7 @@ import { createCharacter } from '../../content/provider/createCharacter';
 import { DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { grantEntitlement } from '../entitlements';
-import { forgetSpell } from '../leveling';
+import { forgetSpell } from '../levelingSpells';
 import type { ChoiceState, Entity, RulesetId } from '../types';
 
 const provider = packContentProvider([JSON.parse(JSON.stringify(buildSrd51Pack())) as InstalledPack], 'dnd5e-2014' as RulesetId);

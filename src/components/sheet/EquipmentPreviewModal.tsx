@@ -8,13 +8,21 @@ import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, DerivedStats, DERIVED_NUMERIC_KEYS } from '../../engine/types';
 import { collectAllEffects } from '../../engine/pipeline';
+import { formatDamage } from '../../engine/actionCardText';
 import { DERIVED_LABELS } from './derivedStatLabels';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 export type Row = { label: string; note?: string };
 
-export function buildEquipmentSummaryRows(before: Entity, after: Entity): Row[] {
+export function buildEquipmentSummaryRows(before: Entity, after: Entity, nameOf: (itemId: string) => string = id => id): Row[] {
   const rows: Row[] = [];
+
+  // Equipping armor or a shield takes off the one already worn there (inventory.ts): say so.
+  const afterIds = new Set(after.inventory.equipped.map(i => i.id));
+  const beforeIds = new Set(before.inventory.equipped.map(i => i.id));
+  if (after.inventory.equipped.some(i => !beforeIds.has(i.id))) {
+    for (const i of before.inventory.equipped) if (!afterIds.has(i.id)) rows.push({ label: `Taken off: ${nameOf(i.itemId)}` });
+  }
 
   for (const key of DERIVED_NUMERIC_KEYS) {
     const k = key as keyof DerivedStats;
@@ -31,7 +39,7 @@ export function buildEquipmentSummaryRows(before: Entity, after: Entity): Row[] 
   const afterAtk  = new Map(after.derived.attackBonuses.map(a => [a.id, a]));
   for (const [id, a] of afterAtk) {
     if (!beforeAtk.has(id)) {
-      rows.push({ label: `New attack: ${a.name} (+${a.bonus} to hit, ${a.damageDice}+${a.damageBonus} ${a.damageType})` });
+      rows.push({ label: `New attack: ${a.name} (+${a.bonus} to hit, ${formatDamage(a.damageDice, a.damageBonus)} ${a.damageType})` });
     }
   }
   for (const [id, b] of beforeAtk) {
@@ -62,10 +70,11 @@ interface Props {
   after:    Entity | null;
   onConfirm: () => void;
   onCancel:  () => void;
+  nameOf?:   (itemId: string) => string;
 }
 
-export function EquipmentPreviewModal({ visible, kind, itemName, before, after, onConfirm, onCancel }: Props) {
-  const rows = visible && before && after ? buildEquipmentSummaryRows(before, after) : [];
+export function EquipmentPreviewModal({ visible, kind, itemName, before, after, onConfirm, onCancel, nameOf }: Props) {
+  const rows = visible && before && after ? buildEquipmentSummaryRows(before, after, nameOf) : [];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>

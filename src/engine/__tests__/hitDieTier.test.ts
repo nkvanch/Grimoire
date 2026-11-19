@@ -1,8 +1,8 @@
 // "Hit Die increases by one die size": Hit Die +1 die size; a d12 class gets +3 max HP per level.
 // The examples below are the ones the spec itself lists (docs/homebrew/BALLAST.md).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyGrant } from '../leveling';
+import { applyGrant } from '../levelingGrants';
 import { currentHitDieSize, spendHitDie, entityHitDieTier } from '../rest';
 import { bumpedHitDie, tierHpPerLevel, tierHpBonus } from '../hitDieTier';
 import { Entity, Feature } from '../types';
@@ -94,7 +94,7 @@ describe('Dense Frame on a real entity', () => {
   });
 
   it('removing the feature takes the HP back out', () => {
-    const { removeFeature } = require('../leveling');
+    const { removeFeature } = require('../levelingAsiFeats');
     let e = dense_(withDice(6, [{ die: 6, total: 6 }]));
     e = recomputeDerived(removeFeature(e, 'cat_dense'), DEFAULT_RULES);
     expect(e.resources.hp.maximum).toBe(50);

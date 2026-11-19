@@ -5,7 +5,7 @@
 // default expo-file-system API is a different class-based shape that doesn't
 // have writeAsStringAsync).
 import { desktopBridge, isDesktopApp } from '../platform/desktop';
-import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
+import { downloadTextFile } from './browserFiles';
 import { withRequiredPacks } from '../content/requiredPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -25,10 +25,7 @@ import {
   buildHomebrewSubclassMarkdown, buildSpellMarkdown, buildStandaloneFeatureMarkdown,
   stripMarkdown, ResolveName,
 } from './exportText';
-import {
-  buildClassHtml, buildFeatureListHtml, buildHomebrewSubclassHtml,
-  buildSpellHtml, buildStandaloneFeatureHtml,
-} from './exportHtml';
+import { buildClassHtml, buildFeatureListHtml, buildHomebrewSubclassHtml, buildSpellHtml, buildStandaloneFeatureHtml } from './exportHtml';
 import { buildCharacterSheetHtml, DEFAULT_SHEET_THEME, isSheetTheme, type SheetLookup, type SheetTheme } from './characterSheetPdf';
 import { getMeta } from '../db/appMetaRepo';
 import { serializePortableCharacter } from './characterPortable';

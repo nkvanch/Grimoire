@@ -4,7 +4,8 @@
 // class-detail browse layers. Subclass selection itself happens through the
 // class's subclass-unlock pending choice at the appropriate level, so this
 // screen is purely informational — there's no "select" button here.
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';

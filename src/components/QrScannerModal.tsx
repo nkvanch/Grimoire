@@ -1,9 +1,8 @@
 // ============================================================================
 // FILE: src/components/QrScannerModal.tsx
-// Generic 7-character room-code QR scanner, shared by the legacy campaign
-// sync (Campaigns tab join flow) and the live-session join flow. Only
-// validates the code SHAPE (7 alphanumeric chars) — callers decide what to
-// do with it (legacy sync port vs. session port).
+// Generic 7-character room-code QR scanner for the live-session join flow.
+// Only validates the code SHAPE (7 alphanumeric chars) — callers decide what
+// to do with it.
 // ============================================================================
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';

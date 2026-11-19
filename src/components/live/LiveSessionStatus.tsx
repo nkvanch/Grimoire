@@ -13,10 +13,11 @@ import { useRouter } from 'expo-router';
 import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { destinationsFor, DESTINATION_PATH, DESTINATION_LABEL } from '../../session/routing';
 import { PublicParticipant } from '../../session/types';
-import { encodeRoomCode } from '../../sync/discovery';
+import { encodeRoomCode } from '../../session/discovery';
 import { Section, Card, Btn, Row, Badge, Muted, Body, TrustedNetworkNotice } from './LiveUi';
 import { RoomCodeCard } from './RoomCodeCard';
 import { Colors, FontSize, FontWeight } from '../../theme';
+import { reportFailure } from '../../utils/alert';
 
 function rolesOf(p: PublicParticipant): string {
   if (p.capabilities.length === 0) return p.requestedDm ? 'waiting for DM approval' : 'waiting for a role';
@@ -27,7 +28,7 @@ function rolesOf(p: PublicParticipant): string {
  * A joined (non-Host) client doesn't generate a room code — only the Host's own device knows its
  * IP well enough to encode one directly. But `join()` stores `address` as the same "host:port"
  * shape the Host's own address uses (see runtime.ts), so the equivalent code can always be
- * recomputed from it: code and IP are a two-way mapping (`src/sync/discovery.ts`), not separate
+ * recomputed from it: code and IP are a two-way mapping (`src/session/discovery.ts`), not separate
  * identities. Per CAMPAIGN_DM_AUTHORITY_RULES.md §32, every connected state should show a room
  * code, not just the Host's.
  */
@@ -110,7 +111,7 @@ export function LiveSessionStatus({ onOpenPrepare }: { onOpenPrepare?: () => voi
         <Btn label="Reconnect" kind="ghost" onPress={() => { void getSessionRuntime().reconnect(); }} testID="live-reconnect" />
       )}
       <View style={{ marginTop: 5 }}>
-        <Btn label={isHost ? 'End session' : 'Leave session'} kind="danger" onPress={() => { void endOrLeave(); }} testID="live-leave" />
+        <Btn label={isHost ? 'End session' : 'Leave session'} kind="danger" onPress={() => { void endOrLeave().catch(reportFailure('leave the session')); }} testID="live-leave" />
       </View>
     </>
   );

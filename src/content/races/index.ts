@@ -3,8 +3,33 @@
 // All PHB races expressed as Feature/Effect arrays.
 // ============================================================================
 import { RACES_2024 } from './races2024';
-import { Race, Subrace, AncestryOption, RACE_CHOICE_PREFIX, ChoiceOption, ChoiceDefinition, Feat, Feature, Ability, RulesetId } from '../../engine/types';
+import { Race, AncestryOption, RACE_CHOICE_PREFIX, ChoiceOption, ChoiceDefinition, Feat, Feature, RulesetId } from '../../engine/types';
 import { ORIGIN_FEATS_2024 } from '../feats/origin2024';
+import { FULL_SPELL_LIBRARY } from '../spells/index';
+
+/**
+ * High Elf "Cantrip": one wizard cantrip of the player's choice, cast with Intelligence. Each option is a feature that
+ * grants its cantrip, sourced to the subrace so choosing another race takes it back out.
+ * shortcut: the pool is the SRD 5.1 wizard cantrips only, so the SRD pack built from this file stays SRD-only; offer the
+ * rest when a non-SRD pack carries its own High Elf.
+ */
+const HIGH_ELF_CANTRIP_CHOICE: ChoiceDefinition = {
+  id: `${RACE_CHOICE_PREFIX}high_elf_cantrip`,
+  prompt: 'High Elf: choose one wizard cantrip. Intelligence is your spellcasting ability for it.',
+  kind: 'feature_pool', count: 1, grants: [], required: true, resolved: false,
+  pool: FULL_SPELL_LIBRARY
+    .filter(s => s.level === 0 && s.srd === true && s.rulesetId !== ('dnd5e-2024' as RulesetId) && s.classes?.includes('wizard'))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((s): ChoiceOption => ({
+      id: `high_elf_cantrip_${s.id}`, label: s.name,
+      value: {
+        id: `high_elf_cantrip_${s.id}`, name: `${s.name} (High Elf)`,
+        description: `You know the ${s.name} cantrip. Intelligence is your spellcasting ability for it.`,
+        source: { kind: 'race', refId: 'high_elf' }, level: null, actions: [], choices: [], passive: true,
+        effects: [{ type: 'grant_spell', target: 'spell', operation: 'add', value: null, condition: null, cantripIds: [s.id], spellcastingAbility: 'int' }],
+      },
+    })),
+};
 
 /** "Elf Weapon Training" — proficiency with longsword/shortsword/shortbow/
  * longbow, granted by most non-Drow elf subraces (High Elf, Wood Elf, and
@@ -33,6 +58,9 @@ export const raceHuman: Race = {
   id: 'human',
   name: 'Human',
   srd: true,
+  // The languages every member speaks, as data: the packs built from this file carry them, so an app that makes a character
+  // from a pack alone (the desktop) can grant them. Only real languages go here; a language of the player's choice is a pendingChoice.
+  languages: ['Common'],
   // CHOICE-EXPANSION-2: "one extra language of your choice" is a genuine
   // player choice, not a fixed grant (unlike e.g. Dwarvish for a Dwarf) —
   // migrated from the purely-descriptive human_extra_language Feature below
@@ -73,30 +101,6 @@ export const raceHuman: Race = {
   // Human stays fully selectable (subracesOptional).
   subracesOptional: true,
   subraces: [
-    {
-      id: 'variant_human', name: 'Variant Human', parentId: 'human', srd: false,
-      replacesBaseFeatureIds: ['human_asi'],
-      flexibleAsi: {
-        prompt: 'Two different ability scores of your choice each increase by 1.',
-        mode: { kind: 'two_distinct_plus_one' },
-      },
-      pendingChoices: [
-        {
-          id: `${RACE_CHOICE_PREFIX}variant_human_skill`,
-          prompt: 'Choose one skill to gain proficiency in.',
-          kind: 'skill', count: 1, pool: ALL_SKILL_OPTIONS,
-          grants: [], required: true, resolved: false,
-        },
-      ],
-      features: [
-        {
-          id: 'variant_human_feat_note', name: 'Feat',
-          description: 'You gain one feat of your choice. Take it on the Feats screen during creation (enable the "Feat at 1st level" campaign rule if it isn\'t already, so that screen is reachable).',
-          source: { kind: 'race', refId: 'variant_human' },
-          level: null, effects: [], actions: [], choices: [], passive: true,
-        },
-      ],
-    },
   ],
 };
 
@@ -127,7 +131,7 @@ export const raceHuman: Race = {
 function versatileOption(feat: Feat): ChoiceOption {
   const source = { kind: 'race' as const, refId: 'human_2024' };
   const toRace = (c: ChoiceDefinition): ChoiceDefinition => ({
-    ...c, pool: Array.isArray(c.pool) ? c.pool.map(o => (o.value && typeof o.value === 'object' && !Array.isArray(o.value) && 'effects' in (o.value as object) ? { ...o, value: { ...(o.value as Feature), source } } : o)) : c.pool,
+    ...c, pool: Array.isArray(c.pool) ? c.pool.map(o => (o.value && typeof o.value === 'object' && !Array.isArray(o.value) && 'effects' in (o.value) ? { ...o, value: { ...(o.value as Feature), source } } : o)) : c.pool,
   });
   const id = `human_2024_versatile_${feat.id}`;
   return {
@@ -136,7 +140,7 @@ function versatileOption(feat: Feat): ChoiceOption {
       ...feat.feature, id, name: `${feat.name} (Versatile)`, source, level: null,
       ...(feat.resources?.length ? { resources: feat.resources } : {}),
       ...(feat.pendingChoices?.length ? { grantsChoices: feat.pendingChoices.map(toRace) } : {}),
-    } as Feature,
+    },
   };
 }
 
@@ -188,16 +192,16 @@ export const raceElf: Race = {
   id: 'elf',
   name: 'Elf',
   srd: true,
+  languages: ['Common', 'Elvish'],
   features: [
     {
       id: 'elf_asi',
       name: 'Ability Score Increase',
-      description: 'Your Dexterity score increases by 2 and your Intelligence score increases by 1.',
+      description: 'Your Dexterity score increases by 2.',
       source: { kind: 'race', refId: 'elf' },
       level: null, actions: [], choices: [], passive: true,
       effects: [
         { type: 'stat_modifier', target: 'dex', operation: 'add', value: 2, condition: null },
-        { type: 'stat_modifier', target: 'int', operation: 'add', value: 1, condition: null },
       ],
     },
     {
@@ -246,6 +250,7 @@ export const raceElf: Race = {
           kind: 'language', count: 1, pool: 'all',
           grants: [], required: true, resolved: false,
         },
+        HIGH_ELF_CANTRIP_CHOICE,
       ],
       features: [
         {
@@ -271,89 +276,6 @@ export const raceElf: Race = {
         },
       ],
     },
-    {
-      id: 'wood_elf', name: 'Wood Elf', parentId: 'elf', srd: false,
-      features: [
-        {
-          id: 'wood_elf_asi',
-          name: 'Ability Score Increase',
-          description: 'Your Wisdom score increases by 1.',
-          source: { kind: 'race', refId: 'wood_elf' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'wis', operation: 'add', value: 1, condition: null }],
-        },
-        {
-          id: 'wood_elf_speed',
-          name: 'Fleet of Foot',
-          description: 'Your base walking speed increases to 35 feet.',
-          source: { kind: 'race', refId: 'wood_elf' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'speed', operation: 'set', value: 35, condition: null }],
-        },
-        {
-          id: 'mask_of_the_wild',
-          name: 'Mask of the Wild',
-          description: 'You can attempt to hide even when you are only lightly obscured by foliage, heavy rain, falling snow, mist, and other natural phenomena.',
-          source: { kind: 'race', refId: 'wood_elf' },
-          level: null, effects: [], actions: [], choices: [], passive: true,
-        },
-        elfWeaponTraining('wood_elf'),
-      ],
-    },
-    {
-      id: 'drow', name: 'Dark Elf (Drow)', parentId: 'elf', srd: false,
-      features: [
-        {
-          id: 'drow_asi',
-          name: 'Ability Score Increase',
-          description: 'Your Charisma score increases by 1.',
-          source: { kind: 'race', refId: 'drow' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'cha', operation: 'add', value: 1, condition: null }],
-        },
-        {
-          id: 'drow_superior_darkvision',
-          name: 'Superior Darkvision',
-          description: 'Your darkvision has a range of 120 feet, instead of 60.',
-          source: { kind: 'race', refId: 'drow' },
-          level: null, actions: [], choices: [], passive: true,
-          // Aggregated with base Elf's 60-ft darkvision by keeping the
-          // longest range per sense type (see pipeline.ts's senses dedup) —
-          // this 120ft entry naturally wins without needing to remove or
-          // override the base race's grant_sense effect.
-          effects: [{ type: 'grant_sense', target: 'sense', operation: 'add', value: null, condition: null, senseType: 'darkvision', senseRange: 120 }],
-        },
-        {
-          id: 'sunlight_sensitivity',
-          name: 'Sunlight Sensitivity',
-          description: 'You have disadvantage on attack rolls and Perception checks that rely on sight when you, the target, or whatever you are trying to perceive is in direct sunlight.',
-          source: { kind: 'race', refId: 'drow' },
-          level: null, effects: [], actions: [], choices: [], passive: true,
-        },
-        {
-          id: 'drow_magic',
-          name: 'Drow Magic',
-          description: 'You know the Dancing Lights cantrip. Charisma is your spellcasting ability for it. At 3rd level you can cast Faerie Fire once with this trait, and at 5th level Darkness once, each recharging on a long rest — this app doesn\'t yet support level-gated racial features, so only the 1st-level cantrip is granted for real; the two spells are reference-only.',
-          source: { kind: 'race', refId: 'drow' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [
-            { type: 'grant_spell', target: 'spell', operation: 'add', value: null, condition: null, cantripIds: ['dancing_lights'], spellcastingAbility: 'cha' },
-          ],
-        },
-        {
-          id: 'drow_weapon_training',
-          name: 'Drow Weapon Training',
-          description: 'You have proficiency with rapiers, shortswords, and hand crossbows.',
-          source: { kind: 'race', refId: 'drow' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [
-            { type: 'grant_proficiency', target: 'weapon:rapier', operation: 'add', value: null, condition: null },
-            { type: 'grant_proficiency', target: 'weapon:shortsword', operation: 'add', value: null, condition: null },
-            { type: 'grant_proficiency', target: 'weapon:hand_crossbow', operation: 'add', value: null, condition: null },
-          ],
-        },
-      ],
-    },
   ],
 };
 
@@ -361,6 +283,7 @@ export const raceDwarf: Race = {
   id: 'dwarf',
   name: 'Dwarf',
   srd: true,
+  languages: ['Common', 'Dwarvish'],
   // CHOICE-EXPANSION-2: restricted to exactly the 3 named tools per RAW —
   // never broadened to 'all' artisan's tools. Migrated alongside the flavor
   // dwarf_tool_proficiency Feature below.
@@ -464,30 +387,6 @@ export const raceDwarf: Race = {
         },
       ],
     },
-    {
-      id: 'mountain_dwarf', name: 'Mountain Dwarf', parentId: 'dwarf', srd: false,
-      features: [
-        {
-          id: 'mountain_dwarf_asi',
-          name: 'Ability Score Increase',
-          description: 'Your Strength score increases by 2.',
-          source: { kind: 'race', refId: 'mountain_dwarf' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'str', operation: 'add', value: 2, condition: null }],
-        },
-        {
-          id: 'dwarven_armor_training',
-          name: 'Dwarven Armor Training',
-          description: 'You have proficiency with light and medium armor.',
-          source: { kind: 'race', refId: 'mountain_dwarf' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [
-            { type: 'grant_proficiency', target: 'armor:light', operation: 'add', value: null, condition: null },
-            { type: 'grant_proficiency', target: 'armor:medium', operation: 'add', value: null, condition: null },
-          ],
-        },
-      ],
-    },
   ],
 };
 
@@ -495,6 +394,7 @@ export const raceHalfling: Race = {
   id: 'halfling',
   name: 'Halfling',
   srd: true,
+  languages: ['Common', 'Halfling'],
   features: [
     {
       id: 'halfling_asi',
@@ -559,27 +459,6 @@ export const raceHalfling: Race = {
         },
       ],
     },
-    {
-      id: 'stout_halfling', name: 'Stout Halfling', parentId: 'halfling', srd: false,
-      features: [
-        {
-          id: 'stout_asi',
-          name: 'Ability Score Increase',
-          description: 'Your Constitution score increases by 1.',
-          source: { kind: 'race', refId: 'stout_halfling' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'con', operation: 'add', value: 1, condition: null }],
-        },
-        {
-          id: 'stout_resilience',
-          name: 'Stout Resilience',
-          description: 'You have advantage on saving throws against poison, and you have resistance against poison damage.',
-          source: { kind: 'race', refId: 'stout_halfling' },
-          level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'grant_resistance', target: 'poison', operation: 'resistance', value: null, condition: null }],
-        },
-      ],
-    },
   ],
 };
 
@@ -616,7 +495,8 @@ export const raceDragonborn: Race = {
   id: 'dragonborn',
   name: 'Dragonborn',
   srd: true,
-  // PHB Dragonborn is already a complete race — Draconblood/Ravenite below
+  languages: ['Common', 'Draconic'],
+  // PHB Dragonborn is already a complete race — the optional subraces below
   // Dwarf/Halfling/Gnome, where every subrace is itself required).
   subracesOptional: true,
   resources: [
@@ -663,6 +543,7 @@ export const raceGnome: Race = {
   id: 'gnome',
   name: 'Gnome',
   srd: true,
+  languages: ['Common', 'Gnomish'],
   features: [
     {
       id: 'gnome_asi',
@@ -701,30 +582,6 @@ export const raceGnome: Race = {
   ],
   subraces: [
     {
-      id: 'forest_gnome', name: 'Forest Gnome', parentId: 'gnome', srd: false,
-      features: [
-        {
-          id: 'forest_gnome_asi', name: 'Ability Score Increase',
-          description: 'Your Dexterity score increases by 1.',
-          source: { kind: 'race', refId: 'forest_gnome' }, level: null, actions: [], choices: [], passive: true,
-          effects: [{ type: 'stat_modifier', target: 'dex', operation: 'add', value: 1, condition: null }],
-        },
-        {
-          id: 'natural_illusionist', name: 'Natural Illusionist',
-          description: 'You know the Minor Illusion cantrip. Intelligence is your spellcasting ability for it.',
-          source: { kind: 'race', refId: 'forest_gnome' }, level: null, actions: [], choices: [], passive: true,
-          effects: [
-            { type: 'grant_spell', target: 'spell', operation: 'add', value: null, condition: null, cantripIds: ['minor_illusion'], spellcastingAbility: 'int' },
-          ],
-        },
-        {
-          id: 'speak_with_small_beasts', name: 'Speak with Small Beasts',
-          description: 'Through sound and gestures, you can communicate simple ideas with Small or smaller beasts.',
-          source: { kind: 'race', refId: 'forest_gnome' }, level: null, effects: [], actions: [], choices: [], passive: true,
-        },
-      ],
-    },
-    {
       id: 'rock_gnome', name: 'Rock Gnome', parentId: 'gnome', srd: true,
       features: [
         {
@@ -755,6 +612,16 @@ export const raceHalfElf: Race = {
   id: 'half_elf',
   name: 'Half-Elf',
   srd: true,
+  languages: ['Common', 'Elvish'],
+  // "one extra language of your choice": a real choice, as the Human's is.
+  pendingChoices: [
+    {
+      id: `${RACE_CHOICE_PREFIX}half_elf_extra_language`,
+      prompt: 'Choose one extra language.',
+      kind: 'language', count: 1, pool: 'all',
+      grants: [], required: true, resolved: false,
+    },
+  ],
   flexibleAsi: {
     prompt: 'Two other ability scores of your choice each increase by 1.',
     mode: { kind: 'two_distinct_plus_one', exclude: ['cha'] },
@@ -859,6 +726,7 @@ export const raceHalfOrc: Race = {
   id: 'half_orc',
   name: 'Half-Orc',
   srd: true,
+  languages: ['Common', 'Orc'],
   resources: [
     { resourceId: 'relentless_endurance_pool', name: 'Relentless Endurance', maximum: 1, recharge: 'long_rest' },
   ],
@@ -919,6 +787,7 @@ export const raceTiefling: Race = {
   id: 'tiefling',
   name: 'Tiefling',
   srd: true,
+  languages: ['Common', 'Infernal'],
   features: [
     {
       id: 'tiefling_asi',

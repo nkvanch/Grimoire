@@ -21,7 +21,7 @@ const focus = (extra: object = {}) => activation('free', { resource: 'focus_poin
 
 /** Disciplined Survivor: proficiency in the four saves a Monk lacks (Strength and Dexterity are already proficient). */
 const allSaves: Effect[] = (['con', 'int', 'wis', 'cha'] as const).map(ab =>
-  ({ ...stat(`savingThrows.${ab}`, 'add', 0), addProficiencyBonus: true } as Effect));
+  ({ ...stat(`savingThrows.${ab}`, 'add', 0), addProficiencyBonus: true }));
 
 export const monk2024: ClassDef = {
   key: 'monk', name: 'Monk', hitDie: 8, savingThrows: ['str', 'dex'],

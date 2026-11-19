@@ -1,7 +1,9 @@
 // The 2024 (5.5e) species and Origin-feat backgrounds run through the real engine.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { recomputeDerived } from '../../../engine/pipeline';
-import { applyGrant, swapBackground, applyPoolChoiceToEntity } from '../../../engine/leveling';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { swapBackground } from '../../../engine/levelingBackground';
+import { applyGrant } from '../../../engine/levelingGrants';
 import { generateAllActionCards } from '../../../engine/actionCards';
 import { Entity, Race, Background, Feat } from '../../../engine/types';
 import {
@@ -187,7 +189,7 @@ describe('level-gated and scaling species traits', () => {
 });
 
 function applyDamageType(e: Entity, type: string): number {
-  const { applyDamage } = require('../../../engine/combat');
+  const { applyDamage } = require('../../../engine/combatDamage');
   const before = e.resources.hp.current;
   return before - applyDamage(e, 10, DEFAULT_RULES, type).resources.hp.current;
 }

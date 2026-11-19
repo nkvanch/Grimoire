@@ -3,7 +3,8 @@
 // is a set of homebrew Features tagged with `rewardTrack`; granting a higher tier REPLACES the lower
 // ones (engine/rewardTracks.ts), so nothing stacks and no level-up or respec is involved.
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Feature } from '../../engine/types';

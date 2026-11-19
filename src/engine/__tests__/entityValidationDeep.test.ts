@@ -1,4 +1,4 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { validateEntityShape } from '../homebrewValidator';
 import { ENTITY_VALIDATION_LIMITS } from '../entityValidation';
 import { collectAllEffects, recomputeDerived } from '../pipeline';

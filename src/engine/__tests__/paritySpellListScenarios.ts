@@ -1,12 +1,12 @@
 // Spell lists for the native-parity fixtures: what a list draft compiles to, and which spells a spell-choice picker offers with a list
 // in play (the class's own source, or the list the player opted into). The executors are the app's own code.
-import type { Entity, SpellList, ChoiceState } from '../types';
+import type { Entity, SpellList } from '../types';
 import { compileSpellListFields, type SpellListDraft } from '../../content/homebrewCompile';
 import { validateSpellList } from '../homebrewValidator';
 import { spellPickerPool } from '../../content/spellChoiceFilter';
 import { extraClassSpellIds } from '../spellModifiers';
 import { createCharacter } from '../../content/provider/createCharacter';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import type { Providers } from './parityLevelScenarios';
 
 export type SpellListCase = { name: string; id: string; draft: SpellListDraft };
@@ -49,7 +49,7 @@ export function buildSpellPoolCases(providers: Providers): SpellPoolCase[] {
   ) => {
     const p = providers[tag];
     const entity = createCharacter(p, {
-      id: 'pool-' + name, name: 'Pool ' + name, classId, raceId: p.races()[0].id, backgroundId: p.backgrounds()[0].id, stats: STATS as never, level,
+      id: 'pool-' + name, name: 'Pool ' + name, classId, raceId: p.races()[0].id, backgroundId: p.backgrounds()[0].id, stats: STATS, level,
     }, DEFAULT_RULES);
     const sc = entity.spellcasting;
     let maxCastableLevel = 0;
@@ -61,7 +61,7 @@ export function buildSpellPoolCases(providers: Providers): SpellPoolCase[] {
     const known = new Set([...(sc?.cantrips ?? []), ...(sc?.known ?? [])]);
     const all = p.spells().map(s => ({ id: s.id, level: s.level, school: s.school, ritual: !!s.ritual, classes: (s as { classes?: string[] }).classes }));
     const expected: Record<string, string[]> = {};
-    for (const c of entity.choices as ChoiceState[]) {
+    for (const c of entity.choices) {
       if (c.resolved || c.definition.kind !== 'spell') continue;
       const owner = c.definition.forClassId ?? entity.identity.classId;
       expected[c.id] = spellPickerPool({

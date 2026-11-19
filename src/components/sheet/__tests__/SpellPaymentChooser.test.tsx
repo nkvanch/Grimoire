@@ -2,7 +2,7 @@ jest.mock('react-native/Libraries/Modal/Modal', () => ({ __esModule: true, defau
 import React from 'react';
 import { useSpellPayment } from '../SpellPaymentChooser';
 import { Pressable } from '../../AccessibleControls';
-import { makeEmptyEntity } from '../../../store/characterStore';
+import { makeEmptyEntity } from '../../../engine/defaults';
 import { slotsFromCountArray } from '../../../content/classes/spellSlotTables';
 import { ActionCard } from '../../../engine/types';
 const { create, act } = require('react-test-renderer');

@@ -11,16 +11,19 @@ type DiceLogStore = {
   /** Push an already-computed roll (e.g. from a skill tap). */
   pushRoll: (roll: DiceRoll) => void;
   /** Roll an expression and push the result; returns it for immediate use. */
-  rollAndLog: (expression: string, label?: string) => DiceRoll;
+  /** The roll a screen is already showing itself: logged to the shared history, but the roller does not pop open for it. */
+  quietId: string | null;
+  rollAndLog: (expression: string, label?: string, quiet?: boolean) => DiceRoll;
   clear: () => void;
 };
 
 export const useDiceLogStore = create<DiceLogStore>(set => ({
   history: [],
+  quietId: null,
   pushRoll: (roll) => set(state => ({ history: [roll, ...state.history].slice(0, 20) })),
-  rollAndLog: (expression, label) => {
+  rollAndLog: (expression, label, quiet = false) => {
     const result = rollExpression(expression, label);
-    set(state => ({ history: [result, ...state.history].slice(0, 20) }));
+    set(state => ({ history: [result, ...state.history].slice(0, 20), quietId: quiet ? result.id : null }));
     return result;
   },
   clear: () => set({ history: [] }),

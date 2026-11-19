@@ -1,9 +1,9 @@
 // Two small engine primitives the built-in homebrew needs:
 //  1. a DERIVED max-HP bonus (Effect target 'max_hp') that tiered rewards can REPLACE rather than stack
 //  2. Feat.resources — a feat granting a limited-use resource pool
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyFeatToEntity, removeFeature } from '../leveling';
+import { applyFeatToEntity, removeFeature } from '../levelingAsiFeats';
 import { Entity, Feature } from '../types';
 
 function feature(id: string, hp: number | null): Feature {
@@ -73,7 +73,7 @@ describe('Feat.resources', () => {
 
 describe('max_hp bonus survives the engine paths that rebuild the HP block', () => {
   it('levelling up keeps the bonus accounted for (no double count on the next recompute)', () => {
-    const { applyHP } = require('../leveling');
+    const { applyHP } = require('../levelingHp');
     let e = applyFeatToEntity(character(), 'c1', 1, feature('presence', 5), 'presence', DEFAULT_RULES);
     e = { ...e, resources: { ...e.resources, hitDice: { die: 8, total: 5, remaining: 5 } } };
     e = applyHP(e, 8, 'fixed', 6, DEFAULT_RULES);

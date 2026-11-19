@@ -4,7 +4,7 @@
 // TypeScript engine produced. The native app must reproduce the same state; see docs/CONTRACTS.md in the C++ project.
 import * as fs from 'fs';
 import * as path from 'path';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { commitSpellPayment, restoreSpellSlot } from '../spellPayment';
 import type { Entity } from '../types';
@@ -30,12 +30,14 @@ import {
 import { featurePoolDraftToDefinition } from '../../content/featurePoolChoice';
 import { buildPackageCases, runPackageCase } from './parityPackageScenarios';
 import { collectTypedContentRefs } from '../packDiagnostics';
-import { queueChoice, applyPoolChoiceToEntity } from '../leveling';
-import { DEFAULT_RULES as BASE_RULES } from '../../store/characterStore';
+import { applyPoolChoiceToEntity } from '../levelingPoolChoices';
+import { queueChoice } from '../levelingGrants';
+import { DEFAULT_RULES as BASE_RULES } from '../defaults';
 import { applyActionCardUse } from '../actionUse';
 import type { ActionCard } from '../types';
 import { takeRest, takeDawn, spendHitDieManual, discardHitDie } from '../rest';
-import { applyDamage, applyHealing, applyTempHP } from '../combat';
+import { applyTempHP } from '../combatDamage';
+import { applyDamage, applyHealing } from '../combatDamage';
 import { activateOfficialPacks, clearOfficialPacks } from '../../content/officialPacks';
 import { runSessionScenario } from './paritySessionScenarios';
 import srd51 from '../../../assets/packs/grimoire.srd.5.1.json';
@@ -61,14 +63,14 @@ const withFixedTime = (env: Envelope): Envelope => ({ ...env, exportedAt: 0 });
 run('parity fixtures', () => {
   it('writes the cases', async () => {
     const files = fs.readdirSync(CHARACTERS).filter(f => f.endsWith('.json')).sort();
-    fs.mkdirSync(path.join(OUT!, 'characters'), { recursive: true });
-    fs.mkdirSync(path.join(OUT!, 'parity'), { recursive: true });
+    fs.mkdirSync(path.join(OUT, 'characters'), { recursive: true });
+    fs.mkdirSync(path.join(OUT, 'parity'), { recursive: true });
     const cases: unknown[] = [];
 
     for (const file of files) {
       const envelope = withFixedTime(JSON.parse(fs.readFileSync(path.join(CHARACTERS, file), 'utf8')) as Envelope);
       const id = file.replace(/\.json$/, '');
-      fs.writeFileSync(path.join(OUT!, 'characters', file), JSON.stringify(envelope, null, 2));
+      fs.writeFileSync(path.join(OUT, 'characters', file), JSON.stringify(envelope, null, 2));
 
       const recomputed = recomputeDerived(envelope.entity, DEFAULT_RULES);
       cases.push({
@@ -110,7 +112,7 @@ run('parity fixtures', () => {
     }
 
     // synthetic characters: a real character plus features that exercise the effect pipeline one rule at a time
-    fs.mkdirSync(path.join(OUT!, 'synthetic'), { recursive: true });
+    fs.mkdirSync(path.join(OUT, 'synthetic'), { recursive: true });
     const baseEnvelope = withFixedTime(JSON.parse(fs.readFileSync(path.join(CHARACTERS, 'TEST-Wizard-5.json'), 'utf8')) as Envelope);
     const scenarios = [
       ...buildScenarios(baseEnvelope.entity).map(scenario => ({ scenario, packs: false })),
@@ -120,7 +122,7 @@ run('parity fixtures', () => {
     for (const { scenario, packs } of scenarios) {
       const envelope: Envelope = { ...baseEnvelope, entity: scenario.entity };
       const file = `synthetic/${scenario.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify(envelope, null, 2));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify(envelope, null, 2));
       if (packs) activateOfficialPacks([srd51, srd521]);
       const recomputed = recomputeDerived(scenario.entity, DEFAULT_RULES);
       const checks = skillChecksOf(recomputed);
@@ -137,7 +139,7 @@ run('parity fixtures', () => {
     for (const c of buildHpCases(baseEnvelope.entity)) {
       const envelope: Envelope = { ...baseEnvelope, entity: c.entity };
       const file = `synthetic/${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify(envelope, null, 2));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify(envelope, null, 2));
       const { amount, damageType } = c.op.args;
       const after = c.op.name === 'applyDamage' ? applyDamage(c.entity, amount, DEFAULT_RULES, damageType)
         : c.op.name === 'applyHealing' ? applyHealing(c.entity, amount, DEFAULT_RULES)
@@ -161,7 +163,7 @@ run('parity fixtures', () => {
     for (const c of buildRestCases(baseEnvelope.entity)) {
       const envelope: Envelope = { ...baseEnvelope, entity: c.entity };
       const file = `synthetic/${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify(envelope, null, 2));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify(envelope, null, 2));
       activateOfficialPacks([srd51, srd521]);
       let after: Entity;
       switch (c.op.name) {
@@ -188,7 +190,7 @@ run('parity fixtures', () => {
     for (const c of [...buildSheetCases(baseEnvelope.entity), ...buildWildShapeCases(druidEnvelope.entity)]) {
       const envelope: Envelope = { ...baseEnvelope, entity: c.entity };
       const file = `synthetic/sheet-${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify(envelope, null, 2));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify(envelope, null, 2));
       activateOfficialPacks([srd51, srd521]);
       const after = runSheetOp(c.entity, c.op, c.items ?? [], id => resolveItemDefinition(id));
       clearOfficialPacks();
@@ -235,7 +237,7 @@ run('parity fixtures', () => {
       const poolProviders = makeProviders([srd521, srd51] as never);
       for (const c of buildSpellPoolCases(poolProviders)) {
         const file = `synthetic/pool-${c.name}.json`;
-        fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
+        fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
         cases.push({
           id: `spell-pool/${c.name}`, kind: 'spell-pool', character: file,
           input: { classId: c.classId, spellLists: c.spellLists, activeSpellListId: c.activeSpellListId, classSource: c.classSource },
@@ -272,7 +274,7 @@ run('parity fixtures', () => {
       activateOfficialPacks([srd51, srd521]);
       const prepared = recomputeDerived(scenario.entity, DEFAULT_RULES);
       const file = `synthetic/${scenario.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: prepared }, null, 2));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: prepared }, null, 2));
       cases.push({
         id: `synthetic/${scenario.name}/cards`,
         kind: 'card-list',
@@ -286,8 +288,8 @@ run('parity fixtures', () => {
           const option = u.optionId ? card.activation.options?.find(o => o.id === u.optionId) : undefined;
           const ctx = u.contextKey && card.spellCastingContext ? { ...card.spellCastingContext, contextKey: u.contextKey } : undefined;
           after = applyActionCardUse(
-            prepared, card, DEFAULT_RULES, option, u.payment as never, u.bypassPrep, ctx as never, {}, u.bypassIncap,
-            u.ritual ? 'ritual' : undefined, u.sequenceId ? { sequenceId: u.sequenceId } as never : undefined,
+            prepared, card, DEFAULT_RULES, option, u.payment as never, u.bypassPrep, ctx, {}, u.bypassIncap,
+            u.ritual ? 'ritual' : undefined, u.sequenceId ? { sequenceId: u.sequenceId } : undefined,
           );
         }
         const { actionCards: _cards, ...entity } = after as Entity & { actionCards?: unknown };
@@ -328,15 +330,15 @@ run('parity fixtures', () => {
         cases.push({ id: `homebrew-test/${kind}/${name}`, kind: 'homebrew-test', input: { type: kind, id, ...input }, expected: { entity: strip(testAfterEntity(kind, fields)) } });
       };
       for (const c of buildFeatCases()) testCase('feat', c.name, c.id, (runFeatCase(c) as { fields: unknown }).fields as Record<string, unknown>, { draft: c.draft });
-      for (const c of buildClassCases()) testCase('class', c.name, c.id, runClassCase(c).fields as unknown as Record<string, unknown>, { draft: c.draft });
-      for (const c of buildSubclassCases()) testCase('subclass', c.name, c.id, runSubclassCase(c).fields as unknown as Record<string, unknown>, { hitDie: c.hitDie, draft: c.draft });
-      for (const c of buildRaceCases()) testCase('race', c.name, c.id, runRaceCase(c).fields as unknown as Record<string, unknown>, { draft: c.draft });
+      for (const c of buildClassCases()) testCase('class', c.name, c.id, runClassCase(c).fields, { draft: c.draft });
+      for (const c of buildSubclassCases()) testCase('subclass', c.name, c.id, runSubclassCase(c).fields, { hitDie: c.hitDie, draft: c.draft });
+      for (const c of buildRaceCases()) testCase('race', c.name, c.id, runRaceCase(c).fields, { draft: c.draft });
       for (const c of buildSubraceCases()) {
         const sr = runSubraceCase(c);
-        if (sr.validation.valid) testCase('subrace', c.name, sr.fields.id, sr.fields as unknown as Record<string, unknown>, { draft: c.draft, parentId: c.parentId });
+        if (sr.validation.valid) testCase('subrace', c.name, sr.fields.id, sr.fields, { draft: c.draft, parentId: c.parentId });
       }
-      for (const c of buildConditionCases()) testCase('condition', c.name, c.id, runConditionCase(c).fields as unknown as Record<string, unknown>, { draft: c.draft });
-      for (const c of buildBackgroundCases()) testCase('background', c.name, c.id, runBackgroundCase(c).fields as unknown as Record<string, unknown>, { draft: c.draft });
+      for (const c of buildConditionCases()) testCase('condition', c.name, c.id, runConditionCase(c).fields, { draft: c.draft });
+      for (const c of buildBackgroundCases()) testCase('background', c.name, c.id, runBackgroundCase(c).fields, { draft: c.draft });
     }
     for (const c of buildChoiceDraftCases()) {
       cases.push({ id: `homebrew/choice/${c.name}`, kind: 'homebrew-choice', input: { prefix: c.prefix, draft: c.draft }, expected: runChoiceDraftCase(c) });
@@ -351,7 +353,7 @@ run('parity fixtures', () => {
       const ghost: Entity = {
         ...e,
         identity: {
-          ...e.identity, raceId: 'ghost_race' as never, classId: 'ghost_class', backgroundId: 'ghost_background' as never,
+          ...e.identity, raceId: 'ghost_race', classId: 'ghost_class', backgroundId: 'ghost_background',
           classes: (e.identity.classes ?? []).map(c => ({ ...c, classId: 'ghost_class' as never, subclassId: 'ghost_subclass' as never })),
         },
         inventory: { ...e.inventory, carried: [...e.inventory.carried, { id: 'item:ghost', itemId: 'ghost_item', quantity: 1 } as never] },
@@ -359,7 +361,7 @@ run('parity fixtures', () => {
         entitlements: [...(e.entitlements ?? []), { kind: 'spell_access', key: 'ghost_spell', sourceKind: 'class', sourceId: 'ghost_class' } as never],
         spellcasting: e.spellcasting ? { ...e.spellcasting, known: [...e.spellcasting.known, 'ghost_spell'] } : e.spellcasting,
       };
-      fs.writeFileSync(path.join(OUT!, 'synthetic', 'missing-content.json'), JSON.stringify({ ...baseEnvelope, entity: ghost }, null, 2));
+      fs.writeFileSync(path.join(OUT, 'synthetic', 'missing-content.json'), JSON.stringify({ ...baseEnvelope, entity: ghost }, null, 2));
       for (const f of [...files.map(x => `characters/${x}`), 'synthetic/missing-content.json']) {
         const entity = f.startsWith('synthetic/')
           ? ghost
@@ -387,7 +389,7 @@ run('parity fixtures', () => {
       ];
       for (const [name, selections] of attempts) {
         const file = `synthetic/featurepool-${name}.json`;
-        fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: queued }));
+        fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: queued }));
         let after: Entity = queued;
         let refused = '';
         try { after = applyPoolChoiceToEntity(queued, choiceId, selections, BASE_RULES); } catch (e) { refused = (e as Error).message; }
@@ -418,7 +420,7 @@ run('parity fixtures', () => {
     const providers = makeProviders([srd521, srd51] as never);
     for (const c of buildLevelCases(providers)) {
       const file = `synthetic/${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
       const { entity: after, log } = runLevelSteps(c.entity, c.steps, c.rules, providerFor(c.entity, providers));
       const { actionCards: _cards, ...entity } = after as Entity & { actionCards?: unknown };
       void _cards;
@@ -432,7 +434,7 @@ run('parity fixtures', () => {
     }
     for (const c of buildHomebrewLevelCases(providers)) {
       const file = `synthetic/${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
       const { entity: after, log } = runLevelSteps(c.entity, c.steps, c.rules, providerFor(c.entity, providers), { classes: c.homebrew.classes });
       const { actionCards: _cards, ...entity } = after as Entity & { actionCards?: unknown };
       void _cards;
@@ -451,7 +453,7 @@ run('parity fixtures', () => {
     const choiceProviders = makeProviders([srd521, srd51] as never);
     for (const c of buildChoiceCases(choiceProviders)) {
       const file = `synthetic/${c.name}.json`;
-      fs.writeFileSync(path.join(OUT!, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
+      fs.writeFileSync(path.join(OUT, file), JSON.stringify({ ...baseEnvelope, entity: c.entity }));
       const provider = providerFor(c.entity, choiceProviders);
       const rules = { ...BASE_RULES, maxAbilityScore: c.rules.maxAbilityScore };
       let after: Entity = c.entity;
@@ -469,14 +471,14 @@ run('parity fixtures', () => {
     clearOfficialPacks();
 
     fs.writeFileSync(
-      path.join(OUT!, 'parity', 'cases.json'),
+      path.join(OUT, 'parity', 'cases.json'),
       JSON.stringify({ fixtureVersion: FIXTURE_VERSION, generatedBy: 'src/engine/__tests__/parityExport.test.ts', cases }, null, 2),
     );
     expect(cases.length).toBeGreaterThan(0);
 
     // the live session: the real host driven frame by frame
     const session = await runSessionScenario();
-    fs.writeFileSync(path.join(OUT!, 'parity', 'session.json'), JSON.stringify({ fixtureVersion: FIXTURE_VERSION, ...session }, null, 2));
+    fs.writeFileSync(path.join(OUT, 'parity', 'session.json'), JSON.stringify({ fixtureVersion: FIXTURE_VERSION, ...session }, null, 2));
     expect(session.expected.length).toBeGreaterThan(10);
   });
 });

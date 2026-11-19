@@ -2,7 +2,8 @@
 // mastery property does, and lets the player change the picks (the rules let you swap one after each
 // Long Rest; the app doesn't track rests for this, so the choice is the player's to honor).
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity } from '../../engine/types';

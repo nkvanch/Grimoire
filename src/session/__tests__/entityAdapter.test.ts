@@ -4,7 +4,7 @@
 // via FakeCharacter. applyChangesToEntity's pre-existing branches (hp/max_hp/temp_hp/exhaustion/
 // ability) had no direct unit test before this file either — see roles.test.ts's characterChange
 // tests, which only cover describeChange/validChanges, never the entity mutation itself.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { applyChangesToEntity } from '../entityAdapter';
 import { Entity } from '../../engine/types';
 

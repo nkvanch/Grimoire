@@ -9,17 +9,15 @@
 // (characterPortable.ts) — the same "reload scenario" precedent used by
 // extraAttackMultiattack.test.ts's F8/F9/B6 block, which this file follows
 // in style: hand-rolled fixtures inline, no shared test helper/framework.
-import {
-  Entity, Item, ItemInstance, FeatureInstance, SpellSlots, EntitlementRecord,
-  ChoiceDefinition, Spell, asClassId,
-} from '../types';
+import { Entity, Item, ItemInstance, FeatureInstance, SpellSlots, EntitlementRecord, ChoiceDefinition, Spell, asClassId } from '../types';
 import { recomputeDerived } from '../pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { takeRest } from '../rest';
-import { applyDamage } from '../combat';
+import { applyDamage } from '../combatDamage';
 import { equipItem } from '../inventory';
 import { applyCondition } from '../conditions';
-import { queueChoice, applyExpertiseChoiceToEntity } from '../leveling';
+import { applyExpertiseChoiceToEntity } from '../levelingProficiencyChoices';
+import { queueChoice } from '../levelingGrants';
 import { setManualEntitlement } from '../entitlements';
 import { commitSpellPayment } from '../spellPayment';
 import { generateSpellCard } from '../actionCards';

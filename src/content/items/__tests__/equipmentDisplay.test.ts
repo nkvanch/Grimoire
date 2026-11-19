@@ -6,7 +6,7 @@
 // rendering, see e.g. RestPreviewModal/FeatPreviewModal tests).
 import { describeConstraint, itemsGrantedBy, reopenEquipmentChoice, skipEquipmentChoice, addAdditionalEquipment } from '../equipmentDisplay';
 import { ChoiceState, ChoiceOption, Entity } from '../../../engine/types';
-import { makeEmptyEntity } from '../../../store/characterStore';
+import { makeEmptyEntity } from '../../../engine/defaults';
 import { itemBroomOfFlying, itemRope50ft } from '../index';
 import { toItemIndexEntry } from '../../itemRepo.types';
 

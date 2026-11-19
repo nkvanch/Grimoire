@@ -12,12 +12,13 @@
 // driven skill choice trained the same skill with no backing Effect — see
 // swapBackground's own doc comment).
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, CampaignRules, Background, Ability, SkillName } from '../../engine/types';
-import { swapBackground } from '../../engine/leveling';
+import { swapBackground } from '../../engine/levelingBackground';
 import { simulate } from '../../engine/simulate';
 import { buildFeatureGrantRows } from './featureGrantRows';
 import { SKILL_LABELS } from './skillLabels';
@@ -25,10 +26,7 @@ import { useHomebrewStore } from '../../store/homebrewStore';
 import { backgroundSkillGrants, backgroundSortOptions } from '../../content/backgrounds/backgroundBrowse';
 import { sortByOption, OfficialFilter, matchesOfficialFilter } from '../../content/contentQuery';
 import { SortControl } from '../SortControl';
-import {
-  MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow,
-  ActiveFilterChips, ZeroResultsState,
-} from '../FilterChipRow';
+import { MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips, ZeroResultsState } from '../FilterChipRow';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 const ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
@@ -102,7 +100,7 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
   // exactly what WOULD happen, editable from there.
   useEffect(() => {
     if (!selectedBg) return;
-    const defaultResult = swapBackground(entity, selectedBg, rules, undefined, undefined, selectedBg.originFeat ? (getMergedContentDB(entity.rulesetId).feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined);
+    const defaultResult = swapBackground(entity, selectedBg, rules, undefined, undefined, selectedBg.originFeat ? (getMergedContentDB().feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined);
     const initial: Partial<Record<SkillName, boolean>> = {};
     for (const skill of oldBgSkills) {
       initial[skill] = defaultResult.skills.skills[skill]?.trained ?? false;
@@ -226,7 +224,7 @@ export function ChangeBackgroundModal({ visible, entity, rules, onConfirm, onCan
   const { before, after } = simulate(
     entity,
     e => swapBackground(e, selectedBg, rules, flexAsi ? flexPicks : undefined, skillChecklist,
-      selectedBg.originFeat ? (getMergedContentDB(entity.rulesetId).feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined),
+      selectedBg.originFeat ? (getMergedContentDB().feats ?? []).find(f => f.id === selectedBg.originFeat) : undefined),
     rules,
   );
   const rows = buildFeatureGrantRows(before, after);

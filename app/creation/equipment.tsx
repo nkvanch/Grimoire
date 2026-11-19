@@ -14,7 +14,8 @@
 // the same multi-item choice.
 import { itemsForRuleset } from '../../src/content/itemEditions';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,16 +24,17 @@ import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
 import { useRequiredItemContextStore } from '../../src/store/requiredItemContextStore';
-import { resolveChoice, resolveEquipmentChoice, EquipmentChoiceResolution } from '../../src/engine/leveling';
+import { resolveChoice, resolveEquipmentChoice, EquipmentChoiceResolution } from '../../src/engine/levelingResolveChoice';
 import { ChoiceOption, ChoiceState, Entity, ItemFilterConstraint } from '../../src/engine/types';
 import { mergeItemIndex } from '../../src/content/contentResolution';
 import { buildSimpleCustomItem } from '../../src/content/items/itemBrowse';
 import { describeConstraint, reopenEquipmentChoice, skipEquipmentChoice, skipRemainingEquipment, addAdditionalEquipment, additionalEquipment, removeAdditionalEquipment } from '../../src/content/items/equipmentDisplay';
 import { ItemPickerModal } from '../../src/components/ItemPickerModal';
-import { Alert } from '../../src/utils/alert';
+import { Alert, reportFailure } from '../../src/utils/alert';
 import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { NAME_INPUT } from '../../src/components/nameInput';
+import { usesSpellsStep } from '../../src/content/creationProgress';
 
 /** Marks equipmentVisited in notes JSON. */
 function markVisited(entity: Entity): Entity {
@@ -102,7 +104,6 @@ export default function EquipmentScreen() {
   const [scName, setScName] = useState('');
   const [scProps, setScProps] = useState('');
   const [scDesc, setScDesc] = useState('');
-  const [editingContext, setEditingContext] = useState<{ choiceId: string; label: string; current: string } | null>(null);
   const [additionalFeedback, setAdditionalFeedback] = useState<string | null>(null);
 
   // useFocusEffect) is safe here — this consume path only sets local draft
@@ -263,8 +264,6 @@ export default function EquipmentScreen() {
   }
 
   function editEquipmentChoice(choiceId: string) {
-    const choice = entity.choices.find(candidate => candidate.id === choiceId);
-    if (choice) setEditingContext({ choiceId, label: choice.definition.equipmentGroup ?? choice.definition.prompt ?? 'Equipment', current: describeResolvedChoice(choice) || 'No item' });
     setDraft(reopenEquipmentChoice(entity, choiceId));
     setLegacySelections(prev => { const next = { ...prev }; delete next[choiceId]; return next; });
   }
@@ -299,7 +298,7 @@ export default function EquipmentScreen() {
 
   function handleConfirm() {
     setDraft(markVisited(skipRemainingEquipment(entity)));
-    router.push('/creation/spells');
+    router.push(usesSpellsStep(entity) ? '/creation/spells' : '/creation/hub');
   }
 
   // Group choices for the progress panel — purely presentational.
@@ -352,30 +351,23 @@ export default function EquipmentScreen() {
         </View>
       )}
 
-      {resolvedChoices.length > 0 && (
-        <View style={styles.resolvedBlock}>
-          <Text style={styles.sub}>Equipment chosen:</Text>
-{resolvedChoices.map(choice => (
-            <View key={choice.id} testID={`equipment-choice-${choice.id}`} style={styles.resolvedChoiceRow}>
-              <Text style={styles.ownedItem}>✓ {describeResolvedChoice(choice) || 'No item'}</Text>
-              <View style={styles.resolvedActions}>
-                <Pressable testID={`equipment-change-${choice.id}`} accessibilityLabel="Change equipment choice" style={styles.changeBtn} onPress={() => editEquipmentChoice(choice.id)}><Text style={styles.changeBtnTxt}>Change</Text></Pressable>
-                <Pressable testID={`equipment-remove-${choice.id}`} accessibilityLabel="Remove equipment choice" style={styles.removeBtn} onPress={() => removeEquipmentChoice(choice.id)}><Text style={styles.removeBtnTxt}>Remove</Text></Pressable>
+      {/* Each choice stays where it is listed: a chosen one shows its pick under its own prompt, so picking or
+          changing one never moves the others out from under the next tap. */}
+      {allEquipChoices.map(choice => {
+        if (choice.resolved) {
+          return (
+            <View key={choice.id} testID={`equipment-choice-${choice.id}`} style={styles.choiceBlock}>
+              <Text style={styles.choicePrompt}>{choice.definition.prompt}</Text>
+              <View style={styles.resolvedChoiceRow}>
+                <Text style={styles.ownedItem}>✓ {describeResolvedChoice(choice) || 'No item'}</Text>
+                <View style={styles.resolvedActions}>
+                  <Pressable testID={`equipment-change-${choice.id}`} accessibilityLabel="Change equipment choice" style={styles.changeBtn} onPress={() => editEquipmentChoice(choice.id)}><Text style={styles.changeBtnTxt}>Change</Text></Pressable>
+                  <Pressable testID={`equipment-remove-${choice.id}`} accessibilityLabel="Remove equipment choice" style={styles.removeBtn} onPress={() => removeEquipmentChoice(choice.id)}><Text style={styles.removeBtnTxt}>Remove</Text></Pressable>
+                </View>
               </View>
             </View>
-          ))}
-        </View>
-      )}
-
-      {editingContext && equipChoices.some(choice => choice.id === editingContext.choiceId) && (
-        <View style={styles.changeContext}>
-          <Text style={styles.changeContextTitle}>Change {editingContext.label}</Text>
-          <Text style={styles.changeContextCurrent}>Current: {editingContext.current}</Text>
-          <Text style={styles.changeContextHint}>Your replacement changes only this equipment choice.</Text>
-        </View>
-      )}
-
-      {equipChoices.map(choice => {
+          );
+        }
         const style = choice.definition.equipmentStyle;
         const pool: ChoiceOption[] = Array.isArray(choice.definition.pool) ? choice.definition.pool : [];
 
@@ -444,7 +436,7 @@ export default function EquipmentScreen() {
           onPress={handleConfirm}
           disabled={!canProceed}
         >
-          <Text style={styles.nextBtnText}>Next: Spells →</Text>
+          <Text style={styles.nextBtnText}>{usesSpellsStep(entity) ? 'Next: Spells →' : 'Continue →'}</Text>
         </Pressable>
       </View>
     </SafeBottomView>
@@ -508,7 +500,7 @@ export default function EquipmentScreen() {
               <TextInput {...NAME_INPUT} style={styles.input} value={scName} onChangeText={setScName} placeholder="Item name" placeholderTextColor={Colors.textDim} />
               <TextInput style={styles.input} value={scProps} onChangeText={setScProps} placeholder="Properties (comma-separated, optional)" placeholderTextColor={Colors.textDim} />
               <TextInput style={[styles.input, styles.inputMulti]} value={scDesc} onChangeText={setScDesc} placeholder="Description (optional)" placeholderTextColor={Colors.textDim} multiline />
-              <Pressable style={[styles.nextBtn, !scName.trim() && styles.nextBtnDisabled]} disabled={!scName.trim()} onPress={() => { void handleCreateSimpleCustom(); }}>
+              <Pressable style={[styles.nextBtn, !scName.trim() && styles.nextBtnDisabled]} disabled={!scName.trim()} onPress={() => { void handleCreateSimpleCustom().catch(reportFailure('add the custom item')); }}>
                 <Text style={styles.nextBtnText}>Create & Add</Text>
               </Pressable>
               <Pressable style={styles.menuCancel} onPress={() => setAddFlow('closed')}>
@@ -546,7 +538,6 @@ const styles = StyleSheet.create({
   },
   ineligibleBannerTxt: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary },
   ineligibleBannerDismiss: { fontSize: FontSize.md, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  resolvedBlock: { marginBottom: Spacing.lg },
   choiceBlock:  { marginBottom: Spacing.xl },
   choicePrompt: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
   multiHint: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.bold, marginBottom: Spacing.sm },
@@ -575,10 +566,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingVertical: Spacing.sm, alignItems: 'center', marginTop: Spacing.sm,
   },
-  changeContext: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gold, padding: Spacing.md, marginBottom: Spacing.md },
-  changeContextTitle: { color: Colors.gold, fontSize: FontSize.lg, fontWeight: FontWeight.bold },
-  changeContextCurrent: { color: Colors.textPrimary, fontSize: FontSize.md, marginTop: Spacing.xs },
-  changeContextHint: { color: Colors.textDim, fontSize: FontSize.sm, marginTop: Spacing.xs },
   additionalItemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginBottom: Spacing.xs },
   addedFeedback: { color: Colors.green, fontWeight: FontWeight.bold, marginBottom: Spacing.sm },
   addItemBtnTxt: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },

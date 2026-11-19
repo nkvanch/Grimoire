@@ -23,7 +23,7 @@ import {
 import { recomputeDerived } from '../pipeline';
 import { generateAllActionCards } from '../actionCards';
 import { applyActionCardUse } from '../actionUse';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { startTurn, endAttackSequence, stripTransientRuntimeState } from '../combat';
 import { monsterOwlbear } from '../../content/monsters/srd';
 import { spawnMonster } from '../monsterFactory';
@@ -317,7 +317,7 @@ describe('Extra Attack sequence closure — applyActionCardUse `attackSequence` 
   function twoDaggersEntity() {
     const daggerA: ItemInstance = { id: 'dagger-a', itemId: 'test_dagger', quantity: 1, attuned: false, features: [] };
     const daggerB: ItemInstance = { id: 'dagger-b', itemId: 'test_dagger', quantity: 1, attuned: false, features: [] };
-    let e: Entity = {
+    const e: Entity = {
       ...startTurn(makeEmptyEntity('e1')),
       features: [extraAttackFeature('extra_attack_test', 1)],
       inventory: { ...makeEmptyEntity('e1').inventory, equipped: [daggerA, daggerB] },

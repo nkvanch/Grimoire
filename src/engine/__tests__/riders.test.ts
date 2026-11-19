@@ -1,5 +1,5 @@
 // Riders: bonus effects that attach to weapon attacks and spells, with a limit, a cost and a gating flag.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { startTurn } from '../combat';
 import { ridersForCard, applyRider } from '../riders';
@@ -14,7 +14,7 @@ const withRiders = (riders: Rider[], flags: Record<string, boolean> = {}): Entit
   return recomputeDerived({
     ...e, features: [ride(riders)] as never,
     conditionMonitor: { ...e.conditionMonitor, flags },
-    resources: { ...e.resources, custom: [{ id: 'pool', name: 'Pool', current: 2, maximum: 2, recharge: 'long_rest' } as never] },
+    resources: { ...e.resources, custom: [{ id: 'pool', name: 'Pool', current: 2, maximum: 2, recharge: 'long_rest' }] },
   }, DEFAULT_RULES);
 };
 const unarmed = (e: Entity): ActionCard => e.actionCards!.find(c => c.isWeaponAttack)!;

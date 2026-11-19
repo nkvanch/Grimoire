@@ -9,18 +9,12 @@
 // plus two optional player-choice blocks (abilityChoice/skillChoice) that
 // AsiFeatPicker.tsx already knows how to resolve generically for any Feat.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
-import { cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, Entity, Feat, RulesetId, FEAT_CHOICE_PREFIX } from '../../src/engine/types';
-import {
-  ChoiceDefinitionListEditor, DraftChoice,
-} from '../../src/components/homebrew/ChoiceDefinitionEditor';
-import { draftChoiceToDefinition, definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
+import { ChoiceDefinitionListEditor } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { validateFeat } from '../../src/engine/homebrewValidator';
 import { Alert } from '../../src/utils/alert';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
@@ -36,10 +30,11 @@ import { toId, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '.
 import { mechanicsLabel } from '../../src/content/featureMechanics';
 import { FULL_FEAT_LIBRARY } from '../../src/content/feats/index';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { compileFeatFields } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeLosslessChoices, LosslessDraftChoice } from '../../src/engine/homebrewNestedSerializers';
@@ -190,7 +185,7 @@ export default function FeatBuilderScreen() {
     return withPictures(pictures, mergeHomebrewDefinition(editing, {
       ...fields,
       pendingChoices: serializeLosslessChoices(editing?.pendingChoices, pendingChoices, FEAT_CHOICE_PREFIX),
-    } as Feat));
+    }));
   }
 
   // Read-only test on a disposable level-1 scratch entity — no save, no

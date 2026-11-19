@@ -6,7 +6,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
-import { Entity, DmOverride, CampaignRules } from '../../engine/types';
+import { Entity, CampaignRules } from '../../engine/types';
 import { applyDmOverride, cancelDmOverride, getActiveOverrides } from '../../engine/dmOverride';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 

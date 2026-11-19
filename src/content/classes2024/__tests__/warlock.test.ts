@@ -2,8 +2,8 @@
 jest.mock('../../spellRepo', () => jest.requireActual('../../spellRepo.ts'));
 
 import { newChar, toLevel, bindSubclass } from '../testKit';
-import { applyPoolChoiceToEntity } from '../../../engine/leveling';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 
 describe('Warlock (2024)', () => {
   const max = (e: any, id: string) => e.resources.custom.find((r: any) => r.id === id)?.maximum;
@@ -76,7 +76,7 @@ describe('Warlock (2024) repeatable invocations', () => {
   it('a targeted invocation can later be swapped by its selection id', () => {
     const { e, id } = setup();
     const done = applyPoolChoiceToEntity(e, id, ['invocation_agonizing_blast::eldritch_blast', 'invocation_repelling_blast::eldritch_blast'], DEFAULT_RULES);
-    const rep = require('../../../engine/leveling').replacePoolOption(done, id, 'invocation_agonizing_blast::eldritch_blast', 'invocation_armor_of_shadows', DEFAULT_RULES);
+    const rep = require('../../../engine/levelingPoolChoices').replacePoolOption(done, id, 'invocation_agonizing_blast::eldritch_blast', 'invocation_armor_of_shadows', DEFAULT_RULES);
     expect(rep.features.some((f: any) => f.name === 'Armor of Shadows')).toBe(true);
     expect(rep.features.some((f: any) => f.name.startsWith('Agonizing Blast'))).toBe(false);
   });

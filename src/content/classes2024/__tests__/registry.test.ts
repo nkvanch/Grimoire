@@ -43,7 +43,7 @@ describe('2024 classes (SRD 5.2.1) registry', () => {
       }
     };
     const scanChoices = (owner: string, choices: any[]) => {
-      for (const ch of choices) for (const o of (Array.isArray(ch.pool) ? ch.pool : [])) checkEffects(owner, (o.value as any)?.effects);
+      for (const ch of choices) for (const o of (Array.isArray(ch.pool) ? ch.pool : [])) checkEffects(owner, (o.value)?.effects);
     };
     for (const c of CLASSES_2024) for (const e of c.rawProgression!.entries) { scan(c.id, e.grants); scanChoices(c.id, e.choices); }
     for (const s of SUBCLASSES_2024) for (const e of s.entries) { scan(s.id, e.grants); scanChoices(s.id, e.choices); }

@@ -1,7 +1,7 @@
 // Overrule on a card (the desktop's ADR-015): only the stops the person names are set aside, each with the desktop's meaning.
 import { generateActionCard, generateSpellCard } from '../actionCards';
 import { applyActionCardUse, cardOverrulable } from '../actionUse';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { startTurn, markActionSlotUsed } from '../combat';
 import { toggleAttunement } from '../inventory';
 import type { Entity, Feature, Spell, SpellSlots } from '../types';
@@ -13,7 +13,7 @@ const surge: Feature = {
 const fighter = (current: number): Entity => {
   const e = makeEmptyEntity('f');
   return { ...e, features: [{ ...surge, isActive: true }] as never, resources: { ...e.resources,
-    custom: [{ id: 'surge_uses', name: 'Surge', current, maximum: 1, recharge: 'short_rest' } as never] } };
+    custom: [{ id: 'surge_uses', name: 'Surge', current, maximum: 1, recharge: 'short_rest' }] } };
 };
 const uses = (e: Entity) => e.resources.custom.find(r => r.id === 'surge_uses')!.current;
 
@@ -47,7 +47,7 @@ describe('no spell slot left', () => {
     return { ...s, '1': { total: 2, used } };
   };
   const bolt: Spell = { id: 'test_bolt', name: 'Test Bolt', level: 1, school: 'Evocation', castingTime: '1 action', range: '60 feet',
-    components: ['V'], duration: 'Instantaneous', description: '', upcast: null, ritual: false, concentration: false } as Spell;
+    components: ['V'], duration: 'Instantaneous', description: '', upcast: null, ritual: false, concentration: false };
   const caster = (used: number): Entity => ({
     ...makeEmptyEntity('w'),
     entitlements: [{ kind: 'spell_access', key: 'test_bolt', sourceKind: 'manual' }],
@@ -73,7 +73,7 @@ describe('no spell slot left', () => {
 describe('the attunement limit', () => {
   it('a fourth item is refused, and attuned when overruled', () => {
     const inst = (id: string, attuned: boolean) => ({ id, itemId: `ring_${id}`, quantity: 1, attuned, features: [] });
-    const e = { ...makeEmptyEntity('a') } as Entity;
+    const e = { ...makeEmptyEntity('a') };
     const full: Entity = { ...e, inventory: { ...e.inventory, equipped: [inst('a', true), inst('b', true), inst('c', true), inst('d', false)] as never } };
     expect(toggleAttunement(full, 'ring_d', 'd')).toBe(full);
     const more = toggleAttunement(full, 'ring_d', 'd', true);

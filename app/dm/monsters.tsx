@@ -1,9 +1,8 @@
 // app/dm/monsters.tsx
 // Monster library — browse SRD monsters, preview stat blocks, spawn into encounter.
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import {
-  View, Text, ScrollView, FlatList, StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView, FlatList } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';

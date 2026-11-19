@@ -3,6 +3,7 @@
 // ============================================================================
 import { ClassProgression, } from '../../engine/types';
 import { THIRD_CASTER_SLOTS } from '../classes/spellSlotTables';
+import { fightingStyleChoice, FIGHTER_STYLES } from '../classes/srd51Options';
 import { ALL_TOOLS } from '../tools';
 
 export type SubclassProgression = ClassProgression & { name: string };
@@ -17,7 +18,7 @@ export const championProgression: SubclassProgression = {
     {
       level: 3, hpDie: 10, choices: [],
       grants: [
-        { kind: 'feature', value: { id: 'improved_critical', name: 'Improved Critical', description: 'Your weapon attacks score a critical hit on a roll of 19 or 20.', source: { kind: 'subclass', refId: 'champion' }, level: 3, effects: [], actions: [], choices: [], passive: true } },
+        { kind: 'feature', value: { id: 'improved_critical', name: 'Improved Critical', description: 'Your weapon attacks score a critical hit on a roll of 19 or 20.', source: { kind: 'subclass', refId: 'champion' }, level: 3, effects: [{ type: 'stat_modifier', target: 'crit_range', operation: 'set', value: 19, condition: null }], actions: [], choices: [], passive: true } },
       ],
     },
     {
@@ -27,15 +28,15 @@ export const championProgression: SubclassProgression = {
       ],
     },
     {
-      level: 10, hpDie: 10, choices: [],
+      level: 10, hpDie: 10, choices: [fightingStyleChoice('champion_additional_fighting_style', { kind: 'subclass', refId: 'champion' }, FIGHTER_STYLES)],
       grants: [
-        { kind: 'feature', value: { id: 'additional_fighting_style', name: 'Additional Fighting Style', description: 'You can choose a second option from the Fighting Style class feature.', source: { kind: 'subclass', refId: 'champion' }, level: 10, effects: [], actions: [], choices: [], passive: true } },
+        { kind: 'feature', value: { id: 'additional_fighting_style', name: 'Additional Fighting Style', description: 'Choose a second option from the Fighting Style class feature (the pick waits with your class choices). It can\'t be one you already have.', source: { kind: 'subclass', refId: 'champion' }, level: 10, effects: [], actions: [], choices: [], passive: true } },
       ],
     },
     {
       level: 15, hpDie: 10, choices: [],
       grants: [
-        { kind: 'feature', value: { id: 'superior_critical', name: 'Superior Critical', description: 'Your weapon attacks score a critical hit on a roll of 18–20.', source: { kind: 'subclass', refId: 'champion' }, level: 15, effects: [], actions: [], choices: [], passive: true } },
+        { kind: 'feature', value: { id: 'superior_critical', name: 'Superior Critical', description: 'Your weapon attacks score a critical hit on a roll of 18–20.', source: { kind: 'subclass', refId: 'champion' }, level: 15, effects: [{ type: 'stat_modifier', target: 'crit_range', operation: 'set', value: 18, condition: null }], actions: [], choices: [], passive: true } },
       ],
     },
     {

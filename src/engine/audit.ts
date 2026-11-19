@@ -75,7 +75,7 @@ function appendScaleEntry(entity: Entity, stat: string, entries: AuditEntry[]): 
 
 function buildEntries(entity: Entity, stat: string): AuditEntry[] {
   // Ability scores
-  if (isAbility(stat)) return buildAbilityEntries(entity, stat as Ability);
+  if (isAbility(stat)) return buildAbilityEntries(entity, stat);
 
   // Saving throws: "save_str", "save_dex", etc.
   if (stat.startsWith('save_') && isAbility(stat.slice(5))) {
@@ -83,7 +83,7 @@ function buildEntries(entity: Entity, stat: string): AuditEntry[] {
   }
 
   // Skills
-  if (isSkill(stat)) return buildSkillEntries(entity, stat as SkillName);
+  if (isSkill(stat)) return buildSkillEntries(entity, stat);
 
   // Scalar derived stats
   switch (stat) {
@@ -113,7 +113,7 @@ function buildAcEntries(entity: Entity): AuditEntry[] {
   // so a wildshaped entity's audit showed the player's own (irrelevant)
   // gear/formula breakdown instead of the actual AC in use.
   const beastForm = entity.wildShapeState?.active
-    ? findBeastForm(entity.wildShapeState!.formId) ?? null
+    ? findBeastForm(entity.wildShapeState.formId) ?? null
     : null;
   if (beastForm) {
     return [entry(`${beastForm.name} (beast form)`, beastForm.ac, 'base', null)];

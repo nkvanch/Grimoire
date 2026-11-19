@@ -10,7 +10,7 @@ import {
 import { validateFeat, validateSpell, validateItem, validateClass, validateSubclass, validateRace } from '../homebrewValidator';
 import { buildProgressionFromClass, getProgressionForClass } from '../../content/classes/progressions';
 import { simulate } from '../simulate';
-import { applyGrant } from '../leveling';
+import { applyGrant } from '../levelingGrants';
 import { applyCondition } from '../conditions';
 import {
   draftChoiceToDefinition, definitionToDraftChoice, validateDraftChoice, type DraftChoice, type AuthorableChoiceKind,
@@ -23,7 +23,7 @@ import { ALL_TOOLS, TOOL_CATEGORY_ORDER } from '../../content/tools';
 import { ALL_LANGUAGES, LANGUAGE_CATEGORY_ORDER, SELECTABLE_LANGUAGE_CATEGORIES } from '../../content/languages';
 import { ALL_SKILL_OPTIONS } from '../../content/skills';
 import { createCharacter } from '../../content/provider/createCharacter';
-import { DEFAULT_RULES, makeEmptyEntity } from '../../store/characterStore';
+import { DEFAULT_RULES, makeEmptyEntity } from '../defaults';
 import type { Providers, LevelStep, LevelRulesArg } from './parityLevelScenarios';
 import type { CharClass, Entity } from '../types';
 
@@ -368,7 +368,7 @@ export function buildHomebrewLevelCases(providers: Providers): HomebrewLevelCase
   const out: HomebrewLevelCase[] = [];
   const classes = new Map<string, CharClass>();
   for (const c of buildClassCases()) {
-    classes.set(c.id, { ...compileClassFields(c.draft, c.id), features: [] } as unknown as CharClass);
+    classes.set(c.id, { ...compileClassFields(c.draft, c.id), features: [] });
   }
   const p = providers.p2014;
   const build = (classId: string, level: number) => createCharacter(p, {
@@ -646,7 +646,7 @@ export function testAfterEntity(kind: TestKind, fields: Record<string, unknown>)
   const { after } = simulate(scratch, e => {
     let updated = e;
     if (kind === 'feat') {
-      return applyGrant(updated, { kind: 'feature', value: fields.feature as Feature }, 0);
+      return applyGrant(updated, { kind: 'feature', value: fields.feature }, 0);
     }
     if (kind === 'class') {
       const progression = getProgressionForClass({ ...fields, features: [] } as unknown as CharClass);

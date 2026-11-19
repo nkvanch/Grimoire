@@ -1,6 +1,6 @@
 // Recharges the app has no event for are reset by hand, explicitly (the creator audit's custom-recharge finding).
 import { rechargeKind, isResetByHand, rechargeLabel } from '../recharge';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { takeRest, takeDawn } from '../rest';
 import { startTurn } from '../combat';
 

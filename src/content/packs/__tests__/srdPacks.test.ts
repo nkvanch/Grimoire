@@ -92,6 +92,65 @@ describe('first-party SRD packs', () => {
   });
 });
 
+// A character made from the 5.1 pack alone (the desktop app's first run) gets only what the pack's records say: nothing a
+// creation screen adds from a table of its own reaches it.
+describe('the 5.1 pack stands on its own for a new character', () => {
+  type Entry = { level: number; grants: { kind: string; value: unknown }[]; choices: { kind: string; pool?: unknown }[] };
+  const classes = a.homebrew!.classes as unknown as { id: string; rawProgression: { entries: Entry[] } }[];
+  const items = new Set((a.homebrew!.items as { id: string }[]).map(i => i.id));
+  const fixedOf = (id: string) => classes.find(c => c.id === id)!.rawProgression.entries.find(e => e.level === 1)!
+    .grants.filter(g => g.kind === 'starting_item').map(g => String(g.value));
+
+  it('describes every item its classes start with, chosen or fixed', () => {
+    const named = new Set<string>();
+    for (const c of classes) for (const e of c.rawProgression.entries) {
+      for (const g of e.grants) if (g.kind === 'starting_item') named.add(String(g.value));
+      for (const ch of e.choices) if (ch.kind === 'equipment' && Array.isArray(ch.pool)) {
+        for (const o of ch.pool as { value?: unknown }[]) if (Array.isArray(o.value)) for (const v of o.value) named.add(String(v).replace(/\*\d+$/, ''));
+      }
+    }
+    expect(named.size).toBeGreaterThan(30);
+    expect([...named].filter(id => !items.has(id)).sort()).toEqual([]);
+  });
+
+  it('gives each class the gear the SRD gives it with no choice', () => {
+    expect(fixedOf('fighter')).toEqual([]);   // every line of the fighter's equipment is a choice
+    expect(fixedOf('wizard')).toEqual(['spellbook']);
+    expect(fixedOf('barbarian')).toEqual(['explorers_pack', 'javelin', 'javelin', 'javelin', 'javelin']);
+    expect(fixedOf('bard')).toEqual(['leather_armor', 'dagger']);
+    expect(fixedOf('cleric')).toEqual(['shield', 'holy_symbol']);
+    expect(fixedOf('druid')).toEqual(['leather_armor', 'explorers_pack', 'druidic_focus']);
+    expect(fixedOf('monk')).toEqual(Array(10).fill('dart'));
+    expect(fixedOf('paladin')).toEqual(['chain_mail', 'holy_symbol']);
+    expect(fixedOf('ranger')).toEqual(['longbow', 'arrows_20']);
+    expect(fixedOf('rogue')).toEqual(['leather_armor', 'dagger', 'dagger', 'thieves_tools']);
+    expect(fixedOf('sorcerer')).toEqual(['dagger', 'dagger']);
+    expect(fixedOf('warlock')).toEqual(['leather_armor', 'dagger', 'dagger']);
+  });
+
+  it('every race names the languages its members speak, and each is a language the app knows', () => {
+    const { ALL_LANGUAGES } = require('../../languages');
+    const known = new Set((ALL_LANGUAGES as { name: string }[]).map(l => l.name));
+    const races = a.homebrew!.races as unknown as { id: string; languages?: string[] }[];
+    expect(Object.fromEntries(races.map(r => [r.id, r.languages]))).toEqual({
+      human: ['Common'], elf: ['Common', 'Elvish'], dwarf: ['Common', 'Dwarvish'], halfling: ['Common', 'Halfling'],
+      dragonborn: ['Common', 'Draconic'], gnome: ['Common', 'Gnomish'], half_elf: ['Common', 'Elvish'], half_orc: ['Common', 'Orc'],
+      tiefling: ['Common', 'Infernal'],
+    });
+    for (const r of races) for (const l of r.languages ?? []) expect(known.has(l)).toBe(true);
+  });
+
+  it('the races and the background that give a language of the player\'s choice ask for it', () => {
+    type Choice = { id: string; kind: string; count: number };
+    const races = a.homebrew!.races as unknown as { id: string; pendingChoices?: Choice[] }[];
+    const asked = (id: string) => (races.find(r => r.id === id)!.pendingChoices ?? []).filter(c => c.kind === 'language').map(c => c.count);
+    expect(asked('human')).toEqual([1]);
+    expect(asked('half_elf')).toEqual([1]);
+    const acolyte = (a.homebrew!.backgrounds as unknown as { id: string; pendingChoices?: Choice[] }[]).find(b => b.id === 'acolyte')!;
+    expect((acolyte.pendingChoices ?? []).filter(c => c.kind === 'language')).toMatchObject([{ id: 'background_choice_acolyte_languages', count: 2 }]);
+  });
+});
+
 describe('pack content does not depend on the build environment', () => {
   it('Magic Initiate offers the 2024 class lists, and the 5.2.1 pack is the same whether or not the SRD-only filter is on', () => {
     const { SPELL_LIST_2024 } = require('../../classes2024/spellLists2024');

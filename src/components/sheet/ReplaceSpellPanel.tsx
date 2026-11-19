@@ -4,11 +4,12 @@
 // checks the choice's own spell filter; the app does not track level-ups, so honoring the timing is the player's, and
 // the rule is shown on the confirm step. Renders nothing when the character has no such choice.
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
-import { replaceSpellChoiceSelection } from '../../engine/leveling';
+import { replaceSpellChoiceSelection } from '../../engine/levelingSpells';
 import { spellRepo } from '../../content/spellRepo';
 import { candidateSpellsForChoice } from '../../content/spellChoiceFilter';
 import { extraClassSpellIds } from '../../engine/spellModifiers';

@@ -20,7 +20,7 @@ export async function keepRevision(key: string, text: string): Promise<void> {
 /** The revision store of this device: in memory, written through to the table. */
 export class DurableRevisionStore extends MemoryRevisionStore {
   private writing: Promise<void> = Promise.resolve();
-  private failed: unknown = null;
+  private failed: Error | null = null;
 
   /** Loads what is kept. A row is taken as it was stored: a damaged one is found when it is read (getRevision checks the hash). */
   static async open(): Promise<DurableRevisionStore> {
@@ -33,7 +33,7 @@ export class DurableRevisionStore extends MemoryRevisionStore {
     const before = this.size;
     const key = super.put(text);
     if (this.size > before) {
-      this.writing = this.writing.then(() => keepRevision(key, text)).catch(e => { this.failed = e; });
+      this.writing = this.writing.then(() => keepRevision(key, text)).catch(e => { this.failed = e instanceof Error ? e : new Error(String(e)); });
     }
     return key;
   }

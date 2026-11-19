@@ -1,7 +1,12 @@
-import { isFeatureAvailable, isSpellPreparationLegal, resolveSpellCastingContexts, CardGenOptions } from './actionCards';
+import { CardGenOptions } from './actionCardLayers';
+import { isFeatureAvailable } from './actionCardAvailability';
+import { isSpellPreparationLegal, resolveSpellCastingContexts } from './spellCastingContext';
 import { officialClasses } from '../content/runtimeRules';
 import { Entity, ActionCard, CampaignRules, ActivationOption, SpellCastingContext, AttackSequenceUse } from './types';
-import { applyAbilityEffects, castConcentrationSpell, markActionSlotUsed, startWildShape, isDead } from './combat';
+import { markActionSlotUsed, isDead } from './combat';
+import { applyAbilityEffects } from './combatAbilityEffects';
+import { startWildShape } from './combatWildShape';
+import { castConcentrationSpell } from './concentration';
 import { eligibleWildShapeForms } from './wildShapeForms';
 import { recordPendingOutcomes } from './outcomes';
 import { legalSpellPaymentOptions, commitSpellPayment, SpellPaymentOption, hasLegalSpellPayment } from './spellPayment';
@@ -411,4 +416,3 @@ export function applyActionCardUse(
 
   return recomputeDerived(updated, rules, content);
 }
-

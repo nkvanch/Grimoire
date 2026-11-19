@@ -3,7 +3,8 @@
 // background, origin feat, feats, alignment, experience). Opened by tapping the level line under the name, or Character info in
 // the sheet menu. A row with a description opens to show it. Read-only.
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import type { InfoRow } from '../../content/characterInfo';

@@ -1,5 +1,5 @@
 // A tracked effect can close its damage recording before it is due (the creator audit's single-deadline finding).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { addTrackedEffect, setTrackedTarget, recordDamageOnTarget, trackedEffectStatus, isRecording, recordedFraction } from '../trackedEffects';
 import { startTurn } from '../combat';
 import type { Entity } from '../types';

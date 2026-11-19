@@ -118,6 +118,12 @@ export type SpellProgress = {
   cantrips: { done: number; total: number } | null;
   spells:   { done: number; total: number } | null;
 };
+/** Whether creation has a Spells step for this character: it casts spells or has a spell choice (the same test the Spells screen
+ *  uses). A Fighter or Barbarian skips the step (found 2026-11-18: the wizard sent a Fighter to "This class does not use spells"). */
+export function usesSpellsStep(entity: Entity): boolean {
+  return !!entity.spellcasting || entity.choices.some(c => c.definition.kind === 'spell' && !c.definition.spellFilter);
+}
+
 export function spellProgressFor(entity: Entity): SpellProgress {
   const spellKindChoices = entity.choices.filter(c => c.definition.kind === 'spell' && !c.definition.spellFilter);
   if (spellKindChoices.length > 0) {
@@ -159,5 +165,33 @@ export function groupPendingSpellChoices(pendingChoices: ChoiceState[]): {
   return {
     cantripPending: spellPending.filter(c => isCantripChoice(c.definition.id)),
     knownSpellPending: spellPending.filter(c => !isCantripChoice(c.definition.id)),
+  };
+}
+
+/** How many options of a feature pick the character can still take: FeaturePoolPicker hides an option whose feature it already has. */
+function pickableOptions(entity: Entity, choice: ChoiceState): number {
+  const known = new Set(entity.features.map(f => f.id));
+  const pool = Array.isArray(choice.definition.pool) ? choice.definition.pool : [];
+  return pool.filter(o => o.repeatable || !known.has((o.value as { id?: string } | undefined)?.id ?? '')).length;
+}
+
+/** The feature picks (kind 'feature_pool') still waiting that can be made: one with fewer options left than it asks for is left for the sheet. */
+export function pickableFeatureChoices(entity: Entity): ChoiceState[] {
+  return entity.choices.filter(c => c.definition.kind === 'feature_pool' && !c.resolved && pickableOptions(entity, c) >= Math.max(1, c.definition.count));
+}
+
+/**
+ * The creation hub's "Feature Picks" step: the picks a class, subclass, species or feat asks for (kind 'feature_pool': Fighting
+ * Style, Hunter's Prey, Metamagic...), counted in picks (two Metamagic options are two). A pick that cannot be made because too few
+ * options are left counts as done, so it never holds up creation. Null when the character has none.
+ */
+export function featureChoiceProgress(entity: Entity): { done: number; total: number } | null {
+  const all = entity.choices.filter(c => c.definition.kind === 'feature_pool');
+  if (all.length === 0) return null;
+  const open = new Set(pickableFeatureChoices(entity).map(c => c.id));
+  const picks = (c: ChoiceState) => Math.max(1, c.definition.count);
+  return {
+    done: all.filter(c => !open.has(c.id)).reduce((n, c) => n + picks(c), 0),
+    total: all.reduce((n, c) => n + picks(c), 0),
   };
 }

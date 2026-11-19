@@ -4,11 +4,11 @@
 // overrides all come from here. A regression in this file silently corrupts
 // every character sheet, not just one feature, so it's the highest-value
 // target in the engine for real test coverage.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived, applyStatModifiers, modifier } from '../pipeline';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { applyCondition, removeCondition } from '../conditions';
-import { startWildShape } from '../combat';
+import { startWildShape } from '../combatWildShape';
 import { ALL_CONDITIONS } from '../../content/conditions';
 import { Entity, Effect, FeatureInstance, DmOverride, Item } from '../types';
 
@@ -659,7 +659,7 @@ describe('recomputeDerived — speed resolution (speed-zero precedence)', () => 
         id: 'do1', campaignId: 'c1', entityId: 'e1', dmDeviceId: 'd1',
         stat: 'speed', operation: 'set', value: 15, active: true,
         label: 'DM ruling', appliedAt: 1, cancelledAt: null, expiry: 'manual',
-      } as DmOverride],
+      }],
     });
     expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(15);
   });
@@ -775,7 +775,7 @@ describe('recomputeDerived — Wild Shape speed-zero precedence (HIGH-batch sing
         id: 'do1', campaignId: 'c1', entityId: 'e1', dmDeviceId: 'd1',
         stat: 'speed', operation: 'set', value: 15, active: true,
         label: 'DM ruling', appliedAt: 1, cancelledAt: null, expiry: 'manual',
-      } as DmOverride],
+      }],
     };
     expect(recomputeDerived(e, DEFAULT_RULES).derived.speed).toBe(15);
   });

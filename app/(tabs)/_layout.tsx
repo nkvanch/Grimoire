@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
 // Bottom tab navigator — 5 sections: Home, Campaigns, Characters, Homebrew, Compendium.
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { Text, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize } from '../../src/theme';
 import { useLayout, SIDEBAR_WIDTH } from '../../src/platform/layout';

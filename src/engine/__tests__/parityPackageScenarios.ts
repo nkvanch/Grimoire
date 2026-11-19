@@ -7,7 +7,7 @@ import {
   compileClassFields, compileSubclassFields, compileSubraceFields, compileSpellListFields, compileMonsterFields,
 } from '../../content/homebrewCompile';
 import { validatePackageForImport } from '../packageValidation';
-import { detectConflictsDetailed, planPackageImport, type ConflictResolution, type PackageConflict } from '../packageConflicts';
+import { detectConflictsDetailed, planPackageImport, type ConflictResolution } from '../packageConflicts';
 import type { GrimoirePack } from '../backup';
 import { trait } from './parityHomebrewScenarios';
 import { buildSpellCases, buildItemCases, buildFeatCases, buildRaceCases, buildBackgroundCases, buildConditionCases, buildClassCases, buildSubclassCases } from './parityHomebrewScenarios';
@@ -42,29 +42,29 @@ export function familyRecords(): Homebrew {
   const classFields = compileClassFields({
     ...cls.draft, startingEquipment: [item.id], spellSource: `list:${list.id}`,
     levelFeatures: [...(cls.draft.levelFeatures ?? []), { ...grant('Spark Lore', spell.id), level: 5 }],
-  } as never, cls.id);
+  }, cls.id);
   const subclassFields = compileSubclassFields({
     ...sub.draft, classId: cls.id,
     levelFeatures: [{ ...grant('Ember Gift', spell.id), level: 3 }],
-  } as never, sub.id, sub.hitDie);
-  const raceFields = compileRaceFields({ ...race.draft, traits: [...race.draft.traits, grant('Inner Spark', spell.id)] } as never, race.id);
-  const subraceFields = compileSubraceFields({ ...subrace.draft, traits: [...subrace.draft.traits, grant('Subtle Spark', spell.id)] } as never, race.id);
-  const featFields = compileFeatFields({ ...feat.draft, trait: grant('Spark Feat', spell.id) } as never, feat.id);
-  const listFields = compileSpellListFields({ ...list.draft, spellIds: [spell.id, 'fireball'] } as never, list.id);
+  }, sub.id, sub.hitDie);
+  const raceFields = compileRaceFields({ ...race.draft, traits: [...race.draft.traits, grant('Inner Spark', spell.id)] }, race.id);
+  const subraceFields = compileSubraceFields({ ...subrace.draft, traits: [...subrace.draft.traits, grant('Subtle Spark', spell.id)] }, race.id);
+  const featFields = compileFeatFields({ ...feat.draft, trait: grant('Spark Feat', spell.id) }, feat.id);
+  const listFields = compileSpellListFields({ ...list.draft, spellIds: [spell.id, 'fireball'] }, list.id);
 
   return {
-    races: [raceFields as unknown as Rec],
-    subraces: [subraceFields as unknown as Rec],
+    races: [raceFields],
+    subraces: [subraceFields],
     // the class builder adds the (empty) feature list itself when it saves
-    classes: [{ ...classFields, features: [] } as unknown as Rec],
-    subclasses: [subclassFields as unknown as Rec],
-    spells: [compileSpellFields(spell.draft, spell.id) as unknown as Rec],
-    backgrounds: [compileBackgroundFields(bg.draft, bg.id) as unknown as Rec],
-    items: [compileItemFields(item.draft, item.id) as unknown as Rec],
-    feats: [featFields as unknown as Rec],
-    monsters: [compileMonsterFields(monster.draft, monster.id) as unknown as Rec],
-    conditions: [compileConditionFields(cond.draft, cond.id) as unknown as Rec],
-    spellLists: [listFields as unknown as Rec],
+    classes: [{ ...classFields, features: [] }],
+    subclasses: [subclassFields],
+    spells: [compileSpellFields(spell.draft, spell.id)],
+    backgrounds: [compileBackgroundFields(bg.draft, bg.id)],
+    items: [compileItemFields(item.draft, item.id)],
+    feats: [featFields],
+    monsters: [compileMonsterFields(monster.draft, monster.id)],
+    conditions: [compileConditionFields(cond.draft, cond.id)],
+    spellLists: [listFields],
   };
 }
 
@@ -180,7 +180,7 @@ export function buildPackageCases(): PackageCase[] {
   add('blocked-unknown-content-key', packOf({ ...all(), vehicles: [{ id: 'cart', name: 'Cart' }] }));
   add('blocked-duplicate-ids', packOf({ spells: [clone(family.spells[0]), clone(family.spells[0])], items: [clone(family.items[0]), clone(family.items[0])] }));
   add('blocked-invalid-content', packOf({ items: [{ id: 'nameless_item', name: '', category: 'gear' }], spells: [{ id: 'broken_spell' } as never] }));
-  add('blocked-subrace-without-parent', packOf({ subraces: [{ ...clone(family.subraces[0]), parentId: '' }], subclasses: [{ ...clone(family.subclasses[0]), classId: undefined } as never] }));
+  add('blocked-subrace-without-parent', packOf({ subraces: [{ ...clone(family.subraces[0]), parentId: '' }], subclasses: [{ ...clone(family.subclasses[0]), classId: undefined }] }));
   add('blocked-too-many-entries', packOf({ spells: Array.from({ length: 2001 }, (_, i) => ({ id: `s${i}`, name: `S ${i}` })) }));
   return cases;
 }
@@ -203,7 +203,7 @@ export function runPackageCase(c: PackageCase) {
   const pack = c.pack as GrimoirePack;
   const { conflicts, identical } = detectConflictsDetailed(pack.homebrew, (type, id) => lookup({ type, id }));
   const resolutions = new Map(Object.entries(c.resolutions));
-  const plan = mockIds(() => planPackageImport(pack, conflicts as PackageConflict[], resolutions as never, identical));
+  const plan = mockIds(() => planPackageImport(pack, conflicts, resolutions as never, identical));
   const project = (e: (typeof plan.toSave)[number]) => ({ type: e.type, originalId: e.originalId, finalId: e.finalId, resolution: e.resolution, item: e.item });
   return {
     blocking: [],

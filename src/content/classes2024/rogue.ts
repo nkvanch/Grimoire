@@ -13,7 +13,7 @@ const k = classKit(classId);
 const SNEAK_DICE = (lv: number) => `${Math.ceil(lv / 2)}d6`;
 /** Martial weapons with the Finesse or Light property (the Rogue's extra weapon proficiency). */
 const FINESSE_OR_LIGHT_MARTIAL = WEAPON_MASTERY_TABLE.filter(w => w.category === 'martial' && (w.properties.includes('finesse') || w.properties.includes('light'))).map(w => w.name);
-const saveBonus = (ab: string): Effect => ({ type: 'stat_modifier', target: `savingThrows.${ab}`, operation: 'add', value: 0, condition: null, addProficiencyBonus: true } as Effect);
+const saveBonus = (ab: string): Effect => ({ type: 'stat_modifier', target: `savingThrows.${ab}`, operation: 'add', value: 0, condition: null, addProficiencyBonus: true });
 
 export const rogue2024: ClassDef = {
   key: 'rogue', name: 'Rogue', hitDie: 8, savingThrows: ['dex', 'int'],

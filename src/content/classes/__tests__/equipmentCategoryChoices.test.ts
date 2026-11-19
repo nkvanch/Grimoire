@@ -10,8 +10,9 @@ import {
   clericProgression, barbarianProgression, paladinProgression, druidProgression,
   bardProgression, monkProgression, sorcererProgression, warlockProgression,
 } from '../index';
-import { queueChoice, resolveEquipmentChoice } from '../../../engine/leveling';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { resolveEquipmentChoice } from '../../../engine/levelingResolveChoice';
+import { queueChoice } from '../../../engine/levelingGrants';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import type { ChoiceDefinition } from '../../../engine/types';
 import type { ItemIndexEntry } from '../../itemRepo.types';
 

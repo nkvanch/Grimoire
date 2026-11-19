@@ -1,5 +1,10 @@
-import { makeEmptyEntity, DEFAULT_RULES, useCharacterStore } from '../../store/characterStore';
-import { acquireClass, levelUpClass, applyGrant, resetCreationClass, resolveChoice, removeFeature, swapBackground } from '../leveling';
+import { useCharacterStore } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { acquireClass, levelUpClass, resetCreationClass } from '../leveling';
+import { resolveChoice } from '../levelingResolveChoice';
+import { swapBackground } from '../levelingBackground';
+import { removeFeature } from '../levelingAsiFeats';
+import { applyGrant } from '../levelingGrants';
 import { grantEntitlement, revokeEntitlementsFromSource, revokeResourceSource, setManualEntitlement } from '../entitlements';
 import { recomputeDerived } from '../pipeline';
 import { migrateEntity } from '../multiclass';
@@ -8,7 +13,7 @@ import { getProgressionForClass } from '../../content/classes/progressions';
 import { slotsFromCountArray, multiclassCasterLevel } from '../../content/classes/spellSlotTables';
 import { legalSpellPaymentOptions, resolveDefaultPayment, commitSpellPayment } from '../spellPayment';
 import { applyActionCardUse } from '../actionUse';
-import { isFeatureAvailable } from '../actionCards';
+import { isFeatureAvailable } from '../actionCardAvailability';
 import { Entity, EntitlementKind, CharClass, ActionCard, FeatureInstance, ChoiceDefinition, Background } from '../types';
 import { startTurn } from '../combat';
 

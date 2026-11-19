@@ -7,7 +7,8 @@
 import {
   Capability, ParticipantId, LiveState, LiveEvent, ViewState, AuditEntry,
   EffectApplication, LiveEffect, PublicParticipant, LiveCombatant, LiveEncounter,
-  ReportedCharacter, CharacterSummary, Reward, PublicStatus } from './types';
+  ReportedCharacter, CharacterSummary, PublicStatus
+} from './types';
 
 // ── Viewers ──────────────────────────────────────────────────────────────────
 

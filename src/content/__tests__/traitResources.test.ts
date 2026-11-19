@@ -4,8 +4,8 @@ import { newDraftTrait, buildTraitFeature } from '../traitCompiler';
 import type { BuildTraitOpts } from '../traitCompiler';
 import { getProgressionForClass } from '../classes/progressions';
 import { classResourceChoices, localPoolChoices, poolChoicesBefore } from '../classes/knownResources';
-import { applyGrant } from '../../engine/leveling';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { applyGrant } from '../../engine/levelingGrants';
+import { makeEmptyEntity } from '../../engine/defaults';
 import type { CharClass, DraftTrait, Grant } from '../../engine/types';
 
 const opts = (over: Partial<BuildTraitOpts> = {}): BuildTraitOpts => ({ idPrefix: 'sc_l3', sourceKind: 'subclass', sourceRefId: 'sc', level: 3, ...over });
@@ -83,7 +83,7 @@ describe('raising a resource at a later level (Martial Surge dice 4, 5 at 7th, 6
   const cls: CharClass = {
     id: 'hb_warrior', name: 'Warrior', hitDie: 10, features: [],
     levelFeatures: [dice, improved, relentless].map(f => ({ ...f, effectKind: f.effectKind ?? 'none' })),
-  } as unknown as CharClass;
+  };
 
   const grantsAt = (level: number): Grant[] => getProgressionForClass(cls).entries.find(e => e.level === level)?.grants ?? [];
   const poolId = () => (grantsAt(3).find(g => g.kind === 'resource')!.value as { resourceId: string }).resourceId;
@@ -143,7 +143,7 @@ describe('the picker lists', () => {
 describe('on a character sheet', () => {
   const { generateAllActionCards } = require('../../engine/actionCards') as typeof import('../../engine/actionCards');
   const { applyActionCardUse } = require('../../engine/actionUse') as typeof import('../../engine/actionUse');
-  const { DEFAULT_RULES } = require('../../store/characterStore') as typeof import('../../store/characterStore');
+  const { DEFAULT_RULES } = require('../../engine/defaults') as typeof import('../../engine/defaults');
 
   function sheet() {
     const atWill = buildTraitFeature(trait('Cunning Action', { atWill: true, actionType: 'bonus_action' }), opts({ idPrefix: 'a', sourceKind: 'manual', sourceRefId: 'a', level: null })).feature;

@@ -1,7 +1,7 @@
 // Leveling for the native-parity fixtures: characters built by the app's own creation path from the SRD packs, and sequences of
 // level-ups (single class, subclass merged in, multiclass, every hit-point mode). Pure data plus the executor both engines are held to.
 import type { CampaignRules, CharClass, Entity } from '../types';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { levelUpClass } from '../leveling';
 import { getClassLevels } from '../multiclass';
 import { createCharacter } from '../../content/provider/createCharacter';
@@ -45,7 +45,7 @@ export function runLevelSteps(entity: Entity, steps: LevelStep[], rulesArg: Leve
     const existing = getClassLevels(e).find(c => c.classId === step.classId);
     let progression = cls.rawProgression ?? getProgressionForClass(cls);
     if (existing?.subclassId) {
-      const sub = provider.getSubclass(existing.subclassId as string) ?? extras?.subclasses?.find(x => x.id === existing.subclassId);
+      const sub = provider.getSubclass(existing.subclassId) ?? extras?.subclasses?.find(x => x.id === existing.subclassId);
       if (sub) progression = mergeSubclassIntoProgression(progression, sub as never);
     }
     e = levelUpClass(e, step.classId, progression, rules, cls, defs, step.roll);

@@ -3,7 +3,7 @@ import extraction from '../../../../third_party/wotc/srd/5.1/extracted/items.jso
 import canonicalMap from '../srdCanonicalMap.json';
 
 type CanonicalRecord = (typeof extraction.records)[number];
-const records = extraction.records as CanonicalRecord[];
+const records = extraction.records;
 const find = (name: string) => records.find(record => record.name === name);
 
 describe('SRD 5.1 canonical item extraction', () => {

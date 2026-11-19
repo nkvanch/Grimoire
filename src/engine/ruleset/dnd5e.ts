@@ -61,3 +61,16 @@ export const BASE_ARMOR_AC: Readonly<Record<string, { ac: number; dexCap: number
   plate: { ac: 18, dexCap: 0 },
 };
 export const SHIELD_AC_BONUS = 2;
+/** Magic armor whose AC bonus or base armor the rules fix, for data that states neither (paraphrased descriptions): used only when
+ *  the item's name and text give no bonus or base of their own. */
+export const NAMED_MAGIC_ARMOR: readonly { name: RegExp; bonus: number; base?: string; anyOf?: readonly ('light' | 'medium' | 'heavy')[]; except?: readonly string[] }[] = [
+  // the player picks the base: medium or heavy, not hide (for data with no "Armor (Any…)" heading saying so)
+  { name: /\badamantine armor\b/i, bonus: 0, anyOf: ['medium', 'heavy'], except: ['hide'] },
+  { name: /\bmithral armor\b/i, bonus: 0, anyOf: ['medium', 'heavy'], except: ['hide'] },
+  { name: /\bdragon scale mail\b/i, bonus: 1 },
+  { name: /\bdwarven\b/i, bonus: 2 },
+  { name: /\befreeti chain\b/i, bonus: 3 },
+  { name: /\belven chain\b/i, bonus: 1, base: 'chain shirt' },
+  { name: /\bdemon armor\b/i, bonus: 1, base: 'plate' },
+  { name: /\barmor of (?:in)?vulnerability\b/i, bonus: 0, base: 'plate' },
+];

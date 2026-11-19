@@ -5,9 +5,9 @@
 // one-off feature on the spot.
 import { grantCustomFeature } from '../AddCustomFeatureModal';
 import { newDraftTrait } from '../../homebrew/TraitEditor';
-import { removeFeature } from '../../../engine/leveling';
+import { removeFeature } from '../../../engine/levelingAsiFeats';
 import { tickDurations } from '../../../engine/conditions';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { recomputeDerived } from '../../../engine/pipeline';
 import { DraftTrait } from '../../../engine/types';
 

@@ -88,5 +88,5 @@ it('the sheet tells what differs, and moving onto the mockInstalled versions is 
   expect(versionNotes(kept).differences).toEqual([expect.stringMatching(/class:fighter/)]);
   const moved = pinToInstalled(kept);
   expect(versionNotes(moved).differences).toEqual([]);
-  expect(versionNotes({ ...kept, pins: undefined } as Entity)).toEqual({ pinned: false, lockedAt: null, differences: [] });
+  expect(versionNotes({ ...kept, pins: undefined })).toEqual({ pinned: false, lockedAt: null, differences: [] });
 });

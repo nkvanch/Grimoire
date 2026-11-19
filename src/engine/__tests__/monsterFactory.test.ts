@@ -6,11 +6,12 @@
 // in) — double-counting proficiency into every monster with an authored
 // skill bonus (architecture-review finding E1).
 import { spawnMonster, resolveMonsterHp, isValidManualHp } from '../monsterFactory';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { MonsterTemplate } from '../../content/monsters/types';
 import { CampaignRules } from '../types';
 import { setRandomSource } from '../dice';
-import { parseRechargeThreshold, rollRecharge, startTurn, findRechargeableFeatures } from '../combat';
+import { startTurn } from '../combat';
+import { parseRechargeThreshold, rollRecharge, findRechargeableFeatures } from '../combatRecharge';
 import { generateActionCard } from '../actionCards';
 import { applyActionCardUse } from '../actionUse';
 import { monsterChimera, monsterGhost } from '../../content/monsters/srd';

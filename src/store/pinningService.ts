@@ -36,7 +36,7 @@ export function installedCatalog(): PinningCatalog {
   const catalog = pinningCatalog(packs, {
     race: hb.races, subrace: hb.subraces, class: hb.classes, subclass: hb.subclasses, background: hb.backgrounds,
     spell: hb.spells, item: hb.items, feat: hb.feats,
-  } as never);
+  });
   cached = { packs, hb: lists, catalog };
   return catalog;
 }

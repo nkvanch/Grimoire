@@ -3,7 +3,6 @@
 // Storage for installed first-party content packs (the SRD packs). The whole pack file is one JSON row, because it is
 // read as a unit at boot. No-op on web, where there is no SQLite (the same as the homebrew pack registry).
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
 
 export type StoredOfficialPack = { id: string; version: string; importedAt: number; pack: unknown };

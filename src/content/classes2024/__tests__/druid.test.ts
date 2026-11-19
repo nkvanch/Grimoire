@@ -1,7 +1,7 @@
 import { newChar, toLevel, bindSubclass, sub } from '../testKit';
-import { applyPoolChoiceToEntity } from '../../../engine/leveling';
-import { DEFAULT_RULES } from '../../../store/characterStore';
-import { applyDamage } from '../../../engine/combat';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { DEFAULT_RULES } from '../../../engine/defaults';
+import { applyDamage } from '../../../engine/combatDamage';
 import { BEAST_FORMS_2024 } from '../../beastforms/beastforms2024Data';
 import { ALL_BEAST_FORMS } from '../../beastforms';
 

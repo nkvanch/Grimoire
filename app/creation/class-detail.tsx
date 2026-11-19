@@ -1,7 +1,8 @@
 // app/creation/class-detail.tsx
 // Class detail with back button, collapsible sections, and safe re-selection.
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useState, useEffect } from 'react';
@@ -11,20 +12,15 @@ import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { acquireClass, levelUpClass, resetCreationClass } from '../../src/engine/leveling';
 import { recomputeDerived } from '../../src/engine/pipeline';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
+import { classMeta, featuresByLevel, progressionTable, abilityFullName } from '../../src/content/classes/classBrowse';
 import {
-  classMeta, featuresByLevel, progressionTable, abilityFullName,
-} from '../../src/content/classes/classBrowse';
-import {
-  subclassEntriesForClassMerged, subclassAdditions, SUBCLASS_ADDITION_LABELS,
-  subclassSourceLabel, subclassSortOptions, SubclassAddition,
+  subclassEntriesForClassMerged, subclassAdditions, SUBCLASS_ADDITION_LABELS, subclassSortOptions, SubclassAddition
 } from '../../src/content/subclasses/subclassBrowse';
 import { sortByOption } from '../../src/content/contentQuery';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
-import { EditionBadge } from '../../src/components/EditionBadge';
-import {
-  FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips,
-} from '../../src/components/FilterChipRow';
+import { EditionBadge, OtherEditionNote } from '../../src/components/EditionBadge';
+import { MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import { SortControl } from '../../src/components/SortControl';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
@@ -257,7 +253,7 @@ export default function ClassDetailScreen() {
       const definitions = getMergedContentDB().classes;
       updated = acquireClass(updated, cls!, rules, definitions);
       for (let level = 2; level <= targetLevel; level++) {
-        updated = levelUpClass(updated, cls!.id, progression, rules, cls!, definitions);
+        updated = levelUpClass(updated, cls!.id, progression, rules, cls, definitions);
       }
 
       const contentDB = getMergedContentDB(updated.rulesetId);
@@ -327,6 +323,7 @@ export default function ClassDetailScreen() {
         {(!!detail || isOfficial2024) && isNonSrd(cls.srd, cls.rulesetId) && <NonSrdBadge />}
       </View>
       <RecordDetailPicture record={cls} />
+      {!isHomebrewClass && <OtherEditionNote item={cls} />}
       <View style={styles.divider} />
 
       {/* ── Three-layer class browser (Summary / Features / Progression) ── */}
@@ -603,7 +600,7 @@ export default function ClassDetailScreen() {
                   <Pressable
                     key={sub.id}
                     style={styles.subclassCard}
-                    onPress={() => router.push(`/creation/subclass-detail?classId=${cls!.id}&subclassId=${sub.id}`)}
+                    onPress={() => router.push(`/creation/subclass-detail?classId=${cls.id}&subclassId=${sub.id}`)}
                   >
                     <View style={{ flex: 1 }}>
                       <View style={styles.subclassNameRow}>

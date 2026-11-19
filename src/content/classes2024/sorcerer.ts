@@ -78,8 +78,8 @@ export const sorcerer2024: ClassDef = {
       { level: 3, grants: [
         kit.g('draconic_resilience', 'Draconic Resilience', 3, 'The magic in your body manifests physical traits of your draconic gift. Your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level. Parts of you are also covered by dragon-like scales: while you aren\'t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers.',
           { effects: [
-            { type: 'stat_modifier', target: 'max_hp', operation: 'add', value: 0, addPerLevel: 1, condition: null } as Effect,
-            { type: 'base_ac_formula', target: 'ac', operation: 'set', value: 10, condition: null, formulaAbilities: ['dex', 'cha'] } as Effect,
+            { type: 'stat_modifier', target: 'max_hp', operation: 'add', value: 0, addPerLevel: 1, condition: null },
+            { type: 'base_ac_formula', target: 'ac', operation: 'set', value: 10, condition: null, formulaAbilities: ['dex', 'cha'] },
           ] }),
         kit.g('draconic_spells', 'Draconic Spells', 3, 'You always have certain spells prepared: Alter Self, Chromatic Orb, Command and Dragon\'s Breath (level 3); Fear and Fly (level 5); Arcane Eye and Charm Monster (level 7); Legend Lore and Summon Dragon (level 9). They don\'t count against your prepared spells.'),
         { kind: 'known_spells', value: { spellIds: ['alter_self', 'chromatic_orb', 'command', 'dragons_breath'] } },

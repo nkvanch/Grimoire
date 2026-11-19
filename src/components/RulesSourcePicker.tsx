@@ -62,7 +62,7 @@ export function RulesSourcePicker({ value, onChange }: { value: RulesChoice; onC
           />
         </View>
       ) : (
-        <Text style={styles.hint}>Open or join a campaign to use its rules here.</Text>
+        <Text style={styles.hint}>Open a campaign to use its rules here.</Text>
       )}
 
       <Text style={styles.group}>CUSTOM</Text>
@@ -71,7 +71,7 @@ export function RulesSourcePicker({ value, onChange }: { value: RulesChoice; onC
           <Chip key={p.id} label={p.name} active={value.source === 'custom' && value.profileId === p.id}
             onPress={() => onChange({ rulesetId: p.baseRulesetId, profileId: p.id, source: 'custom' })} />
         ))}
-        <Chip label="+ New custom rules" active={false} onPress={() => router.push('/homebrew/rule-profile' as never)} dashed />
+        <Chip label="+ New custom rules" active={false} onPress={() => router.push('/homebrew/rule-profile')} dashed />
       </View>
       {custom.length === 0 && <Text style={styles.hint}>Your saved rule profiles will appear here.</Text>}
 

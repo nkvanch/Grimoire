@@ -2,23 +2,22 @@
 // DM party overview dashboard. Only accessible when isDm === true.
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { Alert } from '../../src/utils/alert';
 import { useCharacterStore } from '../../src/store/characterStore';
-import { useCombatStore }    from '../../src/store/combatStore';
+import { useCombatStore } from '../../src/store/combatStore';
 import { Entity } from '../../src/engine/types';
 import { dmFullStatVisibility } from '../../src/engine/houseRules';
 import { defenseSummary } from '../../src/engine/defenses';
 import { HiddenCheckPanel } from '../../src/components/dm/HiddenCheckPanel';
-import { activeSession, startSession, endSession } from '../../src/engine/session';
+import { activeSession, startSession, endSession } from '../../src/engine/sessionLog';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
-import { SyncStatusDot } from '../../src/components/SyncStatusDot';
-import { useSyncStore }  from '../../src/store/syncStore';
 import { campaignAdmission } from '../../src/engine/campaignLock';
 
 // ── Party Character Card ──────────────────────────────────────────────────────
@@ -55,7 +54,7 @@ function PartyCard({ entity, showFull, onPress, onPlay, lockIssue }: { entity: E
     ? Object.values(spellcasting.pactSlots).find(s => s.total > 0)
     : undefined;
 
-  // Death state — deathSaves is real persisted/synced data now, so the DM
+  // Death state — deathSaves is real persisted data now, so the DM
   // dashboard can show it at a glance without needing to open the character.
   const isDead   = resources.deathSaves.failures >= 3;
   const isStable = resources.hp.current === 0 && resources.deathSaves.stable;
@@ -255,7 +254,6 @@ export default function DmDashboard() {
   const characters     = useCharacterStore(s => s.characters);
   const rules          = useCharacterStore(s => s.rules);
   const startCombat    = useCombatStore(s => s.startCombat);
-  const syncStatus     = useSyncStore(s => s.status);
   const showFull       = dmFullStatVisibility(rules);
   const [endSessionOpen, setEndSessionOpen] = useState(false);
   const [endSummary, setEndSummary] = useState('');
@@ -264,11 +262,11 @@ export default function DmDashboard() {
 
   function handleStartSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => startSession(c));
+    void updateCampaign(activeCampaign.id, c => startSession(c));
   }
   function handleEndSession() {
     if (!activeCampaign) return;
-    updateCampaign(activeCampaign.id, c => endSession(c, endSummary));
+    void updateCampaign(activeCampaign.id, c => endSession(c, endSummary));
     setEndSummary('');
     setEndSessionOpen(false);
   }
@@ -296,7 +294,7 @@ export default function DmDashboard() {
       Alert.alert('No characters', 'Add characters to the campaign first.');
       return;
     }
-    router.push('/dm/encounter' as any);
+    router.push('/dm/encounter');
   }
 
   return (
@@ -306,47 +304,16 @@ export default function DmDashboard() {
         <Pressable style={styles.backBtn} onPress={safeGoBack}>
           <Text style={styles.backTxt}>← Back</Text>
         </Pressable>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <SyncStatusDot />
-          <Text style={styles.title}>DM Dashboard</Text>
-          {syncStatus.role === 'dm' && (
-            <Text style={{ fontSize: 11, color: '#4ade80', marginLeft: 8 }}>
-              {syncStatus.clientCount} connected
-            </Text>
-          )}
-        </View>
+        <Text style={styles.title}>DM Dashboard</Text>
         {activeCampaign && (
           <Text style={styles.campaignName}>{activeCampaign.name}</Text>
         )}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {/* Room code banner — what players type/scan to join. Hosting itself
-            (CampaignHost) never depends on this — only whether a room code
-            is currently dialable does (NetworkHostAvailability). A missing
-            code is a non-blocking recommendation, not an error: this DM
-            screen and every local host/DM tool stay fully usable either
-            way. */}
-        {syncStatus.role === 'dm' && (
-          <View style={styles.roomCard}>
-            <Text style={styles.roomLabel}>ROOM CODE</Text>
-            {syncStatus.roomCode ? (
-              <Text style={styles.roomCode}>{syncStatus.roomCode}</Text>
-            ) : (
-              <Text style={styles.roomCodeDim}>No local network — not joinable yet</Text>
-            )}
-            <Text style={styles.roomHint}>
-              {syncStatus.roomCode
-                ? 'Players join with this code on the same WiFi network.'
-                : 'Enable Wi-Fi or a mobile hotspot to let other players join. Everything here still works on this device.'}
-            </Text>
-          </View>
-        )}
         {/* Session lifecycle (item 14) — start/end a real-world play
-            session, distinct from the sync connection (a DM can be hosting
-            with no session "in progress" yet, e.g. while players are still
-            joining). Builds on the existing Campaigns-tab session log
-            rather than a separate concept — see engine/session.ts. */}
+            session. Builds on the existing Campaigns-tab session log
+            rather than a separate concept — see engine/sessionLog.ts. */}
         {activeCampaign && (
           <View style={styles.sessionCard}>
             {session ? (
@@ -394,48 +361,6 @@ export default function DmDashboard() {
           </View>
         </Modal>
 
-        {/* Connected players roster (live sync) */}
-        {syncStatus.role === 'dm' && (
-          <>
-            <Text style={styles.sectionLabel}>CONNECTED PLAYERS ({syncStatus.roster.length})</Text>
-            {syncStatus.roster.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTxt}>
-                  No players connected yet.{'\n'}
-                  Share your room code from the Campaigns tab.
-                </Text>
-              </View>
-            ) : (
-              syncStatus.roster.map(p => {
-                const claimed = p.characterId
-                  ? characters.find(c => c.id === p.characterId) ?? null
-                  : null;
-                return (
-                  <Pressable
-                    key={p.deviceId}
-                    style={styles.rosterRow}
-                    onPress={() => claimed && router.push(`/dm/character/${claimed.id}` as any)}
-                    disabled={!claimed}
-                  >
-                    <View style={styles.rosterDot} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rosterName}>{p.nickname}</Text>
-                      <Text style={styles.rosterSub}>
-                        {claimed
-                          ? `Playing ${claimed.identity.name || 'Unnamed'} · Lv ${claimed.identity.level}`
-                          : p.characterId
-                            ? 'Character not synced yet…'
-                            : 'No character selected'}
-                      </Text>
-                    </View>
-                    {claimed && <Text style={styles.rosterArrow}>›</Text>}
-                  </Pressable>
-                );
-              })
-            )}
-          </>
-        )}
-
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={styles.sectionLabel}>PARTY ({partyChars.length})</Text>
           {!showFull && (
@@ -448,8 +373,7 @@ export default function DmDashboard() {
         {partyChars.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTxt}>
-              No characters in this campaign.{'\n'}
-              Have players create characters and join the campaign.
+              No characters in this campaign.
             </Text>
           </View>
         ) : (
@@ -459,8 +383,8 @@ export default function DmDashboard() {
               entity={c}
               showFull={showFull}
               lockIssue={campaignAdmission(activeCampaign!, c)}
-              onPress={() => router.push(`/dm/character/${c.id}` as any)}
-              onPlay={() => router.push(`/sheet/${c.id}` as any)}
+              onPress={() => router.push(`/dm/character/${c.id}`)}
+              onPlay={() => router.push(`/sheet/${c.id}`)}
             />
           ))
         )}
@@ -468,10 +392,10 @@ export default function DmDashboard() {
         <Pressable style={styles.encounterBtn} onPress={handleStartEncounter}>
           <Text style={styles.encounterBtnTxt}>⚔️ Start Encounter</Text>
         </Pressable>
-        <Pressable style={[styles.encounterBtn, styles.libraryBtn]} onPress={() => router.push('/dm/encounters' as any)}>
+        <Pressable style={[styles.encounterBtn, styles.libraryBtn]} onPress={() => router.push('/dm/encounters')}>
           <Text style={styles.encounterBtnTxt}>📋 Encounter Library</Text>
         </Pressable>
-        <Pressable style={[styles.encounterBtn, styles.libraryBtn]} onPress={() => router.push('/dm/monsters' as any)}>
+        <Pressable style={[styles.encounterBtn, styles.libraryBtn]} onPress={() => router.push('/dm/monsters')}>
           <Text style={styles.encounterBtnTxt}>🐉 Monster Library</Text>
         </Pressable>
       </ScrollView>
@@ -501,16 +425,6 @@ const styles = StyleSheet.create({
   content:      { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
   sectionLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 2, fontWeight: FontWeight.bold },
   restrictedNote: { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic' },
-
-  roomCard: {
-    backgroundColor: Colors.gold + '14', borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.gold + '55',
-    padding: Spacing.md, alignItems: 'center', gap: 2,
-  },
-  roomLabel: { fontSize: FontSize.xs, color: Colors.gold, letterSpacing: 2, fontWeight: FontWeight.bold },
-  roomCode: { fontSize: 34, fontWeight: FontWeight.black, color: Colors.gold, letterSpacing: 6 },
-  roomCodeDim: { fontSize: FontSize.lg, color: Colors.textDim, fontWeight: FontWeight.bold },
-  roomHint: { fontSize: FontSize.xs, color: Colors.textSecondary, textAlign: 'center', marginTop: 2 },
 
   sessionCard: {
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.lg,
@@ -551,17 +465,6 @@ const styles = StyleSheet.create({
   sessionModalCancelTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold },
   sessionModalConfirm: { flex: 1, backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
   sessionModalConfirmTxt: { color: Colors.bg, fontWeight: FontWeight.bold },
-
-  rosterRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm,
-  },
-  rosterDot:   { width: 8, height: 8, borderRadius: Radius.full, backgroundColor: Colors.green },
-  rosterName:  { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  rosterSub:   { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 },
-  rosterArrow: { fontSize: FontSize.lg, color: Colors.textDim },
 
   partyCard: {
     backgroundColor: Colors.surface, borderRadius: Radius.lg,

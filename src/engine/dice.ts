@@ -13,7 +13,7 @@
 // All randomness flows through rollDie() so it can be seeded for tests.
 // ============================================================================
 
-import { DiceRoll } from './types';
+import { DiceRoll, DamageDieRule } from './types';
 
 // ── Seeding ───────────────────────────────────────────────────────────────────
 
@@ -62,14 +62,20 @@ export function rollExpression(expression: string, label?: string): DiceRoll {
     };
   }
 
-  // ── Standard: 2d6+3 / 1d20 / 2d6-1 ─────────────────────────────────────
-  const stdMatch = clean.match(/^(\d+)d(\d+)([+-]\d+)?$/);
+  // ── Standard: 2d6+3 / 1d20 / 2d6-1, and per-die rules: 2d6ro<2 (reroll a die of 2 or less once), 2d6mi3 (a die counts at least 3)
+  const stdMatch = clean.match(/^(\d+)d(\d+)(?:ro<(\d+)|mi(\d+))?([+-]\d+)?$/);
   if (stdMatch) {
     const count   = parseInt(stdMatch[1], 10);
     const sides   = parseInt(stdMatch[2], 10);
-    const flatMod = stdMatch[3] ? parseInt(stdMatch[3], 10) : 0;
+    const rerollAtMost = stdMatch[3] ? parseInt(stdMatch[3], 10) : 0;
+    const atLeast      = stdMatch[4] ? parseInt(stdMatch[4], 10) : 0;
+    const flatMod = stdMatch[5] ? parseInt(stdMatch[5], 10) : 0;
 
-    const rolls = Array.from({ length: count }, () => rollDie(sides));
+    const rolls = Array.from({ length: count }, () => {
+      const first = rollDie(sides);
+      const kept = first <= rerollAtMost ? rollDie(sides) : first;
+      return Math.max(kept, atLeast);
+    });
     const total = rolls.reduce((s, r) => s + r, 0) + flatMod;
 
     return {
@@ -157,9 +163,24 @@ export function doubleDiceCount(expression: string): string {
   const clean = expression.toLowerCase().replace(/\s/g, '');
   const keepMatch = clean.match(/^(\d+)(d\d+k[hl]\d+(?:[+-]\d+)?)$/);
   if (keepMatch) return `${parseInt(keepMatch[1], 10) * 2}${keepMatch[2]}`;
-  const stdMatch = clean.match(/^(\d+)(d\d+(?:[+-]\d+)?)$/);
+  const stdMatch = clean.match(/^(\d+)(d\d+(?:ro<\d+|mi\d+)?(?:[+-]\d+)?)$/);
   if (stdMatch) return `${parseInt(stdMatch[1], 10) * 2}${stdMatch[2]}`;
   return expression;
+}
+
+/** An expression as a player reads it: "4d6ro<2+3" is "4d6+3 (1s and 2s rolled again once)". Others are returned as they are. */
+export function readableExpression(expression: string): string {
+  const m = expression.match(/ro<(\d+)|mi(\d+)/i);
+  if (!m) return expression;
+  const n = parseInt(m[1] ?? m[2], 10);
+  const note = m[1] ? `${n === 2 ? '1s and 2s' : `${n} or less`} rolled again once` : `${n === 3 ? '1s and 2s' : `under ${n}`} count as ${n}`;
+  return `${expression.replace(m[0], '')} (${note})`;
+}
+
+/** A damage expression with its dice rolled under a rule (Great Weapon Fighting): "2d6+3" with reroll_1_2 is "2d6ro<2+3". */
+export function withDamageDieRule(expression: string, rule: DamageDieRule | undefined): string {
+  if (!rule) return expression;
+  return expression.replace(/^(\s*\d+d\d+)/i, `$1${rule === 'reroll_1_2' ? 'ro<2' : 'mi3'}`);
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

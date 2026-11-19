@@ -1,7 +1,7 @@
 import { newChar, toLevel } from '../../content/classes2024/testKit';
-import { applyPoolChoiceToEntity, replacePoolOption, replaceableOptions } from '../leveling';
+import { applyPoolChoiceToEntity, replacePoolOption, replaceableOptions } from '../levelingPoolChoices';
 import { checkPrerequisites, spellTraits } from '../prerequisites';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { Entity } from '../types';
 
 const apply = (e: Entity, part: string, picks: string[]) => {

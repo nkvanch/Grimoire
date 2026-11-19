@@ -7,10 +7,11 @@
 //
 // Only Homebrew-scoped data is read: this view never touches the official
 // content DB, so it can't reintroduce anything SRD-only hides in Official mode.
-import { gridProps, withGridCell } from '../GridCell';
+import { gridKey, gridProps, withGridCell } from '../GridCell';
 import { useListColumns } from '../../platform/layout';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, FlatList, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { ScrollView, FlatList } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useHomebrewStore } from '../../store/homebrewStore';
@@ -247,6 +248,7 @@ export function HomebrewLibraryView() {
   return (
     <View style={styles.wrap} testID="compendium-homebrew-screen">
       <FlatList
+        key={gridKey(columns)}
         {...gridProps(columns)}
         style={styles.scroll}
         contentContainerStyle={styles.content}

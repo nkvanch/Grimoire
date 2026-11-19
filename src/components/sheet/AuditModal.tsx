@@ -6,7 +6,8 @@
 //                       "17 = 10 base + 3 DEX modifier + 2 Chain Shirt + 2 Shield"
 // When isDm=true, shows an [Override] button on each scalar stat.
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules, AuditEntry, Ability } from '../../engine/types';

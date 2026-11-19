@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { getSessionRuntime } from '../../src/session/runtime';
 import { E2E_ENABLED } from '../../src/session/e2e';
 import { AUTOMATION_CAMPAIGN_ID, AUTOMATION_CAMPAIGN_NAME, applyAutomationFixture } from '../../src/session/fixtures';
-import { makeEmptyEntity, useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { recomputeDerived } from '../../src/engine/pipeline';
 import { LiveScreen, Section, Btn, Muted, Body } from '../../src/components/live/LiveUi';
 

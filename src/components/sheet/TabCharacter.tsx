@@ -1,88 +1,51 @@
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { findBeastForm } from '../../content/runtimeRules';
 import { MissingPacksBanner } from './MissingPacksBanner';
-import { exhaustionEffectText } from '../../engine/exhaustion';
+import { formatDamage } from '../../engine/actionCardText';
 import { useSpellPayment } from './SpellPaymentChooser';
 // app/sheet/TabCharacter.tsx
 // Tab 1 — Combat dashboard. Players live here.
 // Includes: HP, stat row, conditions/exhaustion, resources, spell slots,
 //           death saves (when HP=0), concentration check, level-up button.
 import { useState, useCallback, useRef, useMemo, memo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-} from 'react-native';
-import { Pressable, TextInput } from '../AccessibleControls';
-import { Modal } from '../AppModal';
-import { Entity, CampaignRules, CharClass, ActionCard, asClassId, DurationTracker, ActivationOption, matchesRuleset, Ability } from '../../engine/types';
+import { View, Text } from 'react-native';
+import { ScrollView } from '../Lists';
+import { Pressable } from '../AccessibleControls';
+import { Entity, CampaignRules, ActionCard, DurationTracker, ActivationOption } from '../../engine/types';
 import { useCharacterStore } from '../../store/characterStore';
-import { hasActiveOverride } from '../../engine/dmOverride';
-import { resourceDescription } from '../../engine/featureText';
-import { toggleActionEconomy, actionSpent, parseRechargeThreshold, rollRecharge, concentrationLinkedEffectNames } from '../../engine/combat';
-import { isResetByHand, rechargeLabel } from '../../engine/recharge';
-import { confirmEndConcentration } from './spellTabUi';
-import { recomputeDerived, modifier, effectiveAbilityScores } from '../../engine/pipeline';
-import { rollDie } from '../../engine/leveling';
-import { levelUp, levelUpClass, calculateLevelUpHpGain, isValidHpRoll } from '../../engine/leveling';
-import { simulate } from '../../engine/simulate';
-import { getClassLevels } from '../../engine/multiclass';
-import { spendHitDie, spendHitDieManual, currentHitDieSize, entityHitDieTier, spendableHitDicePools, hasSpentDawnResources, takeDawn } from '../../engine/rest';
-import { bumpedHitDie } from '../../engine/hitDieTier';
-import { rollExpression, doubleDiceCount } from '../../engine/dice';
+import { recomputeDerived } from '../../engine/pipeline';
+import { spendHitDie, spendHitDieManual, currentHitDieSize, spendableHitDicePools } from '../../engine/rest';
+import { doubleDiceCount } from '../../engine/dice';
 import { useDiceLogStore } from '../../store/diceLogStore';
-import { ALL_PROGRESSIONS } from '../../content/classes/index';
-import { getProgressionForClass, mergeSubclassIntoProgression } from '../../content/classes/progressions';
-import { getSubclassEntryMerged } from '../../content/subclasses/subclassBrowse';
-import { spellRepo } from '../../content/spellRepo';
-import { spellIdsOnEntity } from '../../content/spellRepo.types';
 import { useHomebrewStore } from '../../store/homebrewStore';
-import { pinGate, STEP_OPERATIONS } from '../../store/pinningService';
-import { pinnedLockOf } from '../../engine/ruleset/dnd5ePinning';
-import { multiclassLacks, multiclassRequirementApplies } from '../../engine/multiclassPrerequisites';
-import { Alert } from '../../utils/alert';
-import { AsiFeatPicker } from '../AsiFeatPicker';
 import { AuditModal } from './AuditModal';
 import { HpModal } from './HpModal';
 import { HeroicInspirationPanel } from './HeroicInspirationPanel';
 import { CombatStatePanel } from './CombatStatePanel';
 import { ConcentrationModal } from './ConcentrationModal';
 import { CompanionSection } from './CompanionSection';
-import { ActionCardRow, UseModal, applyActionCardUse, toggleFavoriteTag, isFavoriteCard, actionCardIdentity, ActivationOptionModal, useCardContent } from './TabActions';
-import { LevelUpPreviewModal } from './LevelUpPreviewModal';
-import { ProgressionPlannerModal } from './ProgressionPlannerModal';
-import { MulticlassProgressionPlannerModal } from './MulticlassProgressionPlannerModal';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
-
-// Class progressions are looked up from the content library — no hardcoded names.
-// ALL_PROGRESSIONS is a Record<classId, ClassProgression> covering all 12 classes.
-
-/**
- * 2014 condition-mechanics closure, Part S: split per condition into what
- * Grimoire actually ENFORCES right now (`automated` — speed/action-economy
- * consequences; a condition's own roll-modifier consequence, if any, is
- * NOT repeated here since it already shows up in the Advantage/Disadvantage
- * list right below this block, driven by the same live derived.advantageStates
- * — listing it twice would be redundant, not clearer) versus what stays a
- * table/context-dependent judgment call (`reminder` — target-side facts,
- * auto-fail saves/checks, anything needing distance/visibility/source
- * identity this engine doesn't track). See content/conditions/index.ts's
- * own header comment for the full per-condition reasoning behind this split.
- */
-const CONDITION_MECHANICS: Record<string, { automated: string[]; reminder: string[] }> = {
-  blinded:       { automated: [], reminder: ['Attacks against you have advantage', 'You automatically fail sight-based checks'] },
-  charmed:       { automated: [], reminder: ["Can't attack the charmer or target them with harmful effects", 'The charmer has advantage on social checks against you'] },
-  deafened:      { automated: [], reminder: ['You automatically fail hearing-based checks'] },
-  frightened:    { automated: [], reminder: ['Disadvantage on checks and attacks while the source of fear is visible', "Can't willingly move closer to the source of fear"] },
-  grappled:      { automated: ['Speed 0'], reminder: [] },
-  incapacitated: { automated: ['Cannot take Actions or Reactions'], reminder: [] },
-  invisible:     { automated: [], reminder: ['Attacks against you have disadvantage'] },
-  paralyzed:     { automated: ['Speed 0', 'Cannot take Actions or Reactions'], reminder: ['You automatically fail STR and DEX saves', 'Attacks against you have advantage, and are critical hits within 5 feet'] },
-  petrified:     { automated: ['Speed 0', 'Cannot take Actions or Reactions', 'Resistance to all damage'], reminder: ['You automatically fail STR and DEX saves', 'Attacks against you have advantage', 'Immune to poison and disease (not mechanically enforced)'] },
-  poisoned:      { automated: [], reminder: [] },
-  prone:         { automated: [], reminder: ['Attacks against you have advantage within 5 feet, disadvantage otherwise', 'Standing up costs half your movement (not tracked)'] },
-  restrained:    { automated: ['Speed 0'], reminder: ['Attacks against you have advantage'] },
-  stunned:       { automated: ['Speed 0', 'Cannot take Actions or Reactions'], reminder: ['You automatically fail STR and DEX saves', 'Attacks against you have advantage'] },
-  unconscious:   { automated: ['Speed 0', 'Cannot take Actions or Reactions'], reminder: ["Falls prone and drops what it's holding", 'You automatically fail STR and DEX saves', 'Attacks against you have advantage, and are critical hits within 5 feet'] },
-};
+import { applyActionCardUse } from './TabActions';
+import { ActivationOptionModal } from './ActivationOptionModal';
+import { UseModal } from './UseModal';
+import { isFavoriteCard } from './actionCardUi';
+import { useCardContent } from './actionCardUi';
+import { Colors } from '../../theme';
+import { styles } from './tabCharacterStyles';
+import { DeathSavesSection } from './DeathSavesSection';
+import { LevelUpSection } from './LevelUpSection';
+import { NumberPromptModal } from './NumberPromptModal';
+import { SensesModal } from './SensesModal';
+import { MovementModal } from './MovementModal';
+import { HpSection } from './character/HpSection';
+import { StatRowSection } from './character/StatRowSection';
+import { AttacksSection } from './character/AttacksSection';
+import { HitDiceSection } from './character/HitDiceSection';
+import { ConditionsSection } from './character/ConditionsSection';
+import { ConcentrationIndicator } from './character/ConcentrationIndicator';
+import { ResourcesSection } from './character/ResourcesSection';
+import { SpellSlotsSection } from './character/SpellSlotsSection';
+import { ConditionPickerModal } from './character/ConditionPickerModal';
+import { LevelUpAsiModal } from './character/LevelUpAsiModal';
+import { AddFeatModal } from './character/AddFeatModal';
 
 // Death saves live in entity.resources.deathSaves — persisted and synced,
 // same as HP. combat.ts resets them automatically when HP drops to 0 for the
@@ -114,870 +77,6 @@ interface Props {
   onEndTurn:         () => void;
 }
 
-
-// Display labels for the four structured sense types.
-const SENSE_LABELS: Record<string, string> = {
-  darkvision:  'Darkvision',
-  blindsight:  'Blindsight',
-  tremorsense: 'Tremorsense',
-  truesight:   'Truesight',
-};
-
-type MoveType = 'fly' | 'swim' | 'climb' | 'burrow';
-const MOVE_TYPE_LABELS: Record<MoveType, string> = { fly: 'Fly', swim: 'Swim', climb: 'Climb', burrow: 'Burrow' };
-const MOVE_TYPE_OPTIONS: MoveType[] = ['climb', 'swim', 'fly', 'burrow'];
-const MANUAL_MOVEMENT_FEATURE_ID = 'manual_movement';
-
-// ── Death Saves Section ───────────────────────────────────────────────────────
-
-function DeathSavesSection({
-  entity, rules, saves, onSavesChange, onEntityUpdate,
-}: {
-  entity: Entity;
-  rules: CampaignRules;
-  saves: { successes: number; failures: number };
-  onSavesChange: (s: { successes: number; failures: number }) => void;
-  onEntityUpdate: (u: Entity) => void;
-}) {
-  const isDead   = saves.failures  >= 3;
-  const isStable = saves.successes >= 3;
-  const [lastRoll, setLastRoll] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function showResult(msg: string) {
-    setLastRoll(msg);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setLastRoll(null), 3000);
-  }
-
-  function stabilize() {
-    // 3 successes = STABLE at 0 HP (book rule) — NOT healed. The creature
-    // stops making death saves and stays at 0 HP, unconscious, until healed
-    // by any means. Only a natural 20 heals to 1 HP (see reviveNat20 below).
-    onSavesChange({ ...saves, successes: 3 });
-  }
-
-  function reviveNat20() {
-    // Natural 20 on a death save: regain 1 HP immediately (book rule) and
-    // clear both counters, since the creature is no longer dying.
-    const updated: Entity = {
-      ...entity,
-      resources: { ...entity.resources, hp: { ...entity.resources.hp, current: 1 } },
-    };
-    onEntityUpdate(recomputeDerived(updated, rules));
-    onSavesChange({ successes: 0, failures: 0 });
-  }
-
-  function addSuccess() {
-    if (isDead || isStable) return;
-    const next = Math.min(3, saves.successes + 1);
-    if (next >= 3) { stabilize(); showResult('Stable at 0 HP'); }
-    else { onSavesChange({ ...saves, successes: next }); showResult(`Success (${next}/3)`); }
-  }
-
-  function addFailure() {
-    if (isDead || isStable) return;
-    const next = Math.min(3, saves.failures + 1);
-    onSavesChange({ ...saves, failures: next });
-    showResult(next >= 3 ? 'Dead' : `Failure (${next}/3)`);
-  }
-
-  function handleRoll() {
-    if (isDead || isStable) return;
-    const result = rollExpression('1d20').total;
-    if (result === 20) {
-      showResult('Natural 20 — revived!');
-      reviveNat20();
-    } else if (result === 1) {
-      const next = Math.min(3, saves.failures + 2);
-      onSavesChange({ ...saves, failures: next });
-      showResult(next >= 3 ? '1 — Dead' : `1 — Two failures! (${next}/3)`);
-    } else if (result >= 10) {
-      const next = Math.min(3, saves.successes + 1);
-      if (next >= 3) { stabilize(); showResult(`${result} — Stable at 0 HP`); }
-      else { onSavesChange({ ...saves, successes: next }); showResult(`${result} — Success (${next}/3)`); }
-    } else {
-      const next = Math.min(3, saves.failures + 1);
-      onSavesChange({ ...saves, failures: next });
-      showResult(next >= 3 ? `${result} — Dead` : `${result} — Failure (${next}/3)`);
-    }
-  }
-
-  const resultColor = !lastRoll ? Colors.textDim
-    : (lastRoll.includes('Success') || lastRoll.includes('Stable')) ? Colors.green
-    : lastRoll.includes('20') ? Colors.gold
-    : Colors.red;
-  return (
-    <View style={styles.deathSection}>
-      <Text style={styles.sectionTitle}>DEATH SAVING THROWS</Text>
-      {isDead   && <Text style={styles.deathMsg}>💀 This character has died.</Text>}
-      {isStable && <Text style={styles.stableMsg}>✅ Stable — 1 HP</Text>}
-      {!isDead && !isStable && (
-        <>
-          <View style={styles.pipRows}>
-            <View style={styles.pipRow}>
-              <Text style={styles.pipLabel}>Successes</Text>
-              <View style={styles.pips}>
-                {[0,1,2].map(i => (
-                  <View key={i} style={[styles.pip, i < saves.successes && styles.pipSuccess]} />
-                ))}
-              </View>
-            </View>
-            <View style={styles.pipRow}>
-              <Text style={styles.pipLabel}>Failures</Text>
-              <View style={styles.pips}>
-                {[0,1,2].map(i => (
-                  <View key={i} style={[styles.pip, i < saves.failures && styles.pipFailure]} />
-                ))}
-              </View>
-            </View>
-          </View>
-          {/* Failure | Roll | Success */}
-          <View style={styles.deathBtnRow}>
-            <Pressable style={[styles.deathBtn, styles.deathBtnFail]} onPress={addFailure}>
-              <Text style={styles.deathBtnFailTxt}>✖ Failure</Text>
-            </Pressable>
-            <Pressable style={[styles.deathBtn, styles.deathBtnRoll]} onPress={handleRoll}>
-              <Text style={styles.deathBtnRollTxt}>🎲 Roll</Text>
-            </Pressable>
-            <Pressable style={[styles.deathBtn, styles.deathBtnPass]} onPress={addSuccess}>
-              <Text style={styles.deathBtnPassTxt}>✔ Success</Text>
-            </Pressable>
-          </View>
-          {lastRoll && (
-            <Text style={[styles.dieResultTxt, { color: resultColor }]}>{lastRoll}</Text>
-          )}
-        </>
-      )}
-      {(saves.successes > 0 || saves.failures > 0 || isDead || isStable) && (
-        <Pressable style={styles.deathResetBtn} onPress={() => onSavesChange({ successes: 0, failures: 0 })}>
-          <Text style={styles.deathResetTxt}>↺ Reset Death Saves</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-// ── Table-first rolled-HP gate ────────────────────────────────────────────────
-// Shared by both the single-class and multiclass branches of LevelUpSection
-// below. Primary: enter the physically-rolled die result. Secondary: "Roll
-// in App" rolls the same die via rollDie and resolves through the exact
-// same onResolve callback — never a separate consequence path. Renders
-// nothing (returns null) when `pending` is null, so mounting it
-// unconditionally in both branches is cheap and safe.
-function HpRollGate({
-  pending, draft, onDraftChange, entity, rules, onCancel, onResolve,
-}: {
-  pending: { hpDie: number; hpAbility: Ability } | null;
-  draft: string;
-  onDraftChange: (s: string) => void;
-  entity: Entity;
-  rules: CampaignRules;
-  onCancel: () => void;
-  onResolve: (roll: number) => void;
-}) {
-  if (!pending) return null;
-  const abilityMod = modifier(effectiveAbilityScores(entity)[pending.hpAbility]);
-  // Closure 4C: strict, complete-integer validation (rejects "5abc", "5.5",
-  // "0", and anything above the die size) — replaces a bare parseInt(draft)
-  // check, which silently accepted a partial parse.
-  const validRoll = isValidHpRoll(draft, pending.hpDie);
-  const parsed = validRoll ? parseInt(draft.trim(), 10) : NaN;
-  // Closure 4A/4B: the SAME pure calculation applyHP itself uses — this
-  // preview can never disagree with what Confirm actually applies, and
-  // correctly reflects the hpMinHalfDie house-rule floor (previously
-  // missing from this preview entirely). HpRollGate only ever opens for
-  // rules.hpMode === 'rolled' at a level that isn't the character's very
-  // first (see pressLevelUp/pressLevelUpClass's own gating), so those are
-  // fixed here rather than threaded through `pending`.
-  const previewGain = validRoll
-    ? calculateLevelUpHpGain(entity, pending.hpDie, 'rolled', rules, pending.hpAbility, false, parsed)
-    : null;
-
-  function submit() {
-    if (validRoll) onResolve(parsed);
-  }
-  function rollInApp() {
-    onResolve(rollDie(pending!.hpDie));
-  }
-
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.hpRollBackdrop} onPress={onCancel}>
-        <Pressable style={styles.hpRollSheet} onPress={e => e.stopPropagation()}>
-          <Text style={styles.hpRollTitle}>Hit Points for This Level</Text>
-          <Text style={styles.hpRollLine}>Hit Die: d{pending.hpDie}</Text>
-          <Text style={styles.hpRollLine}>{pending.hpAbility.toUpperCase()} modifier: {abilityMod >= 0 ? '+' : ''}{abilityMod}</Text>
-
-          <View style={styles.hpRollInputRow}>
-            <Text style={styles.hpRollInputLabel}>Rolled result</Text>
-            <TextInput
-              style={styles.hpRollInput}
-              value={draft}
-              onChangeText={onDraftChange}
-              keyboardType="number-pad"
-              placeholder={`1–${pending.hpDie}`}
-              placeholderTextColor={Colors.textDim}
-              autoFocus
-              onSubmitEditing={submit}
-            />
-          </View>
-          {previewGain !== null && (
-            <Text style={styles.hpRollPreview}>HP increase: {previewGain}</Text>
-          )}
-
-          <Pressable style={[styles.hpRollSubmit, !validRoll && styles.btnDisabled]} disabled={!validRoll} onPress={submit}>
-            <Text style={styles.hpRollSubmitTxt}>Confirm</Text>
-          </Pressable>
-          {/* Secondary convenience — same onResolve path as the manual entry above. */}
-          <Pressable style={styles.hpRollAppBtn} onPress={rollInApp}>
-            <Text style={styles.hpRollAppBtnTxt}>🎲 Roll in App</Text>
-          </Pressable>
-          <Pressable style={styles.closeBtnSm} onPress={onCancel}>
-            <Text style={styles.closeBtnSmTxt}>Cancel</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-// ── Level Up Button ───────────────────────────────────────────────────────────
-
-function LevelUpSection({
-  entity, rules, onEntityUpdate, onLeveled,
-}: {
-  entity: Entity; rules: CampaignRules; onEntityUpdate: (u: Entity) => void; onLeveled: (u: Entity) => void;
-}) {
-  const homebrewSubclasses = useHomebrewStore(s => s.subclasses);
-  const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
-  const [addClassOpen, setAddClassOpen] = useState(false);
-  // Set once levelUp()/levelUpClass() has been simulated but not yet
-  // resolved — drives LevelUpPreviewModal. confirmPendingLevelUp() below
-  // applies `after` verbatim; it must NEVER re-invoke levelUp()/
-  // levelUpClass(), since CampaignRules.hpMode can be 'rolled'
-  // (Math.random() inside applyHP) — a second call would apply a
-  // DIFFERENT roll than the one just previewed.
-  const [pendingLevelUp, setPendingLevelUp] = useState<{
-    title: string; before: Entity; after: Entity;
-  } | null>(null);
-  const [plannerOpen, setPlannerOpen] = useState(false);
-
-  // Table-first rolled HP: when rules.hpMode === 'rolled', pressing Level Up
-  // (or Add/Level a class) opens this inline gate instead of immediately
-  // rolling — the DM/player enters the physically-rolled die result (or
-  // uses the secondary "Roll in App" convenience), and ONLY THEN does the
-  // real level-up call run, with that exact result threaded through
-  // levelUp/levelUpClass's manualHpRoll parameter. average/fixed/max modes
-  // are entirely unaffected — this gate never opens for them.
-  const [hpRollFor, setHpRollFor] = useState<
-    | { kind: 'single'; hpDie: number; hpAbility: Ability }
-    | { kind: 'class'; targetClassId: string; targetClass?: CharClass; overruled?: boolean; hpDie: number; hpAbility: Ability }
-    | null
-  >(null);
-  const [hpRollDraft, setHpRollDraft] = useState('');
-
-  // a pinned character whose versions cannot level up is told why before anything is rolled or previewed (LIFE-004)
-  function levelUpRefused(): boolean {
-    const refusal = pinGate(entity, STEP_OPERATIONS.levelUp);
-    if (refusal) Alert.alert('Not done', refusal);
-    return !!refusal;
-  }
-
-  function confirmPendingLevelUp() {
-    if (!pendingLevelUp) return;
-    onEntityUpdate(pendingLevelUp.after);
-    onLeveled(pendingLevelUp.after);
-    setPendingLevelUp(null);
-  }
-
-  // getMergedContentDB() so a homebrew class sharing an official id
-  // correctly wins — feeds resolveProgression below, which governs actual
-  // level-up mechanics (audit finding CONTENT-1/2/3/4 — this previously
-  // spread official first, so .find() always returned the official entry).
-  const allClasses = getMergedContentDB().classes as CharClass[];
-  const maxLevel    = rules.maxLevel ?? 20;
-
-  function classLabel(id: string) {
-    return allClasses.find(c => c.id === id)?.name ?? id;
-  }
-
-  function resolveProgression(classId: string, subclassId: string | null) {
-    const cls = allClasses.find(c => c.id === classId);
-    let progression = cls ? getProgressionForClass(cls) : (ALL_PROGRESSIONS[classId] ?? null);
-    // Once a subclass has been chosen (see SubclassPicker/applySubclassToEntity),
-    // future level-ups must apply ITS entries too, not just the base class's.
-    if (progression && subclassId) {
-      const subEntry = getSubclassEntryMerged(classId, subclassId, homebrewSubclasses);
-      if (subEntry) progression = mergeSubclassIntoProgression(progression, subEntry.progression);
-    }
-    return progression;
-  }
-
-  if (entity.identity.level >= maxLevel) return null;
-
-  // ── Multiclassing off: exactly today's single-class behavior, unchanged. ──
-  if (!rules.allowMulticlass) {
-    const classId = entity.identity.classId;
-    const progression = resolveProgression(classId, entity.identity.subclassId);
-    if (!progression) return null;
-    const nextLevel = entity.identity.level + 1;
-    const nextEntry = progression.entries.find(e => e.level === nextLevel);
-
-    async function doLevelUp(manualHpRoll?: number) {
-      if (levelUpRefused()) return;
-      const { before, after } = simulate(entity, e => levelUp(e, nextLevel, progression!, rules, allClasses, manualHpRoll), rules);
-      // levelUp() can grant fixed cantrips/spells for this level — warm Tier 2
-      // for anything new before the entity reaches the engine pipeline.
-      await spellRepo.ensureLoaded(spellIdsOnEntity(after));
-      setPendingLevelUp({ title: `Level Up (→ ${nextLevel})`, before, after });
-    }
-
-    function pressLevelUp() {
-      // Table-first: only rolled mode past the very first level needs a
-      // result at all — max/fixed/average are already deterministic
-      // (applyHP's own isVeryFirstLevel/mode branches), and gating those
-      // would just be an extra tap for no reason.
-      if (rules.hpMode === 'rolled' && entity.identity.level > 0 && nextEntry) {
-        setHpRollDraft('');
-        setHpRollFor({ kind: 'single', hpDie: nextEntry.hpDie, hpAbility: progression!.hpAbility ?? 'con' });
-      } else {
-        void doLevelUp();
-      }
-    }
-
-    return (
-      <>
-        <Pressable style={styles.levelUpBtn} onPress={pressLevelUp}>
-          <Text style={styles.levelUpBtnTxt}>⬆ Level Up (→ {nextLevel})</Text>
-        </Pressable>
-        <HpRollGate
-          pending={hpRollFor?.kind === 'single' ? hpRollFor : null}
-          draft={hpRollDraft}
-          onDraftChange={setHpRollDraft}
-          entity={entity}
-          rules={rules}
-          onCancel={() => setHpRollFor(null)}
-          onResolve={roll => { setHpRollFor(null); void doLevelUp(roll); }}
-        />
-        {entity.identity.level < maxLevel && (
-          <Pressable style={styles.plannerBtn} onPress={() => setPlannerOpen(true)}>
-            <Text style={styles.plannerBtnTxt}>🔭 Progression Planner</Text>
-          </Pressable>
-        )}
-        <LevelUpPreviewModal
-          visible={pendingLevelUp !== null}
-          title={pendingLevelUp?.title ?? ''}
-          before={pendingLevelUp?.before ?? null}
-          after={pendingLevelUp?.after ?? null}
-          onConfirm={confirmPendingLevelUp}
-          onCancel={() => setPendingLevelUp(null)}
-        />
-        <ProgressionPlannerModal
-          classDefinitions={allClasses}
-          visible={plannerOpen}
-          entity={entity}
-          rules={rules}
-          progression={progression}
-          onClose={() => setPlannerOpen(false)}
-        />
-      </>
-    );
-  }
-
-  // ── Multiclassing on: one "level up" button per class already taken, plus
-  //    "+ Add a Class" to take a brand-new one. ──
-  const classes = getClassLevels(entity);
-  const takenIds = new Set(classes.map(c => c.classId));
-  // LIVE-RULESET-2 (item 7): the "+ Add a Class" contextual picker is
-  // filtered by the character's own entity.rulesetId — a genuinely NEW
-  // pick, unlike allClasses itself (kept unfiltered above, since it's also
-  // used to resolve/label classes the character ALREADY has, which must
-  // keep working regardless of the character's current ruleset).
-  const availableToAdd = allClasses.filter(c => !takenIds.has(asClassId(c.id)) && matchesRuleset(c.rulesetId, entity.rulesetId));
-  // What a new class asks for and this character lacks (the desktop's ADR-014); nothing when the table turns it off or the character was
-  // pinned before level-up revision 3. Overrule takes the class anyway, for that step only.
-  const requirementApplies = multiclassRequirementApplies(rules, pinnedLockOf(entity)?.operations['dnd5e.level_up']);
-  const lacksFor = (classId: string) => (requirementApplies ? multiclassLacks(entity, classId, allClasses) : []);
-
-  function pressAddClass(c: CharClass) {
-    const lacks = lacksFor(c.id);
-    if (lacks.length === 0) { pressLevelUpClass(c.id, c); return; }
-    Alert.alert(`Not enough for ${c.name}`, `${lacks.map(l => l.message).join('. ')}.
-
-Overrule takes the class anyway.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Overrule', onPress: () => pressLevelUpClass(c.id, c, true) },
-    ]);
-  }
-
-  async function doLevelUpClass(targetClassId: string, targetClass?: CharClass, manualHpRoll?: number, overruled = false) {
-    const existing = classes.find(c => c.classId === targetClassId);
-    const progression = resolveProgression(targetClassId, existing?.subclassId ?? null);
-    if (!progression || levelUpRefused()) return;
-    const { before, after } = simulate(entity, e => levelUpClass(e, targetClassId, progression!, rules, targetClass, allClasses, manualHpRoll), rules);
-    await spellRepo.ensureLoaded(spellIdsOnEntity(after));
-    const title = existing
-      ? `Level Up ${classLabel(targetClassId)} (→ ${existing.level + 1})`
-      : `Add ${targetClass?.name ?? classLabel(targetClassId)} (level 1)${overruled ? ', requirements overruled' : ''}`;
-    setPendingLevelUp({ title, before, after });
-    setAddClassOpen(false); // close the "Add a Class" list modal now — preview takes over
-  }
-
-  // Table-first gate, multiclass version of pressLevelUp above — same
-  // reasoning (only rolled mode needs a result; deterministic modes skip
-  // straight to doLevelUpClass).
-  function pressLevelUpClass(targetClassId: string, targetClass?: CharClass, overruled = false) {
-    const existing = classes.find(c => c.classId === targetClassId);
-    const progression = resolveProgression(targetClassId, existing?.subclassId ?? null);
-    const newClassLevel = (existing?.level ?? 0) + 1;
-    const entry = progression?.entries.find(e => e.level === newClassLevel);
-    // Closure 4B: the character's TRUE very first level ever (a from-
-    // scratch, level-0 character taking their first class) always gets max
-    // die regardless of hpMode (see levelUpClass's own isVeryFirstLevel) —
-    // HpRollGate's preview assumes isVeryFirstLevel:false (see its own doc
-    // comment), so this must skip the gate entirely in that case, same as
-    // the single-class path's pre-existing `entity.identity.level > 0`
-    // guard above. Previously this gate DID open here, let the player enter
-    // a value, and then silently discarded it (applyHP ignores manualRoll
-    // when isVeryFirstLevel is true) — a real, if narrow, instance of the
-    // "preview disagrees with what actually happens" bug this closure fixes.
-    const isVeryFirstLevel = entity.identity.level === 0 && newClassLevel === 1;
-    if (rules.hpMode === 'rolled' && entry && !isVeryFirstLevel) {
-      setHpRollDraft('');
-      setHpRollFor({ kind: 'class', targetClassId, targetClass, overruled, hpDie: entry.hpDie, hpAbility: progression!.hpAbility ?? 'con' });
-    } else {
-      void doLevelUpClass(targetClassId, targetClass, undefined, overruled);
-    }
-  }
-
-  return (
-    <View style={styles.levelUpMcWrap}>
-      {classes.map(c => (
-        <Pressable
-          key={c.classId}
-          style={styles.levelUpBtn}
-          onPress={() => pressLevelUpClass(c.classId)}
-        >
-          <Text style={styles.levelUpBtnTxt}>⬆ Level Up {classLabel(c.classId)} (→ {c.level + 1})</Text>
-        </Pressable>
-      ))}
-
-      <Pressable style={styles.addClassBtn} onPress={() => setAddClassOpen(true)}>
-        <Text style={styles.addClassBtnTxt}>+ Add a Class</Text>
-      </Pressable>
-
-      <HpRollGate
-        pending={hpRollFor?.kind === 'class' ? hpRollFor : null}
-        draft={hpRollDraft}
-        onDraftChange={setHpRollDraft}
-        entity={entity}
-        rules={rules}
-        onCancel={() => setHpRollFor(null)}
-        onResolve={roll => {
-          const pending = hpRollFor;
-          setHpRollFor(null);
-          if (pending?.kind === 'class') void doLevelUpClass(pending.targetClassId, pending.targetClass, roll, pending.overruled);
-        }}
-      />
-
-      {entity.identity.level < maxLevel && (
-        <Pressable style={styles.plannerBtn} onPress={() => setPlannerOpen(true)}>
-          <Text style={styles.plannerBtnTxt}>🔭 Progression Planner</Text>
-        </Pressable>
-      )}
-
-      <Modal visible={addClassOpen} animationType="slide" onRequestClose={() => setAddClassOpen(false)}>
-        <View style={styles.addClassModalRoot}>
-          <View style={styles.addClassHeaderRow}>
-            <Text style={styles.addClassHeading}>Add a Class</Text>
-            <Pressable onPress={() => setAddClassOpen(false)} hitSlop={8}>
-              <Text style={styles.addClassClose}>✕</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.addClassSub}>
-            Adding a class grants the reduced multiclass proficiencies
-            instead of a fresh class's full starting kit.
-            {requirementApplies ? ' A new class needs the ability scores both it and your present classes ask for.' : ''}
-          </Text>
-          <ScrollView contentContainerStyle={styles.addClassList}>
-            {availableToAdd.length === 0 ? (
-              <Text style={styles.addClassEmpty}>No other classes available to add.</Text>
-            ) : availableToAdd.map(c => (
-              <Pressable
-                key={c.id}
-                style={styles.addClassRow}
-                onPress={() => pressAddClass(c)}
-              >
-                <Text style={styles.addClassRowTxt}>{c.name}</Text>
-                {lacksFor(c.id).map(l => <Text key={l.classId} style={styles.addClassLack}>{l.message}</Text>)}
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
-
-      <LevelUpPreviewModal
-        visible={pendingLevelUp !== null}
-        title={pendingLevelUp?.title ?? ''}
-        before={pendingLevelUp?.before ?? null}
-        after={pendingLevelUp?.after ?? null}
-        onConfirm={confirmPendingLevelUp}
-        onCancel={() => setPendingLevelUp(null)}
-      />
-      <MulticlassProgressionPlannerModal
-        classDefinitions={allClasses}
-        visible={plannerOpen}
-        entity={entity}
-        rules={rules}
-        availableToAdd={availableToAdd}
-        resolveProgression={resolveProgression}
-        classLabel={classLabel}
-        onClose={() => setPlannerOpen(false)}
-      />
-    </View>
-  );
-}
-
-// ── Number Prompt Modal (manual HP set / add temp HP) ─────────────────────────
-
-function NumberPromptModal({
-  visible, title, label, confirmLabel, onConfirm, onClose,
-}: {
-  visible: boolean;
-  title: string;
-  label: string;
-  confirmLabel: string;
-  onConfirm: (n: number) => void;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState('');
-  const insets = useSafeAreaInsets();
-  const n = parseInt(text, 10);
-  const valid = !isNaN(n) && n >= 0;
-
-  function submit() {
-    if (!valid) return;
-    onConfirm(n);
-    setText('');
-    onClose();
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.concSheet, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]} onPress={e => e.stopPropagation()}>
-          <Text style={styles.concTitle}>{title}</Text>
-          <Text style={styles.concSpell}>{label}</Text>
-          <TextInput
-            style={styles.numInput}
-            value={text}
-            onChangeText={setText}
-            keyboardType="number-pad"
-            placeholder="0"
-            placeholderTextColor={Colors.textDim}
-            autoFocus
-          />
-          <Pressable style={[styles.rollBtn, !valid && { opacity: 0.4 }]} onPress={submit} disabled={!valid}>
-            <Text style={styles.rollBtnTxt}>{confirmLabel}</Text>
-          </Pressable>
-          <Pressable style={styles.closeBtnSm} onPress={onClose}>
-            <Text style={styles.closeBtnSmTxt}>Cancel</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-// ── Ad-hoc feat choice ────────────────────────────────────────────────────────
-
-/**
- * Synthesizes a one-off ASI/feat ChoiceState so a player can take a feat
- * directly from the sheet (outside the normal level-up flow). The picker in
- * featOnly mode resolves a feat against this choice; applyFeatToEntity records
- * it as a resolved choice on the entity.
- */
-function makeAdHocFeatChoice(): import('../../engine/types').ChoiceState {
-  const id = `adhoc_feat_${Date.now().toString(36)}`;
-  return {
-    id,
-    grantedAt: 0,
-    resolved: false,
-    selections: [],
-    definition: {
-      id,
-      prompt: 'Take a feat',
-      kind: 'asi',
-      count: 1,
-      pool: 'all',
-      grants: [],
-      required: false,
-      resolved: false,
-    },
-  };
-}
-
-// ── Senses editor modal ───────────────────────────────────────────────────────
-
-const MANUAL_SENSES_FEATURE_ID = 'manual_senses';
-const SENSE_TYPE_OPTIONS: import('../../engine/types').SenseType[] =
-  ['darkvision', 'blindsight', 'tremorsense', 'truesight'];
-
-/**
- * Reads the player-managed senses from the dedicated manual-senses feature
- * (source.kind 'campaign', id 'manual_senses'). These are the senses the player
- * can add/remove here; senses granted by race/feat/item features are aggregated
- * separately by the pipeline and shown read-only.
- */
-function readManualSenses(entity: Entity): import('../../engine/types').Sense[] {
-  const f = entity.features.find(ft => ft.id === MANUAL_SENSES_FEATURE_ID);
-  if (!f) return [];
-  return (f.effects ?? [])
-    .filter(e => e.type === 'grant_sense' && e.senseType)
-    .map(e => ({ type: e.senseType!, range: e.senseRange ?? 0, note: e.senseNote }));
-}
-
-/** Writes the manual senses back onto the manual-senses feature (replacing it). */
-function writeManualSenses(
-  entity: Entity,
-  senses: import('../../engine/types').Sense[],
-  rules: CampaignRules,
-): Entity {
-  const effects = senses.map(s => ({
-    type: 'grant_sense' as const,
-    target: 'senses',
-    operation: 'add' as const,
-    value: null,
-    condition: null,
-    senseType: s.type,
-    senseRange: s.range,
-    senseNote: s.note,
-  }));
-  const others = entity.features.filter(ft => ft.id !== MANUAL_SENSES_FEATURE_ID);
-  const updatedFeatures = effects.length === 0
-    ? others
-    : [...others, {
-        id: MANUAL_SENSES_FEATURE_ID,
-        name: 'Senses',
-        description: 'Player-set senses.',
-        source: { kind: 'campaign' as const, refId: MANUAL_SENSES_FEATURE_ID },
-        level: null,
-        effects,
-        actions: [],
-        choices: [],
-        passive: true,
-        isActive: true,
-      }];
-  return recomputeDerived({ ...entity, features: updatedFeatures }, rules);
-}
-
-// ── Movement editor modal ─────────────────────────────────────────────────────
-// Same pattern as manual senses above — a mid-session grant (gained a
-// climbing speed from an in-game event) that isn't coming from a
-// race/feat/item the content pipeline already knows about.
-type ManualMove = { type: MoveType; range: number };
-function readManualMovement(entity: Entity): ManualMove[] {
-  const f = entity.features.find(ft => ft.id === MANUAL_MOVEMENT_FEATURE_ID);
-  if (!f) return [];
-  return (f.effects ?? [])
-    .filter(e => e.type === 'grant_movement' && e.movementType)
-    .map(e => ({ type: e.movementType as MoveType, range: e.movementRange ?? 0 }));
-}
-function writeManualMovement(entity: Entity, moves: ManualMove[], rules: CampaignRules): Entity {
-  const effects = moves.map(m => ({
-    type: 'grant_movement' as const, target: 'movement', operation: 'add' as const,
-    value: null, condition: null,
-    movementType: m.type, movementRange: m.range,
-  }));
-  const others = entity.features.filter(ft => ft.id !== MANUAL_MOVEMENT_FEATURE_ID);
-  const updatedFeatures = effects.length === 0 ? others : [...others, {
-    id: MANUAL_MOVEMENT_FEATURE_ID, name: 'Movement', description: 'Player-set movement speeds.',
-    source: { kind: 'campaign' as const, refId: MANUAL_MOVEMENT_FEATURE_ID },
-    level: null, effects, actions: [], choices: [], passive: true, isActive: true,
-  }];
-  return recomputeDerived({ ...entity, features: updatedFeatures }, rules);
-}
-
-function SensesModal({
-  visible, entity, rules, onUpdate, onClose,
-}: {
-  visible: boolean;
-  entity: Entity;
-  rules: CampaignRules;
-  onUpdate: (u: Entity) => void;
-  onClose: () => void;
-}) {
-  const manual = readManualSenses(entity);
-  const [type, setType] = useState<import('../../engine/types').SenseType>('darkvision');
-  const [range, setRange] = useState('60');
-  const [note, setNote] = useState('');
-
-  function addSense() {
-    const r = parseInt(range, 10);
-    if (isNaN(r) || r <= 0) return;
-    // Replace any existing manual sense of the same type.
-    const next = [
-      ...manual.filter(s => s.type !== type),
-      { type, range: r, note: note.trim() || undefined },
-    ];
-    onUpdate(writeManualSenses(entity, next, rules));
-    setNote('');
-  }
-
-  function removeSense(t: string) {
-    onUpdate(writeManualSenses(entity, manual.filter(s => s.type !== t), rules));
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.condPickerSheet} onPress={e => e.stopPropagation()}>
-          <Text style={styles.condPickerTitle}>Senses</Text>
-
-          {/* Current manual senses */}
-          {manual.length > 0 && (
-            <View style={styles.senseChips}>
-              {manual.map(s => (
-                <View key={s.type} style={styles.senseChip}>
-                  <Text style={styles.senseChipTxt}>
-                    {SENSE_LABELS[s.type]} {s.range}ft{s.note ? ` · ${s.note}` : ''}
-                  </Text>
-                  <Pressable onPress={() => removeSense(s.type)} hitSlop={8}>
-                    <Text style={styles.condX}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Type selector */}
-          <View style={styles.senseTypeRow}>
-            {SENSE_TYPE_OPTIONS.map(t => (
-              <Pressable
-                key={t}
-                style={[styles.senseTypeChip, type === t && styles.senseTypeChipActive]}
-                onPress={() => setType(t)}
-              >
-                <Text style={[styles.senseTypeTxt, type === t && styles.senseTypeTxtActive]}>
-                  {SENSE_LABELS[t]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Range + note */}
-          <View style={styles.senseInputRow}>
-            <TextInput
-              style={[styles.condSearch, { flex: 1 }]}
-              value={range}
-              onChangeText={setRange}
-              keyboardType="number-pad"
-              placeholder="Range (ft)"
-              placeholderTextColor={Colors.textDim}
-            />
-            <TextInput
-              style={[styles.condSearch, { flex: 2 }]}
-              value={note}
-              onChangeText={setNote}
-              placeholder="Note (e.g. in color, heat)"
-              placeholderTextColor={Colors.textDim}
-            />
-          </View>
-
-          <Pressable style={styles.rollBtn} onPress={addSense}>
-            <Text style={styles.rollBtnTxt}>Add / Update Sense</Text>
-          </Pressable>
-          <Pressable style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelTxt}>Done</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function MovementModal({
-  visible, entity, rules, onUpdate, onClose,
-}: {
-  visible: boolean;
-  entity: Entity;
-  rules: CampaignRules;
-  onUpdate: (u: Entity) => void;
-  onClose: () => void;
-}) {
-  const manual = readManualMovement(entity);
-  const [type, setType] = useState<MoveType>('climb');
-  const [range, setRange] = useState('30');
-
-  function addMove() {
-    const r = parseInt(range, 10);
-    if (isNaN(r) || r <= 0) return;
-    onUpdate(writeManualMovement(entity, [...manual.filter(m => m.type !== type), { type, range: r }], rules));
-  }
-  function removeMove(t: MoveType) {
-    onUpdate(writeManualMovement(entity, manual.filter(m => m.type !== t), rules));
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.condPickerSheet} onPress={e => e.stopPropagation()}>
-          <Text style={styles.condPickerTitle}>Movement</Text>
-          <Text style={styles.emptyNote}>
-            Walking speed comes from your race/class — this is for extra movement
-            types (climbing, swimming, flying, burrowing) gained mid-campaign.
-          </Text>
-
-          {manual.length > 0 && (
-            <View style={styles.senseChips}>
-              {manual.map(m => (
-                <View key={m.type} style={styles.senseChip}>
-                  <Text style={styles.senseChipTxt}>{MOVE_TYPE_LABELS[m.type]} {m.range}ft</Text>
-                  <Pressable onPress={() => removeMove(m.type)} hitSlop={8}>
-                    <Text style={styles.condX}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.senseTypeRow}>
-            {MOVE_TYPE_OPTIONS.map(t => (
-              <Pressable
-                key={t}
-                style={[styles.senseTypeChip, type === t && styles.senseTypeChipActive]}
-                onPress={() => setType(t)}
-              >
-                <Text style={[styles.senseTypeTxt, type === t && styles.senseTypeTxtActive]}>
-                  {MOVE_TYPE_LABELS[t]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.senseInputRow}>
-            <TextInput
-              style={[styles.condSearch, { flex: 1 }]}
-              value={range}
-              onChangeText={setRange}
-              keyboardType="number-pad"
-              placeholder="Speed (ft)"
-              placeholderTextColor={Colors.textDim}
-            />
-          </View>
-
-          <Pressable style={styles.rollBtn} onPress={addMove}>
-            <Text style={styles.rollBtnTxt}>Add / Update Speed</Text>
-          </Pressable>
-          <Pressable style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelTxt}>Done</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -1128,18 +227,17 @@ function TabCharacterInner({
     const expr = activeFavCard.layer2.match(/(\d+d\d+(?:[+-]\d+)?)/)?.[1];
     if (!expr) return null;
     const finalExpr = crit ? doubleDiceCount(expr) : expr;
-    try { return useDiceLogStore.getState().rollAndLog(finalExpr, activeFavCard.name); }
+    try { return useDiceLogStore.getState().rollAndLog(finalExpr, activeFavCard.name, true); }
     catch { return null; }
   }
 
   // Equipped weapon attack/damage cards
   const weapons = derived.attackBonuses.map(ab => {
-    const modStr = ab.damageBonus >= 0 ? `+${ab.damageBonus}` : `${ab.damageBonus}`;
     return {
       itemId:      ab.id,
       name:        ab.name,
       attackBonus: ab.bonus,
-      damage:      `${ab.damageDice}${ab.damageBonus !== 0 ? modStr : ''} ${ab.damageType}`.trim(),
+      damage:      `${formatDamage(ab.damageDice, ab.damageBonus)} ${ab.damageType}`.trim(),
       isRanged:    ab.type === 'ranged',
     };
   });
@@ -1258,7 +356,7 @@ function TabCharacterInner({
   // nonmagicalPhysicalResistance — HpModal itself further gates on the
   // selected damage type being bludgeoning/piercing/slashing.
   const activeBeastForm = entity.wildShapeState?.active
-    ? findBeastForm(entity.wildShapeState!.formId)
+    ? findBeastForm(entity.wildShapeState.formId)
     : undefined;
   const showNonmagicalOption = !!activeBeastForm?.nonmagicalPhysicalResistance;
 
@@ -1292,50 +390,17 @@ function TabCharacterInner({
 
       <MissingPacksBanner entity={entity} />
 
-      {/* HP Block */}
-      <Pressable style={styles.hpBlock} onPress={() => setHpOpen(true)}>
-        <Text style={styles.hpLabel}>HIT POINTS</Text>
-        <View style={styles.hpNumbers}>
-          <Text style={[styles.hpCurrent, { color: isDying ? Colors.red : hpColor }]}>
-            {resources.hp.current}
-          </Text>
-          <Text style={styles.hpSep}>/</Text>
-          <Text style={styles.hpMax}>{resources.hp.maximum}</Text>
-          {resources.hp.temp > 0 && (
-            <Text style={styles.hpTemp}>  +{resources.hp.temp} tmp</Text>
-          )}
-        </View>
-        <View style={styles.hpBarOuter}>
-          <View style={[styles.hpBarFill, { width: `${Math.round(hpPct * 100)}%` as any, backgroundColor: hpColor }]} />
-        </View>
-        {isDying
-          ? <Text style={styles.dyingTxt}>💀 Dying — Roll Death Saves below</Text>
-          : <Text style={styles.hpTapHint}>Tap to damage / heal</Text>
-        }
-      </Pressable>
-
-      {/* HP utility row: manual set + temporary HP */}
-      {!isDying && (
-        <View style={styles.hpUtilRow}>
-          <View style={styles.hpUtilBtns}>
-            <Pressable style={styles.hpUtilBtn} onPress={() => setManualHpOpen(true)}>
-              <Text style={styles.hpUtilTxt}>✎ Set HP</Text>
-            </Pressable>
-            <Pressable style={styles.hpUtilBtn} onPress={() => setMaxHpOpen(true)}>
-              <Text style={styles.hpUtilTxt}>✎ Set Max</Text>
-            </Pressable>
-          </View>
-          <View style={styles.tempHpControls}>
-            <Text style={styles.tempHpLabel}>Temp HP: {resources.hp.temp}</Text>
-            <Pressable style={styles.resBtn} onPress={handleClearTempHp} disabled={resources.hp.temp <= 0}>
-              <Text style={[styles.resBtnTxt, resources.hp.temp <= 0 && styles.disabled]}>−</Text>
-            </Pressable>
-            <Pressable style={styles.resBtn} onPress={() => setTempHpOpen(true)}>
-              <Text style={styles.resBtnTxt}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+      <HpSection
+        setHpOpen={setHpOpen}
+        isDying={isDying}
+        hpColor={hpColor}
+        resources={resources}
+        hpPct={hpPct}
+        setManualHpOpen={setManualHpOpen}
+        setMaxHpOpen={setMaxHpOpen}
+        handleClearTempHp={handleClearTempHp}
+        setTempHpOpen={setTempHpOpen}
+      />
 
       {/* Death Saves (only when HP = 0) */}
       {isDying && (
@@ -1351,44 +416,14 @@ function TabCharacterInner({
       <HeroicInspirationPanel entity={entity} onEntityUpdate={onEntityUpdate} />
       <CombatStatePanel entity={entity} onEntityUpdate={onEntityUpdate} />
 
-      {/* Stat Row */}
-      <View style={styles.statRow}>
-        {[
-          { label: 'AC',    value: derived.ac,               stat: 'ac' },
-          { label: 'Speed', value: `${derived.speed}ft`,     stat: 'speed' },
-          { label: 'Init',  value: derived.initiative >= 0 ? `+${derived.initiative}` : String(derived.initiative), stat: 'initiative' },
-          { label: 'Perc',  value: derived.passivePerception, stat: 'passivePerception' },
-        ].map(({ label, value, stat }) => {
-          const hasOv = hasActiveOverride(entity, stat);
-          return (
-            <Pressable key={stat} style={[styles.statBox, hasOv && styles.statBoxOverride]} onPress={() => openAudit(stat, label)}>
-              <View style={styles.statValueRow}>
-                <Text style={styles.statValue}>{value}</Text>
-                {hasOv && <Text style={styles.overrideStar}>✱</Text>}
-              </View>
-              <Text style={styles.statLabel}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Favorites — starred on the Actions tab, quick-access here so a
-          go-to ability doesn't need a tab switch mid-combat. */}
-      {favoriteCards.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>FAVORITES</Text>
-          {favoriteCards.map(c => (
-            <ActionCardRow
-              key={actionCardIdentity(c)}
-              card={c}
-              entity={entity}
-              onUse={handleUseFavorite}
-              isFavorite
-              onToggleFavorite={c => onEntityUpdate(toggleFavoriteTag(entity, c))}
-            />
-          ))}
-        </View>
-      )}
+      <StatRowSection
+        derived={derived}
+        entity={entity}
+        openAudit={openAudit}
+        favoriteCards={favoriteCards}
+        handleUseFavorite={handleUseFavorite}
+        onEntityUpdate={onEntityUpdate}
+      />
 
       {/* Level Up + Add Feat */}
       <View style={styles.levelUpRow}>
@@ -1413,437 +448,53 @@ function TabCharacterInner({
           renders nothing if this entity has no companion-granting feature. */}
       <CompanionSection owner={entity} rules={rules} />
 
-      {/* Weapon Attacks */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ATTACKS</Text>
-        {weapons.length === 0 ? (
-          <Text style={styles.emptyNote}>No weapons equipped</Text>
-        ) : (
-          weapons.map(w => (
-            <View key={w.itemId} style={styles.weaponRow}>
-              <View style={styles.weaponInfo}>
-                <Text style={styles.weaponName}>{w.name}</Text>
-                <Text style={styles.weaponDamage}>{w.damage}</Text>
-              </View>
-              <View style={styles.weaponRight}>
-                <Text style={styles.weaponBonus}>
-                  {w.attackBonus >= 0 ? `+${w.attackBonus}` : String(w.attackBonus)}
-                </Text>
-                <View style={[styles.weaponBadge, w.isRanged && styles.weaponBadgeRanged]}>
-                  <Text style={styles.weaponBadgeTxt}>{w.isRanged ? 'Ranged' : 'Melee'}</Text>
-                </View>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
+      <AttacksSection weapons={weapons} derived={derived} setMovementOpen={setMovementOpen} setSensesOpen={setSensesOpen} />
 
-      {/* Movement types — fly/swim/climb/burrow, visible in combat too since
-          "can I climb this wall to escape" is a combat-turn decision. Walking
-          speed alone stays in the AC/Speed/Init/Perc stat row above. */}
-      {(() => {
-        const mv = derived.movement;
-        const extraMoves = (['fly', 'swim', 'climb', 'burrow'] as const)
-          .filter(t => (mv[t] ?? 0) > 0)
-          .map(t => ({ type: t, value: mv[t]! }));
-        return (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>MOVEMENT</Text>
-              <Pressable style={styles.sectionActionBtn} onPress={() => setMovementOpen(true)}>
-                <Text style={styles.sectionActionTxt}>✎ Edit</Text>
-              </Pressable>
-            </View>
-            {extraMoves.length === 0 ? (
-              <Text style={styles.emptyNote}>Walking speed only</Text>
-            ) : (
-              <View style={styles.senseChips}>
-                {extraMoves.map(m => (
-                  <View key={m.type} style={styles.senseChip}>
-                    <Text style={styles.senseChipTxt}>{MOVE_TYPE_LABELS[m.type]} {m.value}ft</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        );
-      })()}
+      <HitDiceSection
+        resources={resources}
+        hitDieChoiceNeeded={hitDieChoiceNeeded}
+        hitDieEntry={hitDieEntry}
+        spendableHitDice={spendableHitDice}
+        selectedHitDieSize={selectedHitDieSize}
+        setSelectedHitDieSize={setSelectedHitDieSize}
+        entity={entity}
+        rules={rules}
+        effectiveHitDieSize={effectiveHitDieSize}
+        hitDieDraft={hitDieDraft}
+        setHitDieDraft={setHitDieDraft}
+        submitHitDieEntry={submitHitDieEntry}
+        setHitDieEntry={setHitDieEntry}
+        openHitDieEntry={openHitDieEntry}
+        handleRollHitDie={handleRollHitDie}
+        hitDieResult={hitDieResult}
+      />
 
-      {/* Senses — visible in combat too (not just Exploration), since knowing
-          your darkvision/blindsight range matters mid-fight (fighting in
-          darkness, tracking an invisible enemy, etc.). */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>SENSES</Text>
-          <Pressable style={styles.sectionActionBtn} onPress={() => setSensesOpen(true)}>
-            <Text style={styles.sectionActionTxt}>✎ Edit</Text>
-          </Pressable>
-        </View>
-        {derived.senses.length === 0 ? (
-          <Text style={styles.emptyNote}>Normal vision only</Text>
-        ) : (
-          <View style={styles.senseChips}>
-            {derived.senses.map(s => (
-              <View key={s.type} style={styles.senseChip}>
-                <Text style={styles.senseChipTxt}>
-                  {SENSE_LABELS[s.type]} {s.range}ft{s.note ? ` · ${s.note}` : ''}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
+      <ConditionsSection
+        setCondModal={setCondModal}
+        exhaustion={exhaustion}
+        entity={entity}
+        resources={resources}
+        conditions={conditions}
+        onRemoveCondition={onRemoveCondition}
+        onEntityUpdate={onEntityUpdate}
+        onEndTurn={onEndTurn}
+        derived={derived}
+      />
 
-      {/* Hit Dice */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>HIT DICE</Text>
-          <Text style={styles.hitDiceCount}>
-            {resources.hitDice.remaining}/{resources.hitDice.total}  ·  {
-              // A mixed multiclass pool (see HitDiceBlock's doc comment)
-              // can't be summarized by the single `die` field alone —
-              // show each size's own remaining/total instead.
-              resources.hitDice.pools
-                ? resources.hitDice.pools.map(p => `${p.remaining}d${p.die}`).join(' + ')
-                : `d${resources.hitDice.die}`
-            }
-          </Text>
-        </View>
-        {/* Rules-completeness batch (mixed hit-die pools), C2/C8: an
-            explicit die-size picker, shown ONLY when 2+ distinct sizes are
-            currently spendable — a single-pool character never sees this
-            row at all, matching this app's "never ask when there's nothing
-            to choose" convention elsewhere. Each spend clears the selection
-            (see handleRollHitDie/submitHitDieEntry), so spending a d10 then
-            a d6 then another d10 in the same rest each requires its own
-            explicit tap — never assumes the previous choice still applies. */}
-        {hitDieChoiceNeeded && !hitDieEntry && (
-          <View style={styles.hitDieRow}>
-            {spendableHitDice.map(p => (
-              <Pressable
-                key={p.die}
-                style={[styles.hitDieBtn, selectedHitDieSize === p.die ? styles.hitDieUse : styles.hitDieRoll]}
-                onPress={() => setSelectedHitDieSize(p.die)}
-              >
-                <Text style={selectedHitDieSize === p.die ? styles.hitDieUseTxt : styles.useHitDieTxt}>
-                  d{bumpedHitDie(p.die, entityHitDieTier(entity, rules))} ({p.remaining} left)
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        {hitDieEntry ? (
-          <View style={styles.hitDieEntryRow}>
-            <Text style={styles.hitDieEntryLabel}>Rolled (1–d{currentHitDieSize(entity, effectiveHitDieSize ?? undefined, rules)}):</Text>
-            <TextInput
-              style={styles.hitDieEntryInput}
-              value={hitDieDraft}
-              onChangeText={setHitDieDraft}
-              keyboardType="number-pad"
-              placeholder="e.g. 6"
-              placeholderTextColor={Colors.textDim}
-              autoFocus
-              onSubmitEditing={submitHitDieEntry}
-            />
-            <Pressable style={styles.hitDieEntrySubmit} onPress={submitHitDieEntry}>
-              <Text style={styles.hitDieEntrySubmitTxt}>Heal</Text>
-            </Pressable>
-            <Pressable style={styles.hitDieEntryCancel} onPress={() => setHitDieEntry(false)}>
-              <Text style={styles.hitDieEntryCancelTxt}>✕</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.hitDieRow}>
-            {/* Primary — table-first: the die was already rolled physically. */}
-            <Pressable
-              style={[styles.hitDieBtn, styles.hitDieUse, (resources.hitDice.remaining <= 0 || effectiveHitDieSize === null) && styles.useHitDieBtnDisabled]}
-              onPress={openHitDieEntry}
-              disabled={resources.hitDice.remaining <= 0 || effectiveHitDieSize === null}
-            >
-              <Text style={styles.hitDieUseTxt}>Use Hit Die</Text>
-            </Pressable>
-            {/* Secondary convenience — rolls, then the exact same mutation. */}
-            <Pressable
-              style={[styles.hitDieBtn, styles.hitDieRoll, (resources.hitDice.remaining <= 0 || effectiveHitDieSize === null) && styles.useHitDieBtnDisabled]}
-              onPress={handleRollHitDie}
-              disabled={resources.hitDice.remaining <= 0 || effectiveHitDieSize === null}
-            >
-              <Text style={styles.useHitDieTxt}>🎲 Roll in App</Text>
-            </Pressable>
-          </View>
-        )}
-        <Text style={styles.hitDieHint}>
-          {hitDieChoiceNeeded ? 'Choose a die size above, then: ' : ''}Use: enter your table roll and heal.  Roll: app rolls and heals for you.
-        </Text>
-        {hitDieResult && (
-          <Text style={styles.dieResultTxt}>{hitDieResult}</Text>
-        )}
-      </View>
+      <ConcentrationIndicator spellcasting={spellcasting} entity={entity} onEndConcentration={onEndConcentration} />
 
-      {/* Conditions + Exhaustion */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>CONDITIONS</Text>
-          <Pressable style={styles.addBtn} onPress={() => setCondModal(true)}>
-            <Text style={styles.addBtnTxt}>+ Add</Text>
-          </Pressable>
-        </View>
+      <ResourcesSection
+        resources={resources}
+        entity={entity}
+        onEntityUpdate={onEntityUpdate}
+        rules={rules}
+        setOpenResource={setOpenResource}
+        openResource={openResource}
+        onResourceChange={onResourceChange}
+        showHitDieResult={showHitDieResult}
+      />
 
-        {/* Exhaustion badge + description */}
-        {exhaustion > 0 && (
-          <View style={styles.exhaustionBlock}>
-            <View style={styles.condChip}>
-              <Text style={styles.condChipTxt}>Exhaustion {exhaustion}</Text>
-            </View>
-            <Text style={styles.exhaustionDesc}>{exhaustionEffectText(exhaustion, entity)}</Text>
-          </View>
-        )}
-
-        {/* Stabilized — shown when at 0 HP with 3 death save successes */}
-        {entity.resources.hp.current <= 0 && resources.deathSaves.successes >= 3 && (
-          <View style={styles.stabilizedChip}>
-            <Text style={styles.stabilizedTxt}>♥ STABILIZED</Text>
-          </View>
-        )}
-
-        {conditions.length === 0 && exhaustion === 0 ? (
-          <Text style={styles.emptyNote}>No active conditions</Text>
-        ) : (
-          <View style={styles.condRow}>
-            {conditions.map(c => (
-              <View key={c.id} style={styles.condChip}>
-                <Text style={styles.condChipTxt}>
-                  {c.id}
-                  {c.duration?.unit === 'rounds' && ` · ${c.duration.remaining}r`}
-                  {c.duration?.unit === 'until_rest' && ' · until rest'}
-                </Text>
-                <Pressable onPress={() => onRemoveCondition(c.id)} hitSlop={8}>
-                  <Text style={styles.condX}>✕</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* A-25: action/bonus-action/reaction pips — tap to correct manually
-            (real play has actions the app never models as a card: Dash/
-            Dodge/Help/Search, a reaction spent narratively). Auto-set when
-            an actual action-type card gets used, via applyActionCardUse. */}
-        <View style={styles.turnEconomyRow}>
-          {(['action', 'bonus_action', 'reaction'] as const).map(slot => {
-            const used = slot === 'action' ? (entity.turnState ? actionSpent(entity.turnState) : false)
-              : slot === 'bonus_action' ? entity.turnState?.bonusActionUsed
-              : entity.turnState?.reactionUsed;
-            const extra = slot === 'action' ? entity.turnState?.extraActions ?? 0 : 0;   // Action Surge's further action
-            const label = slot === 'action' ? (extra > 0 ? `Action +${extra}` : 'Action') : slot === 'bonus_action' ? 'Bonus' : 'Reaction';
-            return (
-              <Pressable
-                key={slot}
-                style={[styles.turnPip, used && styles.turnPipUsed]}
-                onPress={() => onEntityUpdate(toggleActionEconomy(entity, slot))}
-              >
-                <Text style={[styles.turnPipTxt, used && styles.turnPipTxtUsed]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Closure item 16: calls the ONE shared onEndTurn handler
-            (app/sheet/[id].tsx's handleEndTurn) rather than computing
-            playerEndTurn() locally and routing it through THIS tab's own
-            onEntityUpdate (which used a different label/category than the
-            other two tabs) — guarantees identical timeline/sync/undo
-            behavior regardless of which tab End Turn is pressed from.
-            Always visible (action-economy reset is relevant every turn
-            regardless). No preview gate: advancing a turn is expected/
-            mundane, not a surprising commit. */}
-        <Pressable
-          style={styles.endTurnBtn}
-          onPress={onEndTurn}
-        >
-          <Text style={styles.endTurnBtnTxt}>⏭ End Turn</Text>
-        </Pressable>
-
-        {/* Mechanical effect breakdown for active conditions — Automated
-            (Grimoire enforces this right now) vs. Table reminder (context-
-            dependent, the table/DM applies it) — see CONDITION_MECHANICS'
-            own doc comment above. */}
-        {conditions.filter(c => CONDITION_MECHANICS[c.id]).map(c => {
-          const { automated, reminder } = CONDITION_MECHANICS[c.id];
-          if (automated.length === 0 && reminder.length === 0) return null;
-          return (
-            <View key={`warn-${c.id}`} style={styles.condMechanicsBlock}>
-              <Text style={styles.condWarningName}>{c.id}</Text>
-              {automated.map((line, i) => (
-                <Text key={`a-${i}`} style={[styles.condWarning, styles.condAutomated]}>✓ {line}</Text>
-              ))}
-              {reminder.map((line, i) => (
-                <Text key={`r-${i}`} style={styles.condWarning}>⚠ {line}</Text>
-              ))}
-            </View>
-          );
-        })}
-
-        {/* Advantage/Disadvantage grants from race/class traits, items, etc.
-            Reminder only, same as condition warnings above — the app has no
-            attack-roll automation anywhere, so this doesn't change how any
-            roll button behaves, it just makes sure these aren't forgotten. */}
-        {(derived.advantageStates?.length ?? 0) > 0 && (
-          <View style={styles.advList}>
-            {derived.advantageStates.map((a, i) => (
-              <Text key={i} style={[styles.condWarning, a.state === 'advantage' ? styles.advTxt : styles.disadvTxt]}>
-                {a.state === 'advantage' ? '↑ Advantage: ' : '↓ Disadvantage: '}{a.target}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {/* Concentration indicator */}
-      {spellcasting?.concentrating && (
-        <View style={[styles.concIndicator, styles.concIndicatorRow]}>
-          <Text style={[styles.concIndicatorTxt, styles.concIndicatorLabel]}>
-            🧠 Concentrating on: {spellRepo.getSpellSync(spellcasting.concentrating)?.name ?? spellcasting.concentrating}
-            {spellcasting.concentratingDuration?.unit === 'rounds' && ` · ${spellcasting.concentratingDuration.remaining}r`}
-          </Text>
-          <Pressable
-            style={styles.concEndBtn}
-            hitSlop={6}
-            accessibilityLabel="End concentration"
-            onPress={() => {
-              const name = spellRepo.getSpellSync(spellcasting.concentrating!)?.name ?? spellcasting.concentrating!;
-              confirmEndConcentration(name, concentrationLinkedEffectNames(entity), () => onEndConcentration(name));
-            }}
-          >
-            <Text style={styles.concEndBtnTxt}>End</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* Resources */}
-      {resources.custom.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>RESOURCES</Text>
-          {/* Dawn is an explicit event, not a rest: only offered when a dawn resource is spent. */}
-          {hasSpentDawnResources(entity) && (
-            <Pressable style={styles.dawnBtn} onPress={() => onEntityUpdate(takeDawn(entity, rules))} accessibilityLabel="Dawn: restore resources that recharge at dawn">
-              <Text style={styles.dawnBtnTxt}>☀ Dawn — restore dawn resources</Text>
-            </Pressable>
-          )}
-          {resources.custom.map(r => {
-            // Table-first recharge: the +/- controls below are already the
-            // PRIMARY "mark recharged" path (a DM/player just taps + after
-            // rolling physically). This adds only the secondary "Roll
-            // Recharge" convenience for a resource whose recharge string
-            // parses as "Recharge X-6" — rolls 1d6 in app and, on success,
-            // restores via the exact same onResourceChange the + button
-            // uses (to full, matching the real rule: a recharge success
-            // restores the whole ability, not one charge). Resources that
-            // don't parse this way (rest-based, start_of_turn, freeform
-            // homebrew text) show no roll button — nothing invented for them.
-            const rechargeThreshold = parseRechargeThreshold(r.recharge);
-            return (
-            <View key={r.id}>
-            <View style={styles.resourceRow}>
-              <Pressable style={styles.resourceInfo} onPress={() => setOpenResource(o => (o === r.id ? null : r.id))}
-                accessibilityLabel={`${r.name}: ${openResource === r.id ? 'hide' : 'show'} what it is for`}>
-                <Text style={styles.resourceName}>{r.name}</Text>
-                <Text style={styles.resourceRecharge}>{rechargeLabel(r.recharge)}</Text>
-              </Pressable>
-              <View style={styles.resourceControls}>
-                <Pressable style={styles.resBtn} onPress={() => onResourceChange(r.id, -1)} disabled={r.current <= 0}>
-                  <Text style={[styles.resBtnTxt, r.current <= 0 && styles.disabled]}>−</Text>
-                </Pressable>
-                <Text style={styles.resourceCount}>
-                  {r.current}<Text style={styles.resourceMax}>/{r.maximum}</Text>
-                </Text>
-                <Pressable style={styles.resBtn} onPress={() => onResourceChange(r.id, 1)} disabled={r.current >= r.maximum}>
-                  <Text style={[styles.resBtnTxt, r.current >= r.maximum && styles.disabled]}>+</Text>
-                </Pressable>
-                {isResetByHand(r.recharge) && r.current < r.maximum && (
-                  <Pressable style={styles.rechargeBtn} onPress={() => onResourceChange(r.id, r.maximum - r.current)}
-                    accessibilityLabel={`Reset ${r.name}`}>
-                    <Text style={styles.rechargeBtnTxt}>Reset</Text>
-                  </Pressable>
-                )}
-                {rechargeThreshold !== null && r.current < r.maximum && (
-                  <Pressable
-                    style={styles.rechargeBtn}
-                    onPress={() => {
-                      const { roll, success } = rollRecharge(rechargeThreshold);
-                      if (success) onResourceChange(r.id, r.maximum - r.current);
-                      showHitDieResult(`${r.name}: rolled ${roll} — ${success ? 'recharged!' : 'no charge'}`);
-                    }}
-                  >
-                    <Text style={styles.rechargeBtnTxt}>🎲</Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-            {openResource === r.id && (() => {
-              const parts = resourceDescription(entity, r);
-              return (
-                <View style={styles.resourceDesc}>
-                  {parts.length ? parts.map(p => (
-                    <Text key={p.name} style={styles.resourceDescTxt}><Text style={styles.resourceDescName}>{p.name}. </Text>{p.text}</Text>
-                  )) : <Text style={styles.resourceDescTxt}>Nothing on this character describes it.</Text>}
-                </View>
-              );
-            })()}
-            </View>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Spell Slots */}
-      {spellcasting && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SPELL SLOTS</Text>
-          <View style={styles.slotGrid}>
-            {(['normal', 'pact'] as const).flatMap(kind => SLOT_TIERS.map(tier => ({ kind, tier }))).map(({ kind, tier }) => {
-              const slot = (kind === 'pact' ? spellcasting.pactSlots : spellcasting.slots)?.[tier];
-              if (!slot || slot.total === 0) return null;
-              return (
-                <View key={kind + tier} style={styles.slotBlock}>
-                  <Text style={styles.slotTier}>{kind === 'pact' ? 'Pact · ' : ''}Lv {tier}</Text>
-                  {/* Re-audit closure item 1: pips are spend-ONLY now — tapping
-                      any pip always spends one slot (a no-op once fully
-                      exhausted, since spendSpellSlot's own invariant refuses
-                      to spend past total). Restoration is a deliberate,
-                      separate action via the explicit "+" button below (same
-                      pattern the RESOURCES section above already uses for
-                      its own −/+ controls) — never triggered by an ordinary
-                      pip tap, so casually tapping an exhausted slot row can
-                      no longer silently heal a slot back. */}
-                  <View style={styles.slotPips}>
-                    {Array.from({ length: slot.total }).map((_, i) => (
-                      <Pressable
-                        key={i}
-                        hitSlop={10}
-                        style={[styles.pip2, i < slot.used && styles.pip2Used]}
-                        onPress={() => onSpendSlot(tier, kind)}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.slotCountRow}>
-                    <Pressable
-                      hitSlop={8}
-                      style={styles.slotRestoreBtn}
-                      disabled={slot.used === 0}
-                      onPress={() => onRestoreSlot(tier, kind)}
-                      accessibilityLabel={`Restore a level ${tier} slot`}
-                    >
-                      <Text style={[styles.slotRestoreBtnTxt, slot.used === 0 && styles.disabled]}>+</Text>
-                    </Pressable>
-                    <Text style={styles.slotCount}>{slot.total - slot.used}/{slot.total}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      )}
+      <SpellSlotsSection spellcasting={spellcasting} SLOT_TIERS={SLOT_TIERS} onSpendSlot={onSpendSlot} onRestoreSlot={onRestoreSlot} />
 
       {/* Modals */}
       <AuditModal
@@ -1904,65 +555,18 @@ function TabCharacterInner({
         onClose={() => setConcOpen(false)}
       />
 
-      {/* Condition Picker Modal */}
-      <Modal visible={condModal} transparent animationType="slide" onRequestClose={closeConditionFlow}>
-        <View style={styles.backdrop}>
-          {/* SCROLL-TOUCH-1: backdrop is a sibling, not an ancestor, of the sheet (see TabInventory AddItemModal) */}
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeConditionFlow} accessible={false} />
-          <View style={styles.condPickerSheet}>
-            {pendingConditionId === null ? (
-              <>
-                <Text style={styles.condPickerTitle}>Add Condition</Text>
-                <TextInput
-                  style={styles.condSearch}
-                  value={condSearch}
-                  onChangeText={setCondSearch}
-                  placeholder="Search conditions…"
-                  placeholderTextColor={Colors.textDim}
-                />
-                <ScrollView>
-                  {filteredConds.map(c => (
-                    <Pressable key={c} style={styles.condPickerItem} onPress={() => setPendingConditionId(c)}>
-                      <Text style={styles.condPickerItemTxt}>{c}</Text>
-                    </Pressable>
-                  ))}
-                  {filteredConds.length === 0 && (
-                    <Text style={styles.emptyNote}>No conditions found</Text>
-                  )}
-                </ScrollView>
-                <Pressable style={styles.cancelBtn} onPress={closeConditionFlow}>
-                  <Text style={styles.cancelTxt}>Cancel</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.condPickerTitle}>How long — {pendingConditionId}?</Text>
-                <Pressable
-                  style={styles.condPickerItem}
-                  onPress={() => { onAddCondition(pendingConditionId, null); closeConditionFlow(); }}
-                >
-                  <Text style={styles.condPickerItemTxt}>Permanent</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.condPickerItem}
-                  onPress={() => { onAddCondition(pendingConditionId, { unit: 'until_rest', remaining: 0 }); closeConditionFlow(); }}
-                >
-                  <Text style={styles.condPickerItemTxt}>Until Next Rest</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.condPickerItem}
-                  onPress={() => { setCondModal(false); setRoundsPromptOpen(true); }}
-                >
-                  <Text style={styles.condPickerItemTxt}>N Rounds…</Text>
-                </Pressable>
-                <Pressable style={styles.cancelBtn} onPress={() => setPendingConditionId(null)}>
-                  <Text style={styles.cancelTxt}>Back</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <ConditionPickerModal
+        condModal={condModal}
+        closeConditionFlow={closeConditionFlow}
+        pendingConditionId={pendingConditionId}
+        condSearch={condSearch}
+        setCondSearch={setCondSearch}
+        filteredConds={filteredConds}
+        setPendingConditionId={setPendingConditionId}
+        onAddCondition={onAddCondition}
+        setCondModal={setCondModal}
+        setRoundsPromptOpen={setRoundsPromptOpen}
+      />
 
       <NumberPromptModal
         visible={roundsPromptOpen}
@@ -1973,38 +577,13 @@ function TabCharacterInner({
         onClose={closeConditionFlow}
       />
 
-      {/* Level-up ASI / Feat picker */}
-      <Modal visible={levelUpAsiOpen} animationType="slide" onRequestClose={() => setLevelUpAsiOpen(false)}>
-        <View style={styles.lvModalRoot}>
-          {(() => {
-            const pending = entity.choices.filter(c => c.definition.kind === 'asi' && !c.resolved);
-            if (pending.length === 0) {
-              return (
-                <View style={styles.lvDone}>
-                  <Text style={styles.lvDoneTxt}>All set — no improvements to resolve.</Text>
-                  <Pressable style={styles.lvDoneBtn} onPress={() => setLevelUpAsiOpen(false)}>
-                    <Text style={styles.lvDoneBtnTxt}>Done</Text>
-                  </Pressable>
-                </View>
-              );
-            }
-            return (
-              <AsiFeatPicker
-                entity={entity}
-                choice={pending[0]}
-                rules={rules}
-                onClose={() => setLevelUpAsiOpen(false)}
-                onResolved={(updated) => {
-                  onEntityUpdate(updated);
-                  const more = updated.choices.some(c => c.definition.kind === 'asi' && !c.resolved);
-                  if (!more) setLevelUpAsiOpen(false);
-                }}
-                browseStateKey="feat:levelup"
-              />
-            );
-          })()}
-        </View>
-      </Modal>
+      <LevelUpAsiModal
+        levelUpAsiOpen={levelUpAsiOpen}
+        setLevelUpAsiOpen={setLevelUpAsiOpen}
+        entity={entity}
+        rules={rules}
+        onEntityUpdate={onEntityUpdate}
+      />
 
       {/* Senses editor */}
       <SensesModal
@@ -2039,23 +618,13 @@ function TabCharacterInner({
         bypassIncapacitated={pendingFavUse?.bypassIncapacitated}
       />
 
-      {/* Add a feat ad-hoc from the sheet */}
-      <Modal visible={addFeatOpen} animationType="slide" onRequestClose={() => setAddFeatOpen(false)}>
-        <View style={styles.lvModalRoot}>
-          <AsiFeatPicker
-            entity={entity}
-            choice={makeAdHocFeatChoice()}
-            rules={rules}
-            featOnly
-            onClose={() => setAddFeatOpen(false)}
-            onResolved={(updated) => {
-              onEntityUpdate(updated);
-              setAddFeatOpen(false);
-            }}
-            browseStateKey="feat:live"
-          />
-        </View>
-      </Modal>
+      <AddFeatModal
+        addFeatOpen={addFeatOpen}
+        setAddFeatOpen={setAddFeatOpen}
+        entity={entity}
+        rules={rules}
+        onEntityUpdate={onEntityUpdate}
+      />
 
     </ScrollView>
   );
@@ -2066,444 +635,3 @@ function TabCharacterInner({
 // only actually matters combined with the caller passing stable prop
 // references (see app/sheet/[id].tsx's onCombatEntityUpdate etc.).
 export const TabCharacter = memo(TabCharacterInner);
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  scroll:   { flex: 1 },
-  content:  { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
-
-  hpBlock: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, alignItems: 'center', gap: Spacing.sm,
-  },
-  hpLabel:   { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 2, fontWeight: FontWeight.bold },
-  hpNumbers: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  hpCurrent: { fontSize: 56, fontWeight: FontWeight.bold },
-  hpSep:     { fontSize: FontSize.xl, color: Colors.textDim },
-  hpMax:     { fontSize: FontSize.xl, color: Colors.textSecondary },
-  hpTemp:    { fontSize: FontSize.sm, color: Colors.blue, alignSelf: 'flex-end' },
-  hpBarOuter:{ width: '100%', height: 6, backgroundColor: Colors.border, borderRadius: Radius.full, overflow: 'hidden' },
-  hpBarFill: { height: '100%', borderRadius: Radius.full },
-  hpTapHint: { fontSize: FontSize.xs, color: Colors.textDim },
-  dyingTxt:  { fontSize: FontSize.sm, color: Colors.red, fontWeight: FontWeight.bold },
-
-  // HP utility row
-  hpUtilRow: {
-    // wraps: on a 320dp phone (or with a large system font) the temp-HP controls drop to their own line instead of leaving the screen
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: Spacing.xs,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm,
-  },
-  hpUtilBtn:      { paddingVertical: 4, paddingHorizontal: Spacing.sm },
-  hpUtilBtns:     { flexDirection: 'row', gap: Spacing.xs },
-  hpUtilTxt:      { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.bold },
-  tempHpControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  tempHpLabel:    { fontSize: FontSize.sm, color: Colors.blue, fontWeight: FontWeight.bold },
-
-  // Hit dice
-  hitDiceCount: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  useHitDieBtn: {
-    backgroundColor: Colors.green + '22', borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.green + '66',
-    padding: Spacing.sm, alignItems: 'center',
-  },
-  useHitDieBtnDisabled: { opacity: 0.4 },
-  useHitDieTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-
-  // Weapon attacks
-  weaponRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  weaponInfo:   { flex: 1 },
-  weaponName:   { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  weaponDamage: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  weaponRight:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  weaponBonus:  { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gold },
-  weaponBadge: {
-    backgroundColor: Colors.red + '22', borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 2,
-  },
-  weaponBadgeRanged: { backgroundColor: Colors.blue + '22' },
-  weaponBadgeTxt:    { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-
-  // Condition warnings
-  condMechanicsBlock: { marginTop: 4, gap: 1 },
-  condWarning:     { fontSize: FontSize.xs, color: Colors.gold, lineHeight: 16 },
-  condWarningName: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, textTransform: 'capitalize', color: Colors.textSecondary },
-  condAutomated:   { color: Colors.green },
-  advList: { marginTop: 4, gap: 2 },
-  advTxt:    { color: Colors.green },
-  disadvTxt: { color: Colors.red },
-
-  // Number prompt modal input
-  numInput: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, fontSize: FontSize.xl, color: Colors.textPrimary,
-    textAlign: 'center', fontWeight: FontWeight.bold,
-  },
-
-  // Death saves
-  deathSection: {
-    backgroundColor: Colors.red + '11', borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.red + '44',
-    padding: Spacing.md, gap: Spacing.sm,
-  },
-  deathMsg:   { color: Colors.red, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  stableMsg:  { color: Colors.green, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  stabilizedChip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.green + '22',
-    borderRadius: Radius.full,
-    borderWidth: 1.5, borderColor: Colors.green,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
-    alignSelf: 'flex-start',
-    marginBottom: Spacing.xs,
-  },
-  stabilizedTxt: { color: Colors.green, fontWeight: FontWeight.bold, fontSize: FontSize.sm, letterSpacing: 1 },
-  pipRows:    { gap: Spacing.sm },
-  pipRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  pipLabel:   { fontSize: FontSize.sm, color: Colors.textSecondary, width: 80 },
-  pips:       { flexDirection: 'row', gap: Spacing.sm },
-  pip: {
-    width: 20, height: 20, borderRadius: Radius.full,
-    borderWidth: 2, borderColor: Colors.border, backgroundColor: 'transparent',
-  },
-  pipSuccess: { backgroundColor: Colors.green, borderColor: Colors.green },
-  pipFailure: { backgroundColor: Colors.red,   borderColor: Colors.red },
-  deathRollBtn: {
-    backgroundColor: Colors.red, borderRadius: Radius.md,
-    padding: Spacing.sm, alignItems: 'center',
-  },
-  deathRollBtnTxt: { color: Colors.white, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  deathResetBtn: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, alignItems: 'center', marginTop: Spacing.xs,
-  },
-  deathResetTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  // Death save manual buttons
-  deathBtnRow: { flexDirection: 'row', gap: Spacing.xs },
-  deathBtn: {
-    flex: 1, borderRadius: Radius.md, borderWidth: 1,
-    paddingVertical: Spacing.sm, alignItems: 'center',
-  },
-  deathBtnFail: { backgroundColor: Colors.red + '22', borderColor: Colors.red + '66' },
-  deathBtnFailTxt: { color: Colors.red, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  deathBtnRoll: { backgroundColor: Colors.surfaceHigh, borderColor: Colors.border },
-  deathBtnRollTxt: { color: Colors.textPrimary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  deathBtnPass: { backgroundColor: Colors.green + '22', borderColor: Colors.green + '66' },
-  deathBtnPassTxt: { color: Colors.green, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  statRow: { flexDirection: 'row', gap: Spacing.sm },
-  statBox: {
-    flex: 1, backgroundColor: Colors.surface,
-    borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, alignItems: 'center', gap: 2,
-  },
-  statBoxOverride: { borderColor: Colors.gold + '66' },
-
-  // Exploration panel
-  passiveRow:   { flexDirection: 'row', gap: Spacing.sm },
-  passiveBox: {
-    flex: 1, backgroundColor: Colors.surfaceHigh,
-    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, alignItems: 'center', gap: 2,
-  },
-  passiveValue: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  passiveLabel: { fontSize: 9, color: Colors.textSecondary, letterSpacing: 0.5, textAlign: 'center' },
-  sensesWrap:   { gap: Spacing.xs, marginTop: Spacing.xs },
-  sensesHeading:{ fontSize: FontSize.xs, color: Colors.textDim, letterSpacing: 1, fontWeight: FontWeight.bold },
-  senseChips:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  senseChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.blue + '22', borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.blue + '55',
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-  },
-  senseChipTxt: { fontSize: FontSize.xs, color: Colors.textPrimary, fontWeight: FontWeight.bold },
-  senseTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  senseTypeChip: {
-    backgroundColor: Colors.surface, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-  },
-  senseTypeChipActive: { backgroundColor: Colors.gold + '22', borderColor: Colors.gold },
-  senseTypeTxt: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  senseTypeTxtActive: { color: Colors.gold },
-  senseInputRow: { flexDirection: 'row', gap: Spacing.sm },
-
-  // Level-up + add-feat row
-  levelUpRow:  { flexDirection: 'row', gap: Spacing.sm, alignItems: 'stretch' },
-  addFeatBtn: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.gold + '66',
-    paddingHorizontal: Spacing.md, justifyContent: 'center', alignItems: 'center',
-  },
-  addFeatTxt: { color: Colors.gold, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  statValueRow:    { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  statValue:       { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  overrideStar:    { fontSize: FontSize.xs, color: Colors.gold, alignSelf: 'flex-start', marginTop: 2 },
-  statLabel:       { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 1 },
-
-  // Level up
-  levelUpBtn: {
-    backgroundColor: Colors.gold + '22', borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.gold + '66',
-    padding: Spacing.sm, alignItems: 'center',
-  },
-  levelUpBtnTxt: { color: Colors.gold, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  plannerBtn: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, alignItems: 'center', marginTop: Spacing.xs,
-  },
-  plannerBtnTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  levelUpMcWrap: { gap: Spacing.xs },
-  addClassBtn: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
-    padding: Spacing.sm, alignItems: 'center',
-  },
-  addClassBtnTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  addClassModalRoot: { flex: 1, backgroundColor: Colors.bg, padding: Spacing.lg },
-  addClassHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  addClassHeading: { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.gold },
-  addClassClose: { fontSize: FontSize.xl, color: Colors.textSecondary },
-  addClassSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: Spacing.sm, marginBottom: Spacing.lg },
-  addClassList: { gap: Spacing.sm, paddingBottom: Spacing.xxl },
-  addClassEmpty: { fontSize: FontSize.sm, color: Colors.textDim, fontStyle: 'italic', textAlign: 'center', padding: Spacing.lg },
-  addClassRow: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border, padding: Spacing.md,
-  },
-  addClassRowTxt: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  addClassLack: { fontSize: FontSize.sm, color: Colors.red, marginTop: 2 },
-
-  section: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, gap: Spacing.sm,
-  },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionActionBtn: {
-    backgroundColor: Colors.gold + '22', borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.gold + '66',
-    paddingHorizontal: Spacing.sm, paddingVertical: 2,
-  },
-  sectionActionTxt: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.bold },
-  sectionTitle:  { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 2, fontWeight: FontWeight.bold },
-  addBtn: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 2,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  addBtnTxt: { color: Colors.gold, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-
-  exhaustionBlock: { gap: 4 },
-  exhaustionDesc:  { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic', paddingLeft: Spacing.sm },
-
-  condRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  condChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.purple + '33', borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-    borderWidth: 1, borderColor: Colors.purple + '66',
-  },
-  condChipTxt: { color: Colors.textPrimary, fontSize: FontSize.sm, textTransform: 'capitalize' },
-  condX:       { color: Colors.textDim, fontSize: FontSize.sm },
-  emptyNote:   { color: Colors.textDim, fontSize: FontSize.sm, fontStyle: 'italic' },
-
-  endTurnBtn: {
-    alignSelf: 'flex-start', marginTop: Spacing.xs,
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm, paddingVertical: 6,
-  },
-  endTurnBtnTxt: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-
-  turnEconomyRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.xs },
-  turnPip: {
-    backgroundColor: Colors.green + '22', borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.green + '66',
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-  },
-  turnPipUsed: { backgroundColor: Colors.surfaceHigh, borderColor: Colors.border },
-  turnPipTxt: { fontSize: FontSize.xs, color: Colors.green, fontWeight: FontWeight.bold },
-  turnPipTxtUsed: { color: Colors.textDim },
-
-  concIndicator: {
-    backgroundColor: Colors.blue + '22', borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.blue + '44',
-    padding: Spacing.sm,
-  },
-  concIndicatorTxt: { color: Colors.blue, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  concIndicatorRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  concIndicatorLabel: { flex: 1 },
-  concEndBtn: {
-    backgroundColor: Colors.red + '22', borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.red + '66',
-    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
-  },
-  concEndBtnTxt: { fontSize: FontSize.sm, color: Colors.red, fontWeight: FontWeight.bold },
-
-  resourceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  resourceInfo:     { flex: 1 },
-  resourceName:     { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: FontWeight.bold },
-  resourceRecharge: { fontSize: FontSize.xs, color: Colors.textDim },
-  resourceDesc:     { paddingVertical: Spacing.xs, gap: 4 },
-  resourceDescTxt:  { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
-  resourceDescName: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  resourceControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  resBtn: {
-    width: 32, height: 32, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  resBtnTxt:     { fontSize: FontSize.lg, color: Colors.textPrimary, lineHeight: 20 },
-  resourceCount: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, minWidth: 40, textAlign: 'center' },
-  resourceMax:   { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.normal },
-  disabled:      { opacity: 0.3 },
-  dawnBtn: { alignSelf: 'flex-start', backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gold, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginBottom: Spacing.xs },
-  dawnBtnTxt: { color: Colors.gold, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  rechargeBtn: {
-    width: 28, height: 28, borderRadius: Radius.full,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  rechargeBtnTxt: { fontSize: FontSize.md },
-
-  slotGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  slotBlock: { alignItems: 'center', gap: 4, minWidth: 50 },
-  slotTier:  { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 1 },
-  slotPips:  { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
-  pip2: {
-    width: 10, height: 10, borderRadius: Radius.full,
-    backgroundColor: Colors.blue,
-  },
-  pip2Used: { backgroundColor: Colors.border },
-  slotCount: { fontSize: FontSize.xs, color: Colors.textDim },
-  slotCountRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  slotRestoreBtn: {
-    width: 16, height: 16, borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  slotRestoreBtnTxt: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.bold, lineHeight: FontSize.xs },
-
-  // Concentration modal
-  backdrop:   { flex: 1, backgroundColor: '#000000bb', justifyContent: 'center', padding: Spacing.lg },
-  concSheet: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.blue + '44',
-    padding: Spacing.lg, gap: Spacing.sm,
-  },
-  concTitle:        { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.blue, textAlign: 'center' },
-  concSpell:        { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center' },
-  rollBtn:          { backgroundColor: Colors.blue, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
-  rollBtnTxt:       { color: Colors.white, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  closeBtnSm:       { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center' },
-  closeBtnSmTxt:    { color: Colors.textSecondary, fontSize: FontSize.md },
-  btnDisabled:      { opacity: 0.4 },
-  // Table-first rolled-HP gate (HpRollGate)
-  hpRollBackdrop: { flex: 1, backgroundColor: '#000000bb', justifyContent: 'center', padding: Spacing.lg },
-  hpRollSheet: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.gold + '44',
-    padding: Spacing.lg, gap: Spacing.sm,
-  },
-  hpRollTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gold, textAlign: 'center' },
-  hpRollLine:  { fontSize: FontSize.md, color: Colors.textPrimary, textAlign: 'center' },
-  hpRollInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, justifyContent: 'center' },
-  hpRollInputLabel: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  hpRollInput: {
-    width: 80, backgroundColor: Colors.surface, borderRadius: Radius.sm,
-    borderWidth: 1, borderColor: Colors.gold, color: Colors.textPrimary,
-    textAlign: 'center', paddingVertical: 6, fontSize: FontSize.md,
-  },
-  hpRollPreview: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.green, textAlign: 'center' },
-  hpRollSubmit:    { backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
-  hpRollSubmitTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  hpRollAppBtn:    { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  hpRollAppBtnTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  // Condition picker
-  condPickerSheet: {
-    backgroundColor: Colors.surfaceHigh,
-    borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
-    padding: Spacing.lg, gap: Spacing.md, maxHeight: '60%',
-  },
-  condPickerTitle:   { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, textAlign: 'center' },
-  condSearch: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, color: Colors.textPrimary,
-  },
-  condPickerItem: {
-    paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  condPickerItemTxt: { fontSize: FontSize.md, color: Colors.textPrimary, textTransform: 'capitalize' },
-  cancelBtn:         { alignItems: 'center', padding: Spacing.sm },
-  cancelTxt:         { color: Colors.textSecondary, fontSize: FontSize.md },
-
-  // Hit dice buttons
-  hitDieRow:    { flexDirection: 'row', gap: Spacing.sm },
-  hitDieBtn:    { flex: 1, borderRadius: Radius.md, borderWidth: 1, padding: Spacing.sm, alignItems: 'center' },
-  // Table-first: Use Hit Die (manual entry) is the visually primary action;
-  // Roll in App (useHitDieTxt below) is the secondary convenience.
-  hitDieRoll:   { backgroundColor: Colors.surfaceHigh, borderColor: Colors.border },
-  hitDieUse:    { backgroundColor: Colors.green + '22', borderColor: Colors.green + '66' },
-  hitDieUseTxt: { color: Colors.green, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  hitDieEntryRow:       { flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' },
-  hitDieEntryLabel:     { color: Colors.textSecondary, fontSize: FontSize.sm },
-  hitDieEntryInput: {
-    flex: 1, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm,
-    borderWidth: 1, borderColor: Colors.green, color: Colors.textPrimary,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4, fontSize: FontSize.md,
-  },
-  hitDieEntrySubmit:    { backgroundColor: Colors.green, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  hitDieEntrySubmitTxt: { color: Colors.white, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  hitDieEntryCancel:    { padding: Spacing.sm },
-  hitDieEntryCancelTxt: { color: Colors.textDim, fontSize: FontSize.md },
-  hitDieHint:   { fontSize: FontSize.xs, color: Colors.textDim, fontStyle: 'italic', marginTop: 4 },
-  // Inline result text (hit die + death saves)
-  dieResultTxt: {
-    fontSize:   FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color:      Colors.green,
-    textAlign:  'center',
-    paddingTop: 4,
-  },
-  // Level-up inline confirm row
-  levelUpConfirmRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            Spacing.sm,
-    backgroundColor: Colors.gold + '11',
-    borderRadius:   Radius.md,
-    borderWidth:    1,
-    borderColor:    Colors.gold + '66',
-    padding:        Spacing.sm,
-  },
-  levelUpConfirmTxt:    { flex: 1, color: Colors.gold, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  levelUpConfirmYes: {
-    backgroundColor: Colors.gold, borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-  },
-  levelUpConfirmYesTxt:  { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  levelUpConfirmNo: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 4,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  levelUpConfirmNoTxt:   { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  // Level-up modal
-  lvModalRoot:  { flex: 1, backgroundColor: Colors.bg, paddingTop: Spacing.xl + 8 },
-  lvDone:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.lg },
-  lvDoneTxt:    { fontSize: FontSize.lg, color: Colors.textPrimary, textAlign: 'center' },
-  lvDoneBtn:    { backgroundColor: Colors.gold, borderRadius: Radius.md, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
-  lvDoneBtnTxt: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.bg },
-});

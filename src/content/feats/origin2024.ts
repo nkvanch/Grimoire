@@ -59,8 +59,6 @@ const LISTS: { key: 'cleric' | 'druid' | 'wizard'; label: string; ability: Abili
   { key: 'wizard', label: 'Wizard', ability: 'int' },
 ];
 
-const slugName = (id: string) => id.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
-
 function magicInitiate(list: typeof LISTS[number]): Feat {
   const id = `magic_initiate_${list.key}_2024`;
   const poolId = `magic_initiate_${list.key}_2024_cast`;

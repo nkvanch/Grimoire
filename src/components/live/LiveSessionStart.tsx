@@ -18,13 +18,13 @@ import { useSessionRuntime, getSessionRuntime } from '../../session/runtime';
 import { useCharacterStore } from '../../store/characterStore';
 import { EntityAdapter } from '../../session/entityAdapter';
 import { parseAddress, SESSION_PORT } from '../../session/lanTransport';
-import { decodeRoomCode } from '../../sync/discovery';
+import { decodeRoomCode } from '../../session/discovery';
 import { Capability, PeekResult } from '../../session/types';
 import { StoredIdentity } from '../../session/peer';
 import { checkCampaignCompatibility, CompatibilityIssue } from '../../engine/campaignCompatibility';
 import { loadInstalledPacks, InstalledPack } from '../../db/packRegistryRepo';
 import { Chip, Field, Row, Muted, Card, Badge, Body, TrustedNetworkNotice } from './LiveUi';
-import { Alert } from '../../utils/alert';
+import { Alert, reportFailure } from '../../utils/alert';
 import { E2E_ENABLED } from '../../session/e2e';
 import { QrScannerModal } from '../QrScannerModal';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
@@ -72,7 +72,7 @@ export function LiveSessionCard({ onOpenE2e }: { onOpenE2e?: () => void }) {
       {advancedOpen && (
         <View style={m.advancedBody}>
           <Field label="Connect by IP" value={ip} onChangeText={setIp} placeholder="192.168.1.20" autoCapitalize="none" testID="live-advanced-ip" />
-          <Pressable style={m.ghostBtn} onPress={() => { void connectByIp(); }} testID="live-advanced-connect">
+          <Pressable style={m.ghostBtn} onPress={() => { void connectByIp().catch(reportFailure('join the session')); }} testID="live-advanced-connect">
             <Text style={m.ghostBtnTxt}>Connect</Text>
           </Pressable>
         </View>
@@ -393,7 +393,7 @@ export function JoinModal({ visible, onClose, nickname }: { visible: boolean; on
                     <Muted>You can still join — the DM can review this once you're in.</Muted>
                   </Card>
                 )}
-                <Pressable style={[m.primaryBtn, rt.busy && m.btnDisabled]} onPress={() => { void join(); }} disabled={rt.busy} testID="live-join">
+                <Pressable style={[m.primaryBtn, rt.busy && m.btnDisabled]} onPress={() => { void join().catch(reportFailure('join the session')); }} disabled={rt.busy} testID="live-join">
                   {rt.busy ? <ActivityIndicator color={Colors.bg} /> : <Text style={m.primaryBtnTxt}>{compatIssues.length > 0 ? 'Join anyway' : 'Join session'}</Text>}
                 </Pressable>
                 <Pressable style={m.ghostBtn} onPress={() => setStep('confirm')}>

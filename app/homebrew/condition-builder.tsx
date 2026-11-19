@@ -14,12 +14,10 @@
 // models. A condition applies via applyCondition() at runtime, not
 // applyGrant() — the Test button below previews it the same way.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
-import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import { OriginFields } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Condition, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
@@ -37,7 +35,8 @@ import { applyCondition } from '../../src/engine/conditions';
 import { simulate } from '../../src/engine/simulate';
 import { buildFeatureGrantRows } from '../../src/components/sheet/featureGrantRows';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { gameIdForRuleset } from '../../src/content/rulesets';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';

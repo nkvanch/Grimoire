@@ -13,7 +13,7 @@ export function mergeHomebrewDefinition<T extends Record<string, unknown>>(
       && editedDraft && typeof editedDraft === 'object' && !Array.isArray(editedDraft)
       ? { homebrewDraft: { ...originalDraft, ...editedDraft } }
       : {}),
-  } as T;
+  };
 }
 
 /** Preserve exact structured progression when the editor surface did not change it. */

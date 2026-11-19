@@ -1,4 +1,4 @@
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 import { makeCustomRuleProfile } from '../../engine/customRuleProfiles';
 import { asRulesetId } from '../../engine/types';
 import { resolvePortableCharacterImport, serializePortableCharacter } from '../characterPortable';
@@ -73,7 +73,7 @@ describe('item-identity closure — portable import hydrates legacy ItemInstance
   }
 
   it('two identity-less duplicate stateful items both get distinct, stable ids immediately on import', async () => {
-    const text = serializePortableCharacter(legacyCharacterWithDuplicateSwords() as any);
+    const text = serializePortableCharacter(legacyCharacterWithDuplicateSwords());
     const parsed = await resolvePortableCharacterImport(text, [], jest.fn().mockResolvedValue(false));
     const equippedSword = parsed.entity.inventory.equipped[0];
     const carriedSword  = parsed.entity.inventory.carried[0];
@@ -91,7 +91,7 @@ describe('item-identity closure — portable import hydrates legacy ItemInstance
       ...base,
       inventory: { ...base.inventory, carried: [{ id: 'my-stable-id', itemId: 'dagger', quantity: 1, attuned: false, features: [] }] },
     };
-    const text = serializePortableCharacter(entity as any);
+    const text = serializePortableCharacter(entity);
     const parsed = await resolvePortableCharacterImport(text, [], jest.fn().mockResolvedValue(false));
     expect(parsed.entity.inventory.carried[0].id).toBe('my-stable-id');
   });
@@ -110,7 +110,7 @@ describe('Extra Attack sequence closure — portable import strips attackSequenc
       ...base,
       attackSequence: { sequenceId: 'exported-seq', actorId: base.id, maxAttacks: 2, usedAttacks: 1 },
     };
-    const text = serializePortableCharacter(withSequence as any);
+    const text = serializePortableCharacter(withSequence);
     const parsed = await resolvePortableCharacterImport(text, [], jest.fn().mockResolvedValue(false));
     expect(parsed.entity.attackSequence).toBeFalsy();
   });
@@ -138,7 +138,7 @@ describe('portable import rejects malformed/duplicate item-instance ids end-to-e
         carried:  [{ id: 'same-id', itemId: 'dagger',      quantity: 1, attuned: false, features: [] }],
       },
     };
-    const text = serializePortableCharacter(entity as any);
+    const text = serializePortableCharacter(entity);
     await expect(resolvePortableCharacterImport(text, [], jest.fn().mockResolvedValue(false)))
       .rejects.toThrow(/duplicate ItemInstance id "same-id"/);
   });
@@ -152,7 +152,7 @@ describe('portable import rejects malformed/duplicate item-instance ids end-to-e
         carried: [{ id: '', itemId: 'dagger', quantity: 1, attuned: false, features: [] }],
       },
     };
-    const text = serializePortableCharacter(entity as any);
+    const text = serializePortableCharacter(entity);
     await expect(resolvePortableCharacterImport(text, [], jest.fn().mockResolvedValue(false)))
       .rejects.toThrow(/must be a nonempty string when present/);
   });

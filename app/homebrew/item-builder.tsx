@@ -5,12 +5,13 @@
 // picker, and the mechanical-effect system (labeled "Additional Mechanical
 // Effects" per request). Edit-mode reloads via homebrewDraft.
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
-import { Item, Feature, Effect, AbilityEffect, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
+import { Item, Feature, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
@@ -24,13 +25,14 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
-import { newDraftTrait, buildTraitFeature, TraitEditorModal, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
+import { newDraftTrait, TraitEditorModal, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
 import { mechanicsLabel } from '../../src/content/featureMechanics';
 import { simulate } from '../../src/engine/simulate';
 import { equipItem } from '../../src/engine/inventory';
 import { buildEquipmentSummaryRows } from '../../src/components/sheet/EquipmentPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { compileItemFeature, compileItemProperties, type ItemDraft } from '../../src/content/homebrewCompile';
 import { hydrateItemBuilder, serializeItemBuilder } from '../../src/engine/homebrewNestedSerializers';

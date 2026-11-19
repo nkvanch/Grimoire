@@ -4,7 +4,7 @@
 // uses for buildLevelUpSummaryRows.
 import { buildProjectionRows } from '../ProgressionPlannerModal';
 import { projectToLevel } from '../../../engine/leveling';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity, ClassProgression } from '../../../engine/types';
 
 function progression(): ClassProgression {

@@ -1,4 +1,4 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { makeCustomRuleProfile } from '../../../engine/customRuleProfiles';
 import { asGameId, asRulesetId } from '../../../engine/types';
 import { rulesetPickerViewModel, sheetRuleAccess } from '../ruleProfileUi';

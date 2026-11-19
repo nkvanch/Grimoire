@@ -7,10 +7,8 @@
 // see SpellList's doc comment in engine/types.ts and content/spellLists.ts,
 // which is where a class's spellcasting UI actually consumes these.
 import { useState, useEffect, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useLocalSearchParams } from 'expo-router';
 import { SpellList, RulesetId } from '../../src/engine/types';
@@ -18,7 +16,7 @@ import { validateSpellList } from '../../src/engine/homebrewValidator';
 import { Alert } from '../../src/utils/alert';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { mergeSpellIndex } from '../../src/content/contentResolution';
-import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';

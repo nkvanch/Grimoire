@@ -17,60 +17,60 @@ function mkFeature(over: Partial<Feature> = {}): Feature {
 
 describe('detectConflicts', () => {
   it('finds a conflict when the package and local homebrew share a {type,id}', () => {
-    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn (v2)', features: [] } as Race] };
+    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn (v2)', features: [] }] };
     const localLookup = (type: string, id: string) => (type === 'race' && id === 'tideborn') ? 'Tideborn (local)' : undefined;
     const conflicts = detectConflicts(hb, localLookup);
     expect(conflicts).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn (local)', incomingName: 'Tideborn (v2)' }]);
   });
 
   it('reports no conflicts when nothing overlaps', () => {
-    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] } as Race] };
+    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] }] };
     expect(detectConflicts(hb, () => undefined)).toEqual([]);
   });
 });
 
 describe('isContentIdentical (item 17)', () => {
   it('returns true for byte-for-byte identical content', () => {
-    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature()] } as Race;
-    const b: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature()] } as Race;
+    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature()] };
+    const b: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature()] };
     expect(isContentIdentical(a, b)).toBe(true);
   });
 
   it('returns false when any field differs, e.g. name', () => {
-    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
-    const b: Race = { id: 'tideborn', name: 'Tideborn (v2)', features: [] } as Race;
+    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
+    const b: Race = { id: 'tideborn', name: 'Tideborn (v2)', features: [] };
     expect(isContentIdentical(a, b)).toBe(false);
   });
 
   it('returns false when a nested feature field differs', () => {
-    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature({ description: 'old' })] } as Race;
-    const b: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature({ description: 'new' })] } as Race;
+    const a: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature({ description: 'old' })] };
+    const b: Race = { id: 'tideborn', name: 'Tideborn', features: [mkFeature({ description: 'new' })] };
     expect(isContentIdentical(a, b)).toBe(false);
   });
 });
 
 describe('detectConflictsDetailed (item 17)', () => {
   it('partitions a same-id, byte-identical match into `identical`, not `conflicts`', () => {
-    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
     const hb: GrimoirePackHomebrew = { races: [{ ...race }] };
     const localLookup = (type: string, id: string) => (type === 'race' && id === 'tideborn') ? race : undefined;
-    const { conflicts, identical } = detectConflictsDetailed(hb, localLookup as never);
+    const { conflicts, identical } = detectConflictsDetailed(hb, localLookup);
     expect(conflicts).toEqual([]);
     expect(identical).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn', incomingName: 'Tideborn' }]);
   });
 
   it('partitions a same-id, differing match into `conflicts`, not `identical`', () => {
-    const local: Race = { id: 'tideborn', name: 'Tideborn (local)', features: [] } as Race;
-    const incoming: Race = { id: 'tideborn', name: 'Tideborn (v2)', features: [] } as Race;
+    const local: Race = { id: 'tideborn', name: 'Tideborn (local)', features: [] };
+    const incoming: Race = { id: 'tideborn', name: 'Tideborn (v2)', features: [] };
     const hb: GrimoirePackHomebrew = { races: [incoming] };
     const localLookup = (type: string, id: string) => (type === 'race' && id === 'tideborn') ? local : undefined;
-    const { conflicts, identical } = detectConflictsDetailed(hb, localLookup as never);
+    const { conflicts, identical } = detectConflictsDetailed(hb, localLookup);
     expect(identical).toEqual([]);
     expect(conflicts).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn (local)', incomingName: 'Tideborn (v2)' }]);
   });
 
   it('reports nothing for either bucket when there is no local match at all', () => {
-    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] } as Race] };
+    const hb: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] }] };
     const { conflicts, identical } = detectConflictsDetailed(hb, () => undefined);
     expect(conflicts).toEqual([]);
     expect(identical).toEqual([]);
@@ -81,8 +81,8 @@ describe('findDuplicateIdsInPackage', () => {
   it('flags two definitions of the same type sharing an id within one package', () => {
     const hb: GrimoirePackHomebrew = {
       races: [
-        { id: 'tideborn', name: 'Tideborn A', features: [] } as Race,
-        { id: 'tideborn', name: 'Tideborn B', features: [] } as Race,
+        { id: 'tideborn', name: 'Tideborn A', features: [] },
+        { id: 'tideborn', name: 'Tideborn B', features: [] },
       ],
     };
     const issues = findDuplicateIdsInPackage(hb);
@@ -93,15 +93,15 @@ describe('findDuplicateIdsInPackage', () => {
 
   it('the same id across DIFFERENT types is not a duplicate', () => {
     const hb: GrimoirePackHomebrew = {
-      races: [{ id: 'x', name: 'Race X', features: [] } as Race],
-      items: [{ id: 'x', name: 'Item X', weight: 0, cost: '-', properties: [], features: [] } as any],
+      races: [{ id: 'x', name: 'Race X', features: [] }],
+      items: [{ id: 'x', name: 'Item X', weight: 0, cost: '-', properties: [], features: [] }],
     };
     expect(findDuplicateIdsInPackage(hb)).toEqual([]);
   });
 });
 
 describe('planPackageImport — resolution semantics', () => {
-  const RACE: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+  const RACE: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
   const SUBRACE: Subrace = { id: 'reefborn', name: 'Reefborn', parentId: 'tideborn', features: [] };
 
   function makePack() {

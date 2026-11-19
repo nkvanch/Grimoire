@@ -3,11 +3,11 @@
 // save DC that scales with the character instead of a hard-coded number. Each case compiles a draft the way the
 // builders do, applies it to a character, and checks the SHEET changed (not just that an effect was emitted).
 import { newDraftTrait, buildTraitFeature, buildRequiresSave, STAT_BONUS_TARGETS, EFFECT_KIND_LABELS } from '../traitCompiler';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { recomputeDerived } from '../../engine/pipeline';
-import { applyGrant } from '../../engine/leveling';
+import { applyGrant } from '../../engine/levelingGrants';
 import { applyCondition, isImmuneToCondition } from '../../engine/conditions';
-import { buildLayer3 } from '../../engine/actionCards';
+import { buildLayer3 } from '../../engine/actionCardLayers';
 import type { DraftTrait, Entity } from '../../engine/types';
 
 const compile = (patch: Partial<DraftTrait>) => {
@@ -117,7 +117,7 @@ describe('a save DC that scales with the character (no more hard-coded "DC 13")'
   it('the card shows a DC that GROWS when the character levels (level 1 vs level 9, CHA 16)', () => {
     const cardAt = (level: number) => {
       const e0 = character(level);
-      const e = recomputeDerived({ ...e0, stats: { ...e0.stats, cha: 16 } } as Entity, DEFAULT_RULES);
+      const e = recomputeDerived({ ...e0, stats: { ...e0.stats, cha: 16 } }, DEFAULT_RULES);
       const { feature } = compile(draft);
       return buildLayer3(feature, e);
     };

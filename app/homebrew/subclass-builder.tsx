@@ -14,9 +14,8 @@
 // every class, official or homebrew, pending a separately-tracked backlog
 // item. Nothing regresses: official subclasses are equally unselectable today.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
@@ -41,10 +40,11 @@ import { mechanicsLabel } from '../../src/content/featureMechanics';
 import { FULL_SUBCLASS_LIBRARY } from '../../src/content/subclasses/index';
 import { deriveSubclassId } from '../../src/content/subclasses/subclassBrowse';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { hydrateLeveledChoices, mergeSubclassEntries, LeveledLosslessDraftChoice, SubclassFeatureEdit } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';

@@ -2,6 +2,7 @@
 // FILE: src/content/classes/fighter.ts
 // ============================================================================
 import { ClassProgression, ChoiceDefinition } from '../../engine/types';
+import { fightingStyleChoice, FIGHTER_STYLES } from './srd51Options';
 
 const fighterSkillChoice: ChoiceDefinition = {
   id: "fighter_skills_lvl_1",
@@ -88,9 +89,9 @@ export const fighterProgression: ClassProgression = {
   srd: true,
   entries: [
     {
-      level: 1, hpDie: 10, choices: [fighterSkillChoice, ...fighterEquipChoices],
+      level: 1, hpDie: 10, choices: [fighterSkillChoice, ...fighterEquipChoices, fightingStyleChoice('fighter_fighting_style', { kind: 'class', refId: 'fighter' }, FIGHTER_STYLES)],
       grants: [
-        { kind: "feature", value: { id: "fighting_style", name: "Fighting Style", description: "You adopt a particular style of fighting as your specialty.", source: { kind: "class", refId: "fighter" }, level: 1, effects: [], actions: [], choices: [], passive: true } },
+        { kind: "feature", value: { id: "fighting_style", name: "Fighting Style", description: 'You adopt a particular style of fighting as your specialty: choose one of Archery, Defense, Dueling, Great Weapon Fighting, Protection or Two-Weapon Fighting (the pick waits with your class choices). You can\'t take the same Fighting Style option more than once, even if you later get to choose again.', source: { kind: "class", refId: "fighter" }, level: 1, effects: [], actions: [], choices: [], passive: true } },
         { kind: "feature", value: { id: "second_wind", name: "Second Wind", description: "Regain HP equal to 1d10 + Fighter Level as a bonus action (1 use per short rest).", source: { kind: "class", refId: "fighter" }, level: 1, effects: [], actions: [{ id: "use_second_wind", name: "Second Wind", description: "Heal 1d10 + lvl" }], choices: [], passive: false, activation: { actionType: 'bonus_action', resourceCost: { resourceId: 'second_wind_pool', quantity: 1 }, range: 'self', target: 'self', requiresSave: null } } },
         { kind: "resource", value: { resourceId: "second_wind_pool", name: "Second Wind", maximum: 1, recharge: "short_rest" } },
       ]
@@ -105,7 +106,7 @@ export const fighterProgression: ClassProgression = {
     {
       level: 3, hpDie: 10, choices: [{ id: 'martial_archetype_choice', prompt: 'Choose a Martial Archetype.', kind: 'subclass', count: 1, pool: 'all', grants: [], required: true, resolved: false }],
       grants: [
-        { kind: "feature", value: { id: "martial_archetype", name: "Martial Archetype", description: "You choose an archetype that you strive to emulate in your combat styles and techniques.", source: { kind: "class", refId: "fighter" }, level: 3, effects: [], actions: [], choices: [], passive: true } },
+        { kind: "feature", value: { id: "martial_archetype", name: "Martial Archetype", description: 'At 3rd level you choose an archetype that you emulate in your combat styles and techniques (the SRD offers the Champion). It grants features at 3rd, 7th, 10th, 15th and 18th level.', source: { kind: "class", refId: "fighter" }, level: 3, effects: [], actions: [], choices: [], passive: true } },
       ]
     },
     { level: 4,  hpDie: 10, choices: [asiChoice("fighter_asi_4")],  grants: [] },

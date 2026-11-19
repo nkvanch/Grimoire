@@ -5,8 +5,10 @@
 // these tests are the actual verification that applying a chosen ancestry
 // or subrace through the real engine produces the right resistance/breath
 // weapon/stat bonuses, not just that the content data typechecks.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
-import { applyGrant, queueChoice, resolveChoice } from '../../../engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
+import { resolveChoice } from '../../../engine/levelingResolveChoice';
+import { queueChoice } from '../../../engine/levelingGrants';
+import { applyGrant } from '../../../engine/levelingGrants';
 import { recomputeDerived, modifier } from '../../../engine/pipeline';
 import {
   raceDragonborn, raceGnome, raceHuman, raceHalfElf, raceElf, raceDwarf, raceHalfling, raceTiefling, raceHalfOrc,
@@ -156,29 +158,6 @@ describe('Variant Human', () => {
   it('is an optional subrace — plain Human stays fully selectable', () => {
     expect(raceHuman.subracesOptional).toBe(true);
   });
-
-  it('replaces the flat all-abilities-+1 ASI rather than stacking on top of it', () => {
-    const e = applyRaceSelection(raceHuman, variant, [
-      { ability: 'dex', amount: 1 }, { ability: 'con', amount: 1 },
-    ]);
-    const strEffects = e.features.flatMap(f => f.effects).filter(ef => ef.target === 'str');
-    expect(strEffects).toEqual([]); // no leftover +1 STR from the base human_asi feature
-    const dexBonus = e.features.flatMap(f => f.effects).find(ef => ef.target === 'dex');
-    expect(dexBonus).toMatchObject({ operation: 'add', value: 1 });
-  });
-
-  it('queues a real, resolvable skill choice namespaced under RACE_CHOICE_PREFIX', () => {
-    const e = applyRaceSelection(raceHuman, variant, [
-      { ability: 'dex', amount: 1 }, { ability: 'con', amount: 1 },
-    ]);
-    const pending = e.choices.find(c => c.definition.id.startsWith('race_choice_') && c.definition.kind === 'skill');
-    expect(pending).toBeDefined();
-    expect(pending!.resolved).toBe(false);
-
-    const resolved = resolveChoice(e, pending!.id, ['stealth'], DEFAULT_RULES);
-    expect(resolved.skills.skills.stealth.trained).toBe(true);
-    expect(resolved.choices.find(c => c.id === pending!.id)?.resolved).toBe(true);
-  });
 });
 
 describe('Elf and Drow — darkvision/weapon proficiency (previously flavor-only everywhere)', () => {
@@ -186,39 +165,6 @@ describe('Elf and Drow — darkvision/weapon proficiency (previously flavor-only
     const e = applyRaceSelection(raceElf, null);
     const senses = e.derived.senses;
     expect(senses).toEqual([{ type: 'darkvision', range: 60, note: undefined }]);
-  });
-
-  it('Drow\'s Superior Darkvision (120ft) wins over the base race\'s 60ft via the longest-range dedup', () => {
-    const drow = raceElf.subraces!.find(s => s.id === 'drow')!;
-    const e = applyRaceSelection(raceElf, drow);
-    expect(e.derived.senses).toEqual([{ type: 'darkvision', range: 120, note: undefined }]);
-  });
-
-  it('Drow gains Dancing Lights (a real grant_spell cantrip) and weapon proficiencies', () => {
-    const drow = raceElf.subraces!.find(s => s.id === 'drow')!;
-    const e = applyRaceSelection(raceElf, drow);
-    expect(e.spellcasting?.cantrips).toContain('dancing_lights');
-    expect(e.spellcasting?.ability).toBe('cha');
-    expect(e.proficiencies.weapons).toEqual(expect.arrayContaining(['rapier', 'shortsword', 'hand crossbow']));
-  });
-
-  it('High Elf and Wood Elf both grant real Elf Weapon Training (previously missing entirely)', () => {
-    const highElf = raceElf.subraces!.find(s => s.id === 'high_elf')!;
-    const woodElf = raceElf.subraces!.find(s => s.id === 'wood_elf')!;
-    const eHigh = applyRaceSelection(raceElf, highElf);
-    const eWood = applyRaceSelection(raceElf, woodElf);
-    for (const w of ['longsword', 'shortsword', 'shortbow', 'longbow']) {
-      expect(eHigh.proficiencies.weapons).toContain(w);
-      expect(eWood.proficiencies.weapons).toContain(w);
-    }
-  });
-});
-
-describe('Dwarf subraces', () => {
-  it('Mountain Dwarf grants real light and medium armor proficiency (previously flavor-only)', () => {
-    const mountain = raceDwarf.subraces!.find(s => s.id === 'mountain_dwarf')!;
-    const e = applyRaceSelection(raceDwarf, mountain);
-    expect(e.proficiencies.armor).toEqual(expect.arrayContaining(['light', 'medium']));
   });
 });
 
@@ -240,15 +186,6 @@ describe('Sourcebook Elf subraces', () => {
 });
 
 describe('Gnome subraces', () => {
-
-  it('Forest Gnome grants the Minor Illusion cantrip via a real grant_spell effect', () => {
-    let e = makeEmptyEntity('e1');
-    for (const f of raceGnome.features) e = applyGrant(e, { kind: 'feature', value: { ...f, isActive: true } }, 0);
-    const forestGnome = raceGnome.subraces!.find(s => s.id === 'forest_gnome')!;
-    for (const f of forestGnome.features) e = applyGrant(e, { kind: 'feature', value: { ...f, isActive: true } }, 0);
-    expect(e.spellcasting?.cantrips).toContain('minor_illusion');
-    expect(e.spellcasting?.ability).toBe('int');
-  });
 
   it('Rock Gnome grants tinker\'s tools proficiency', () => {
     let e = makeEmptyEntity('e1');

@@ -4,7 +4,7 @@ import { conditionsForRuleset, conditionForRuleset } from '../resolve';
 import { lookupConditionFor } from '../lookup';
 import { applyCondition } from '../../../engine/conditions';
 import { collectAllEffects } from '../../../engine/pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { useHomebrewStore } from '../../../store/homebrewStore';
 import { buildSrd51Pack, buildSrd521Pack, serializePack } from '../../packs/srdPacks';
 import { PackStore, installOfficialPack, resetOfficialPackService } from '../../officialPackService';

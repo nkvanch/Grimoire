@@ -112,7 +112,7 @@ export function evaluatePrerequisite(entity: Entity, prereq: string | null): Pre
     const scores    = effectiveScores(entity);
     const options   = abilNames
       .map(n => ABILITY_WORDS[n])
-      .filter(Boolean) as Ability[];
+      .filter(Boolean);
     const met = options.some(ab => scores[ab] >= threshold);
     if (met) return { met: true, reason: '', needsManualCheck: false };
     const detail = options

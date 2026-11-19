@@ -26,7 +26,7 @@ describe('validatePackageForImport — envelope/structural errors (blocking)', (
 
   it('rejects duplicate stable ids within the package', () => {
     const pack = createPackageContentPack(
-      { races: [{ id: 'x', name: 'X1', features: [] } as Race, { id: 'x', name: 'X2', features: [] } as Race] },
+      { races: [{ id: 'x', name: 'X1', features: [] }, { id: 'x', name: 'X2', features: [] }] },
       [{ type: 'race', id: 'x', name: 'X1', included: 'selected' }],
       { name: 'Bad Pack' }, null, '1.0.0',
     );
@@ -103,7 +103,7 @@ describe('validatePackageForImport — envelope/structural errors (blocking)', (
 
     const dupCase = validatePackageForImport(
       createPackageContentPack(
-        { races: [{ id: 'x', name: 'X1', features: [] } as Race, { id: 'x', name: 'X2', features: [] } as Race] },
+        { races: [{ id: 'x', name: 'X1', features: [] }, { id: 'x', name: 'X2', features: [] }] },
         [{ type: 'race', id: 'x', name: 'X1', included: 'selected' }], { name: 'Bad' }, null, '1.0.0',
       ), KNOWN_RULESETS, NO_LOCAL,
     );
@@ -118,7 +118,7 @@ describe('validatePackageForImport — envelope/structural errors (blocking)', (
 
   it('a fully valid package has zero blockingIssues', () => {
     const pack = createPackageContentPack(
-      { races: [{ id: 'tideborn', name: 'Tideborn', features: [] } as Race] },
+      { races: [{ id: 'tideborn', name: 'Tideborn', features: [] }] },
       [{ type: 'race', id: 'tideborn', name: 'Tideborn', included: 'selected' }],
       { name: 'Pack' }, null, '1.0.0',
     );
@@ -139,7 +139,7 @@ describe('validatePackageForImport — envelope/structural errors (blocking)', (
 
 describe('validatePackageForImport — unsupported ruleset (non-blocking, preserved)', () => {
   it('a recognized non-D&D ruleset (ose) produces no warning', () => {
-    const race: Race = { id: 'delver', name: 'Delver', features: [], rulesetId: asRulesetId('ose') } as Race;
+    const race: Race = { id: 'delver', name: 'Delver', features: [], rulesetId: asRulesetId('ose') };
     const pack = createPackageContentPack(
       { races: [race] },
       [{ type: 'race', id: 'delver', name: 'Delver', rulesetId: asRulesetId('ose'), included: 'selected' }],
@@ -152,7 +152,7 @@ describe('validatePackageForImport — unsupported ruleset (non-blocking, preser
   });
 
   it('a completely unknown/fabricated ruleset id is preserved, not discarded, but flagged', () => {
-    const race: Race = { id: 'starforged', name: 'Starforged', features: [], rulesetId: asRulesetId('some-future-scifi-ttrpg') } as Race;
+    const race: Race = { id: 'starforged', name: 'Starforged', features: [], rulesetId: asRulesetId('some-future-scifi-ttrpg') };
     const pack = createPackageContentPack(
       { races: [race] },
       [{ type: 'race', id: 'starforged', name: 'Starforged', rulesetId: asRulesetId('some-future-scifi-ttrpg'), included: 'selected' }],
@@ -210,7 +210,7 @@ describe('validatePackageForImport — missing dependency (non-blocking warning)
 
 describe('validatePackageForImport — clean package', () => {
   it('a self-contained, valid package produces zero blocking errors and zero issues', () => {
-    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
     const sr: Subrace = { id: 'reefborn', name: 'Reefborn', parentId: 'tideborn', features: [] };
     const pack = createPackageContentPack(
       { races: [race], subraces: [sr] },

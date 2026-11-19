@@ -173,7 +173,7 @@ export function buildClass2024(def: ClassDef): { cls: CharClass; subclass: Subcl
   }
 
   const subKit = classKit(classId, def.subclass.id);
-  const subclass: SubclassDef = { ...subclassOf(def.subclass.id, def.subclass.name, def.subclass.entries(subKit)), classId } as SubclassDef;
+  const subclass: SubclassDef = { ...subclassOf(def.subclass.id, def.subclass.name, def.subclass.entries(subKit)), classId };
 
   const cls: CharClass = {
     id: classId, name: def.name, hitDie: def.hitDie, features: [], description: def.description, rulesetId: RULESET_2024, srd: false,
@@ -195,7 +195,7 @@ export function subclassOf(id: string, name: string, entries: { level: number; g
   return {
     id, name, srd: false, rulesetId: RULESET_2024,
     entries: entries.map(e => ({ level: e.level, hpDie: 0 as unknown as LevelEntry['hpDie'], grants: e.grants, choices: e.choices ?? [] })),
-  } as Omit<SubclassDef, 'classId'>;
+  };
 }
 
 /** Selects an entry of a numeric-by-level table (levels are 1-based). */

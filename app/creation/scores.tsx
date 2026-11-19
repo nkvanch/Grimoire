@@ -1,13 +1,15 @@
 // app/creation/scores.tsx
 // Ability score generation. Manual mode: no cap, starts at 10, free text entry.
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { recomputeDerived } from '../../src/engine/pipeline';
-import { recalculateAllHP, reapplyResolvedAsi, stripResolvedAsiStats } from '../../src/engine/leveling';
+import { reapplyResolvedAsi, stripResolvedAsiStats } from '../../src/engine/levelingAsiFeats';
+import { recalculateAllHP } from '../../src/engine/levelingHp';
 import { rollAbilityScoreSet } from '../../src/engine/dice';
 import { useCustomRuleProfileStore } from '../../src/store/customRuleProfileStore';
 import { resolveEffectiveCampaignRules } from '../../src/engine/customRuleProfiles';
@@ -39,7 +41,7 @@ function getRaceBonuses(
         ABILITIES.includes(effect.target as Ability)
       ) {
         const ab = effect.target as Ability;
-        bonuses[ab] = (bonuses[ab] ?? 0) + (effect.value as number);
+        bonuses[ab] = (bonuses[ab] ?? 0) + (effect.value);
       }
     }
   }
@@ -110,7 +112,7 @@ export default function ScoresScreen() {
 
   if (!draft) return null;
 
-  const usedIndices = Object.values(assignments) as number[];
+  const usedIndices = Object.values(assignments);
 
   function assignStandard(ab: Ability, idx: number) {
     setAssignments(prev => {

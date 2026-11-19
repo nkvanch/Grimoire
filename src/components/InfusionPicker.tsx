@@ -3,9 +3,10 @@
 // applies through applyInfusionChoiceToEntity (bypasses resolveChoice, same
 // reason ASI/feat/subclass do — pool is the 'all' sentinel).
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable } from './AccessibleControls';
-import { applyInfusionChoiceToEntity } from '../engine/leveling';
+import { applyInfusionChoiceToEntity } from '../engine/levelingPoolChoices';
 import { infusions } from '../content/runtimeRules';
 import { Entity, ChoiceState, CampaignRules } from '../engine/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';

@@ -3,7 +3,7 @@
 // Ancestral Guardian, Battlerager, Giant, Storm Herald, Zealot, plus three
 // different capstone features).
 // ============================================================================
-import { ClassProgression, } from '../../engine/types';
+import { ClassProgression } from '../../engine/types';
 
 export type SubclassProgression = ClassProgression & { name: string };
 

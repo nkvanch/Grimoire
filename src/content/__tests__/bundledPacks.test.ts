@@ -64,7 +64,7 @@ describe('an installed bundled pack is brought up to the copy this app ships', (
     // an older build of the same pack: one text differs, its hash says so (the stored copy is not re-checked for a signature at boot)
     const older = JSON.parse(JSON.stringify(bundled51())) as { homebrew: { backgrounds: { features: { description: string }[] }[] }; manifest: { contentHash: string } };
     older.homebrew.backgrounds[0].features[1].description = 'An older text.';
-    const oldHash = sha256Hex(packHashInput(older as never));
+    const oldHash = sha256Hex(packHashInput(older));
     const old = { ...older, manifest: { ...older.manifest, contentHash: oldHash } };
     const store = memoryStore();
     const stored: PackStore = { ...store, load: async () => [{ id: 'grimoire.srd.5.1', version: '1.0.0', pack: old }] as never };

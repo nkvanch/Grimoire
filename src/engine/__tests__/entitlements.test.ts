@@ -5,15 +5,14 @@
 // building blocks recomputeDerived and leveling.ts's grant/removal
 // functions are built on. See EntitlementRecord's own doc comment
 // (engine/types.ts) for the full model.
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import {
   grantEntitlement, grantEntitlements, revokeEntitlementsFromSource, revokeEntitlementsFromChoice,
   hasEntitlement, deriveProficienciesFromEntitlements, revokeResourceSource, initializeEntitlementInputs,
 } from '../entitlements';
-import { applyGrant } from '../leveling';
-import { isSpellPreparationLegal } from '../actionCards';
+import { applyGrant } from '../levelingGrants';
+import { isSpellPreparationLegal } from '../spellCastingContext';
 import { Entity, ClassLevelEntry, SpellSlots, Spell, asClassId } from '../types';
-import { useHomebrewStore } from '../../store/homebrewStore';
 
 function entity() {
   return makeEmptyEntity('e1', 'character');

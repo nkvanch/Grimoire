@@ -12,7 +12,7 @@
 // homebrew content or embedded character features don't pass the same
 // per-type validators every in-app authoring form already uses.
 import { createBackupPack, validateGrimoirePack, validatePackContents, GrimoirePackHomebrew } from '../backup';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import { Race, Feature, FeatureInstance, Entity } from '../types';
 
 function emptyHomebrew(): GrimoirePackHomebrew {

@@ -2,9 +2,6 @@
 // FILE: src/db/contentCacheRepo.ts
 // CRUD for homebrew content stored in the content_cache table.
 // ============================================================================
-import { Platform } from 'react-native';
-import { Race, Subrace, CharClass, HomebrewSubclass, Spell, Feature, Background, Item, Feat, Condition, SpellList } from '../engine/types';
-import { MonsterTemplate } from '../content/monsters/types';
 import { getDb } from './db';
 
 import type { ContentCacheType, HomebrewContent } from '../engine/contentRecords';
@@ -185,7 +182,7 @@ export async function loadAllHomebrew(): Promise<Partial<Record<ContentCacheType
     if (!parsed) continue;
     const type = row.type as ContentCacheType;
     if (!result[type]) result[type] = [];
-    result[type]!.push(parsed);
+    result[type].push(parsed);
   }
   return result;
 }

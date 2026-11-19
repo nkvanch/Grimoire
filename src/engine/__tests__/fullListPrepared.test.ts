@@ -7,7 +7,7 @@ import { createCharacter } from '../../content/provider/createCharacter';
 import { DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { grantEntitlement } from '../entitlements';
-import { resolveSpellCastingContexts } from '../actionCards';
+import { resolveSpellCastingContexts } from '../spellCastingContext';
 import type { Entity, RulesetId } from '../types';
 
 const provider = packContentProvider([JSON.parse(JSON.stringify(buildSrd51Pack())) as InstalledPack], 'dnd5e-2014' as RulesetId);
@@ -35,7 +35,7 @@ it('a spell prepared from the class list is castable through the class; unprepar
 });
 
 describe('how many may be prepared (a warning on the sheet, never a block)', () => {
-  const { preparedSpellCount } = require('../leveling') as typeof import('../leveling');
+  const { preparedSpellCount } = require('../levelingSpells') as typeof import('../levelingSpells');
   const { buildSrd521Pack } = require('../../content/packs/srdPacks') as typeof import('../../content/packs/srdPacks');
   const p2014 = provider.classes();
 

@@ -1,7 +1,7 @@
 // ============================================================================
 // FILE: src/content/subclasses/wizard.ts
 // ============================================================================
-import { ClassProgression, } from '../../engine/types';
+import { ClassProgression } from '../../engine/types';
 
 export type SubclassProgression = ClassProgression & { name: string };
 

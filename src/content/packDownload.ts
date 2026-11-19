@@ -39,7 +39,7 @@ export class PackDownloadError extends Error {
 export async function downloadText(url: string, options: { fetchImpl?: FetchLike; maxBytes?: number; expectedSha256?: string } = {}): Promise<string> {
   const bad = checkPackUrl(url);
   if (bad) throw new PackDownloadError(bad);
-  const fetchImpl: FetchLike = options.fetchImpl ?? (fetch as unknown as FetchLike);
+  const fetchImpl: FetchLike = options.fetchImpl ?? (fetch);
   const max = options.maxBytes ?? MAX_PACK_DOWNLOAD_BYTES;
   let response;
   try { response = await fetchImpl(url.trim()); }

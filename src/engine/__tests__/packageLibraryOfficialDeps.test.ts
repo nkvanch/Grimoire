@@ -9,7 +9,7 @@ import { flattenPackageContents } from '../packageConflicts';
 function installed(pack: ReturnType<typeof buildUnderstudyPack>): { inst: InstalledPack; lookup: (r: DependencyRef) => any } {
   const items = flattenPackageContents(pack.homebrew);
   return {
-    inst: { id: 'p', name: pack.name ?? 'P', importedAt: 1, itemRefs: items.map(c => ({ type: c.type, id: c.item.id })) } as InstalledPack,
+    inst: { id: 'p', name: pack.name ?? 'P', importedAt: 1, itemRefs: items.map(c => ({ type: c.type, id: c.item.id })) },
     lookup: (r: DependencyRef) => items.find(c => c.type === r.type && c.item.id === r.id)?.item,
   };
 }

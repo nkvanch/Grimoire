@@ -7,11 +7,15 @@ import path from 'path';
 import { buildSrd51Pack, buildSrd521Pack, serializePack } from '../packs/srdPacks';
 import { packContentProvider, ContentProvider } from '../provider/contentProvider';
 import { createCharacter, spellCandidates, recomputeContentOf } from '../provider/createCharacter';
-import { applyPoolChoiceToEntity, applyExpertiseChoiceToEntity, levelUpClass, resolveChoice, applySpellChoiceToEntity, applySubclassToEntity } from '../../engine/leveling';
+import { levelUpClass, applySubclassToEntity } from '../../engine/leveling';
+import { resolveChoice } from '../../engine/levelingResolveChoice';
+import { applySpellChoiceToEntity } from '../../engine/levelingSpells';
+import { applyExpertiseChoiceToEntity } from '../../engine/levelingProficiencyChoices';
+import { applyPoolChoiceToEntity } from '../../engine/levelingPoolChoices';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { recomputeDerived } from '../../engine/pipeline';
 import { takeRest } from '../../engine/rest';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../../engine/defaults';
 import { validateEntityShape } from '../../engine/homebrewValidator';
 import { migrateEntity } from '../../engine/multiclass';
 import { Entity, RulesetId, CharClass } from '../../engine/types';
@@ -38,7 +42,7 @@ function resolveAll(start: Entity, p: ContentProvider, classId: string, subclass
       if (d.kind === 'subclass') {
         const sub = subclassId ? p.getSubclass(subclassId) : p.subclassesOf(classId)[0];
         if (!sub) throw new Error('no subclass in the pack');
-        e = applySubclassToEntity(e, c.id, sub.id as never, sub as never, DEFAULT_RULES);
+        e = applySubclassToEntity(e, c.id, sub.id, sub, DEFAULT_RULES);
       } else if (d.kind === 'spell') {
         const cands = spellCandidates(p, e, c.id);
         if (cands.length < d.count) throw new Error(`only ${cands.length} candidates for ${d.count} picks`);

@@ -7,7 +7,7 @@ import {
 } from '../featBrowse';
 import { ALL_FEATS } from '../index';
 import { sortByOption } from '../../contentQuery';
-import { makeEmptyEntity } from '../../../store/characterStore';
+import { makeEmptyEntity } from '../../../engine/defaults';
 import type { Feat } from '../../../engine/types';
 
 describe('feat prerequisite classification', () => {

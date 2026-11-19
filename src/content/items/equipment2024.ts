@@ -13,7 +13,7 @@ import { GEAR_2024 } from './gear2024';
 import { TOOL_ROWS, GEAR_ROWS, VARIANT_ROWS, MOUNT_ROWS, Row } from './equipment2024Data';
 
 function describe(id: string, name: string, description: string): Feature {
-  return { id: `${id}_info`, name, description, source: { kind: 'item', refId: id }, level: null, effects: [], actions: [], choices: [], passive: true } as Feature;
+  return { id: `${id}_info`, name, description, source: { kind: 'item', refId: id }, level: null, effects: [], actions: [], choices: [], passive: true };
 }
 
 function plain(r: Row, kind: string, description: string, extra: string[] = []): Item {
@@ -35,7 +35,7 @@ function weapon(id: string, name: string, weight: number, cost: string, dice: st
       id: `${id}_attack`, name, description: 'Ranged weapon attack.', source: { kind: 'item', refId: id }, level: null, effects: [], actions: [], choices: [], passive: false,
       activation: { actionType: 'action', resourceCost: null, range, target: 'single', requiresSave: null },
       abilityEffects: [{ type: 'damage', dice, damageType: 'piercing' }],
-    } as Feature],
+    }],
   };
 }
 
@@ -45,7 +45,7 @@ function armor(id: string, name: string, weight: number, cost: string, base: num
     features: [{
       id: `${id}_ac`, name, description: `Base AC ${base} + DEX modifier${cap ? ` (max +${cap})` : ''}.`, source: { kind: 'item', refId: id }, level: null, actions: [], choices: [], passive: true,
       effects: [{ type: 'base_ac_formula', target: 'ac', operation: 'set', value: base, condition: null, formulaAbilities: ['dex'] as never, ...(cap ? { formulaAbilityCap: { dex: cap } } : {}) }],
-    } as Feature],
+    }],
   };
 }
 

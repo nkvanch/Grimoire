@@ -1,7 +1,7 @@
 import { RULE_PRESETS, presetProfiles, presetProfileId, isPresetProfileId } from '../rulePresets';
 import { suggestFirst, suggestionRank, isSuggested } from '../rulesetSuggestion';
 import { sanitizeProfileRules, resolveEffectiveCampaignRules, isProfileCompatible } from '../../engine/customRuleProfiles';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../../engine/defaults';
 import { useCustomRuleProfileStore } from '../../store/customRuleProfileStore';
 import { RulesetId } from '../../engine/types';
 

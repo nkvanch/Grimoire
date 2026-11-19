@@ -16,7 +16,7 @@ import { monsterLich } from '../srd';
 import { generateActionCard } from '../../../engine/actionCards';
 import { applyActionCardUse } from '../../../components/sheet/TabActions';
 import { startTurn } from '../../../engine/combat';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 
 describe('Lich legendary actions — real content, real pipeline', () => {
   it('spawns with a full legendary_actions resource pool', () => {

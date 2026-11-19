@@ -10,7 +10,7 @@ import { COMPANION_TEMPLATES_BY_GRANT_FEATURE } from '../companions';
 import { ALL_CONDITIONS } from '../conditions/index';
 import { CONDITIONS_2024 } from '../conditions/conditions2024';
 import { conditionForRuleset } from '../conditions/resolve';
-import type { Background, CharClass, Feat, Item, Race, RulesetId, Spell } from '../../engine/types';
+import type { RulesetId } from '../../engine/types';
 import { matchesRuleset } from '../../engine/types';
 import type { ContentProvider, ProviderSubclass } from './contentProvider';
 import { ALL_CHAR_CLASSES_CATALOG } from '../classes/index';
@@ -32,13 +32,13 @@ const STATIC_RULE_RECORDS: Record<string, readonly unknown[]> = {
 
 export function staticContentProvider(rulesetId?: RulesetId): ContentProvider {
   const of = <T extends { rulesetId?: RulesetId }>(list: readonly T[]): T[] => list.filter(r => matchesRuleset(r.rulesetId, rulesetId));
-  const classes = of(ALL_CHAR_CLASSES_CATALOG as CharClass[]);
+  const classes = of(ALL_CHAR_CLASSES_CATALOG);
   const subclasses = of([...(FULL_SUBCLASS_LIBRARY as unknown as ProviderSubclass[]).filter(s => !!s.id), ...(SUBCLASSES_2024 as ProviderSubclass[])]);
-  const races = of(FULL_RACE_LIBRARY as Race[]);
-  const backgrounds = of(FULL_BACKGROUND_LIBRARY as Background[]);
-  const feats = of(FULL_FEAT_LIBRARY as Feat[]);
-  const spells = of(FULL_SPELL_LIBRARY as Spell[]);
-  const items = FULL_ITEM_LIBRARY as Item[];
+  const races = of(FULL_RACE_LIBRARY);
+  const backgrounds = of(FULL_BACKGROUND_LIBRARY);
+  const feats = of(FULL_FEAT_LIBRARY);
+  const spells = of(FULL_SPELL_LIBRARY);
+  const items = FULL_ITEM_LIBRARY;
   const conditionRecords = of([...ALL_CONDITIONS, ...CONDITIONS_2024]);
   const first = <T extends { id: string }>(list: readonly T[], id: string) => list.find(x => x.id === id);
   return {
@@ -52,7 +52,7 @@ export function staticContentProvider(rulesetId?: RulesetId): ContentProvider {
     // The hardcoded library keeps one record per spell id (the 2014 text) and resolves the SRD 5.2.1 version on demand.
     spells: target => spells.filter(s => matchesRuleset(s.rulesetId, target ?? rulesetId)).map(s => resolveSpellVersion(s, target ?? rulesetId)),
     getSpell: (id, target) => resolveSpellVersion(first(spells, id), target ?? rulesetId),
-    spellIndexSpells: () => FULL_SPELL_LIBRARY as Spell[],
+    spellIndexSpells: () => FULL_SPELL_LIBRARY,
     items: () => items, getItem: id => first(items, id),
     conditionRecords: () => conditionRecords,
     monsters: () => FULL_MONSTER_LIBRARY,

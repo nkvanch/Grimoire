@@ -9,7 +9,7 @@
 import { buildLevelUpSummaryRows } from '../LevelUpPreviewModal';
 import { levelUp } from '../../../engine/leveling';
 import { simulate } from '../../../engine/simulate';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity, ClassProgression } from '../../../engine/types';
 
 // DEFAULT_RULES.hpMode is 'fixed' — already fully deterministic (no

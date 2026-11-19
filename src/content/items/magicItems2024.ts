@@ -6,7 +6,7 @@
 // later 5.2.1 record replaces it (items are shared across rulesets). The text is the rules text; nothing here adds a
 // computed effect, so a bonus on a magic item is applied by hand unless the catalog item with that id models it.
 // ============================================================================
-import type { Item, Feature } from '../../engine/types';
+import type { Item } from '../../engine/types';
 import { MAGIC_ROWS, MagicRow } from './magicItems2024Data';
 
 function build(r: MagicRow): Item {
@@ -16,7 +16,7 @@ function build(r: MagicRow): Item {
     features: [{
       id: `${r.id}_desc`, name: r.name, description: `${r.typeLine}. ${r.text}`,
       source: { kind: 'item', refId: r.id }, level: null, effects: [], actions: [], choices: [], passive: true,
-    } as Feature],
+    }],
   };
 }
 

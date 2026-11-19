@@ -1,7 +1,7 @@
 // src/engine/__tests__/rulesetChange.test.ts
 import { simulateRulesetChange, canApplyRulesetChange } from '../rulesetChange';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { Entity, ContentDB, HomebrewSubclass, RulesetId, ChoiceState } from '../types';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { Entity, ContentDB, HomebrewSubclass, RulesetId } from '../types';
 
 const EMPTY_DB: ContentDB = { races: [], classes: [], backgrounds: [], spells: [], items: [], conditions: [], features: [], feats: [] };
 
@@ -111,7 +111,7 @@ describe('simulateRulesetChange — content compatibility categorization', () =>
         id: 'feat_choice_1',
         definition: { id: 'feat_choice', prompt: 'Choose a feat', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: true },
         grantedAt: 1, resolved: true, selections: ['feat:blood_mark'],
-      } as ChoiceState],
+      }],
     };
     const preview = simulateRulesetChange(e, 'dnd5e-2024' as RulesetId, universalDB, targetDB, [], DEFAULT_RULES);
     const featEntry = preview.content.find(c => c.type === 'feat');
@@ -192,7 +192,7 @@ describe('simulateRulesetChange — spell/item compatibility (items 5, 6, 18: no
 
 describe('simulateRulesetChange — subclass resolution (item 3\'s subclass example)', () => {
   it('a homebrew Subclass tagged for a different ruleset is incompatible', () => {
-    const sub: HomebrewSubclass = { id: 'tidewater_domain' as never, name: 'Tidewater Domain', classId: 'cleric', entries: [], rulesetId: 'dnd5e-2014' as never } as never;
+    const sub: HomebrewSubclass = { id: 'tidewater_domain' as never, name: 'Tidewater Domain', classId: 'cleric', entries: [], rulesetId: 'dnd5e-2014' as never };
     let e = makeEmptyEntity('char1');
     e = {
       ...e,
@@ -217,7 +217,7 @@ describe('simulateRulesetChange — pending and invalidated choices (items 12, 2
         id: 'pending_1',
         definition: { id: 'asi', prompt: 'Choose an ASI or Feat', kind: 'asi', count: 1, pool: 'all', grants: [], required: true, resolved: false },
         grantedAt: 4, resolved: false, selections: [],
-      } as ChoiceState],
+      }],
     };
     const preview = simulateRulesetChange(e, 'dnd5e-2024' as RulesetId, EMPTY_DB, EMPTY_DB, [], DEFAULT_RULES);
     expect(preview.pendingChoices).toEqual([{ id: 'pending_1', prompt: 'Choose an ASI or Feat' }]);
@@ -234,7 +234,7 @@ describe('simulateRulesetChange — pending and invalidated choices (items 12, 2
         id: 'feat_choice_1',
         definition: { id: 'feat_choice', prompt: 'Choose a feat', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: true },
         grantedAt: 1, resolved: true, selections: ['feat:blood_mark'],
-      } as ChoiceState],
+      }],
     };
     const preview = simulateRulesetChange(e, 'dnd5e-2024' as RulesetId, universalDB, targetDB, [], DEFAULT_RULES);
     expect(preview.invalidatedChoices).toEqual([{ id: 'feat_choice_1', prompt: 'Choose a feat', reason: expect.any(String) }]);
@@ -253,7 +253,7 @@ describe('simulateRulesetChange — pending and invalidated choices (items 12, 2
         id: 'feat_choice_1',
         definition: { id: 'feat_choice', prompt: 'Choose a feat', kind: 'feat', count: 1, pool: 'all', grants: [], required: true, resolved: true },
         grantedAt: 1, resolved: true, selections: ['feat:alert'],
-      } as ChoiceState],
+      }],
     };
     const preview = simulateRulesetChange(e, 'dnd5e-2024' as RulesetId, db, db, [], DEFAULT_RULES);
     expect(preview.invalidatedChoices).toEqual([]);

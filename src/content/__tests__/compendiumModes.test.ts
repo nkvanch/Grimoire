@@ -9,6 +9,10 @@ import { isContentExposed, selectExposedContent } from '../contentExposure';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+// the screen is the route file plus the files it was split into
+const readSheetScreen = () => [read('app/sheet/[id].tsx'), ...fs.readdirSync(path.join(root, 'src/components/sheet/screen')).map(x => read('src/components/sheet/screen/' + x))].join('\n');
+// the Official view is the screen file plus the files it was split into
+const readCompendium = () => [read('app/(tabs)/compendium.tsx'), ...fs.readdirSync(path.join(root, 'src/components/compendium/official')).map(f => read('src/components/compendium/official/' + f))].join('\n');
 
 describe('Compendium modes (A, B)', () => {
   it('has exactly three same-page modes, in order: Official / Homebrew / Packages', () => {
@@ -29,7 +33,7 @@ describe('Compendium modes (A, B)', () => {
   });
 
   it('the shell renders the segmented switch and mounts only the active mode', () => {
-    const shell = read('app/(tabs)/compendium.tsx');
+    const shell = readCompendium();
     expect(shell).toMatch(/<CompendiumModeSwitch mode=\{mode\}/);
     expect(shell).toMatch(/mode === 'official' && <OfficialCompendiumView/);
     expect(shell).toMatch(/mode === 'homebrew' && <HomebrewLibraryView/);
@@ -37,7 +41,7 @@ describe('Compendium modes (A, B)', () => {
     const sw = read('src/components/compendium/CompendiumModeSwitch.tsx');
     expect(sw).toContain("compendium-mode-");
     // same visual language as the sheet's Combat / Exploration switch
-    const sheet = read('app/sheet/[id].tsx');
+    const sheet = readSheetScreen();
     for (const token of ['flexDirection: \'row\'', 'Colors.gold + \'22\'', 'FontWeight.bold']) {
       expect(sw).toContain(token);
       expect(sheet).toContain(token);
@@ -103,7 +107,7 @@ describe('Homebrew creation tab is unchanged and separate (F)', () => {
 
 describe('Official exposure is preserved (L, M)', () => {
   it('Official mode still filters through the central SRD exposure decision', () => {
-    const shell = read('app/(tabs)/compendium.tsx');
+    const shell = readCompendium();
     expect(shell).toContain('currentContentExposure');
     expect(shell).toContain('isContentExposed');
   });

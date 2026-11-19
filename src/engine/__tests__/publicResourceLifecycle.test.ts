@@ -1,7 +1,8 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import {
-  applyGrant, applySubclassToEntity, removeFeature, resetCreationClass, swapBackground,
-} from '../leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { applySubclassToEntity, resetCreationClass } from '../leveling';
+import { swapBackground } from '../levelingBackground';
+import { removeFeature } from '../levelingAsiFeats';
+import { applyGrant } from '../levelingGrants';
 import { asClassId, Background, ChoiceState, ClassProgression, Entity, Feature, Grant } from '../types';
 
 const resource = (id: string, maximum: number): Grant => ({

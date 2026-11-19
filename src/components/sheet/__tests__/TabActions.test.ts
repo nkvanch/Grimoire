@@ -7,7 +7,7 @@
 // already depends on this function staying correct.
 import { applyActionCardUse } from '../TabActions';
 import { startTurn } from '../../../engine/combat';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { ActionCard, ActivationOption, SpellSlots } from '../../../engine/types';
 
 function testCard(actionType: 'action' | 'bonus_action' | 'reaction' | 'free' | 'passive'): ActionCard {

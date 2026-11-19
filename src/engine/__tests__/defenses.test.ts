@@ -1,5 +1,5 @@
 // What the DM sees before damage lands: a creature's defenses and a preview of the result.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { defenseSummary, damagePreview, damageOutcome } from '../defenses';
 import type { Entity, Effect } from '../types';
@@ -73,7 +73,7 @@ describe('damage outcome and preview', () => {
   it('a Wild Shape form takes it first', () => {
     const e = withEffects([], { current: 20, maximum: 30, temp: 0 }, {
       wildShapeState: { active: true, formId: 'wolf', beastHp: 11, beastHpMax: 11, expiresAt: { unit: 'hours', remaining: 1 } as never },
-    } as never);
+    });
     expect(damagePreview(e, 5).line).toContain('the form is left at 6/11');
     expect(damagePreview(e, 15).line).toContain('4 carries over');
   });

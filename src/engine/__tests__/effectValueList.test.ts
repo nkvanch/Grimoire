@@ -1,5 +1,5 @@
 // A character whose feature carries a list-valued effect (a spell_list:<class> effect adds spells) must validate, not be quarantined on load.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { validateEntityShape } from '../homebrewValidator';
 import type { Entity, Feature } from '../types';
@@ -26,7 +26,7 @@ describe('list-valued effects', () => {
     expect(validateEntityShape(withEffectValue({ ids: ['a'] })).valid).toBe(false);
   });
   it('a character with the real Zellorea Living Pyre expanded list loads', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const fs = require('fs'); const path = require('path');
     const file = path.join(__dirname, '..', '..', '..', 'outreach', 'zell', 'zellorea-mechanics-test-pack.grimoire-pack');
     if (!fs.existsSync(file)) return;

@@ -2,9 +2,9 @@
 // FILE: src/engine/resolver.ts
 // PROJECT: Stacking Strategy & Conflict Overwrite Engine
 // ============================================================================
-import { 
-  ActiveEffect, StrategyKind, CampaignRules, AdvantageState, 
-  Effect, Entity, ChoiceState, ChoiceDefinition
+import {
+  ActiveEffect, StrategyKind, CampaignRules, AdvantageState,
+  Effect
 } from './types';
 
 /**

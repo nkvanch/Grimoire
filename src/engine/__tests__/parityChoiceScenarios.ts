@@ -2,11 +2,13 @@
 // resolutions a player would make, recorded as plain operations both engines replay. The strategy is deterministic and only
 // emits resolutions the engine accepted, so every recorded operation is legal on the state it was recorded against.
 import type { CampaignRules, ChoiceState, Entity } from '../types';
-import { DEFAULT_RULES } from '../../store/characterStore';
-import {
-  resolveChoice, applyPoolChoiceToEntity, applyAsiToEntity, applyFeatToEntity, applySubclassToEntity, applySpellChoiceToEntity,
-  applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity,
-} from '../leveling';
+import { DEFAULT_RULES } from '../defaults';
+import { applySubclassToEntity } from '../leveling';
+import { resolveChoice } from '../levelingResolveChoice';
+import { applySpellChoiceToEntity } from '../levelingSpells';
+import { applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity } from '../levelingProficiencyChoices';
+import { applyPoolChoiceToEntity } from '../levelingPoolChoices';
+import { applyAsiToEntity, applyFeatToEntity } from '../levelingAsiFeats';
 import { applyStatModifiers, collectAllEffects } from '../pipeline';
 import { createCharacter, spellCandidates } from '../../content/provider/createCharacter';
 import type { ContentProvider } from '../../content/provider/contentProvider';
@@ -30,7 +32,7 @@ export function runChoiceOp(entity: Entity, op: ChoiceOp, rules: CampaignRules, 
   switch (op.op) {
     case 'resolve': return resolveChoice(entity, op.choiceId, op.selections, rules);
     case 'pool': return applyPoolChoiceToEntity(entity, op.choiceId, op.selections, rules);
-    case 'asi': return applyAsiToEntity(entity, op.choiceId, op.increases as never, rules);
+    case 'asi': return applyAsiToEntity(entity, op.choiceId, op.increases, rules);
     case 'expertise': return applyExpertiseChoiceToEntity(entity, op.choiceId, op.selections, rules);
     case 'tool': return applyToolChoiceToEntity(entity, op.choiceId, op.selections, rules);
     case 'language': return applyLanguageChoiceToEntity(entity, op.choiceId, op.selections, rules);

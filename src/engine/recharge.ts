@@ -4,7 +4,7 @@
 // "after an hour in a thunderstorm", "12 days", "weekly") is table-resolved: it is shown as reset by hand, with one Reset action,
 // and no rest, dawn or turn quietly refills it. Calendar-dependent recharges stay reminders, not a clock (product rule 24).
 // ============================================================================
-import { parseRechargeThreshold } from './combat';
+import { parseRechargeThreshold } from './combatRecharge';
 import { parseDawnRecharge } from './rest';
 
 export type RechargeKind = 'short_rest' | 'long_rest' | 'dawn' | 'start_of_turn' | 'roll' | 'never' | 'by_hand';

@@ -11,7 +11,7 @@
 // architecture/09-conformance-answers.md §1.1 and the plan file's B6 note.
 // Kept as-is, for reasons specific to this app rather than a general
 // argument against normalization:
-//   - Sync already diffs at the JS-object layer (src/sync/diff.ts's
+//   - Sync already diffs at the JS-object layer (src/engine/diff.ts's
 //     deepDiff/deepMerge) before anything reaches SQLite — the "row-level
 //     sync is difficult with blobs" concern doesn't apply here; that
 //     problem is solved one layer above the database already.

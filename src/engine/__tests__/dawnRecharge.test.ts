@@ -1,7 +1,7 @@
 // "Dawn" is an explicit event, not a rest. The authoring UI used to offer "Other → Dawn" as free text
 // that no rest ever refilled; now Dawn is a real chip backed by takeDawn() and a sheet button, and
 // free-text triggers are honestly manual.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { takeRest, takeDawn, hasSpentDawnResources } from '../rest';
 import { buildTraitFeature, newDraftTrait, resolveRecharge, RECHARGE_TYPES } from '../../content/traitCompiler';
@@ -16,7 +16,7 @@ function drained(): Entity {
     resources: {
       ...b.resources,
       hp: { ...b.resources.hp, current: 1 },
-      custom: RECHARGES.map(rc => ({ id: `r_${rc.replace(/ /g, '_')}`, name: rc, maximum: 3, current: 0, recharge: rc })) as Entity['resources']['custom'],
+      custom: RECHARGES.map(rc => ({ id: `r_${rc.replace(/ /g, '_')}`, name: rc, maximum: 3, current: 0, recharge: rc })),
     },
   };
 }

@@ -18,24 +18,22 @@ import { resolveMonsterById } from '../content/contentResolution';
 import { applyCondition } from './conditions';
 import { recomputeDerived } from './pipeline';
 import { lookupCondition } from '../content/conditions/index';
+import { newId } from './ids';
 
-function genId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 // ── Constructors ─────────────────────────────────────────────────────────────
 
 export function newPreparedEncounter(name: string, campaignId?: string, sessionId?: string): PreparedEncounter {
   const now = Date.now();
   return {
-    id: genId('enc'), campaignId, sessionId, name, tags: [], status: 'draft',
+    id: newId('enc'), campaignId, sessionId, name, tags: [], status: 'draft',
     combatants: [], groups: [], waves: [], environment: [], rewards: [],
     createdAt: now, updatedAt: now,
   };
 }
 
 export function newPreparedCombatant(monsterId: string): PreparedCombatant {
-  return { id: genId('pc'), monsterId, quantity: 1, hpMode: 'average' };
+  return { id: newId('pc'), monsterId, quantity: 1, hpMode: 'average' };
 }
 
 /**
@@ -89,19 +87,19 @@ export function hasInvalidManualHp(prepared: PreparedEncounter): boolean {
 }
 
 export function newEncounterGroup(name: string): EncounterGroup {
-  return { id: genId('grp'), name };
+  return { id: newId('grp'), name };
 }
 
 export function newEncounterWave(name: string): EncounterWave {
-  return { id: genId('wave'), name, triggerKind: 'manual' };
+  return { id: newId('wave'), name, triggerKind: 'manual' };
 }
 
 export function newEnvironmentEntry(label: string): EncounterEnvironmentEntry {
-  return { id: genId('env'), label };
+  return { id: newId('env'), label };
 }
 
 export function newReward(kind: EncounterReward['kind'], label: string): EncounterReward {
-  return { id: genId('rwd'), kind, label };
+  return { id: newId('rwd'), kind, label };
 }
 
 // ── Instantiation ────────────────────────────────────────────────────────────

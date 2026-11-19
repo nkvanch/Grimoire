@@ -1,4 +1,4 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { gainHeroicInspiration, spendHeroicInspiration, hasHeroicInspiration, grantsHeroicInspirationOnLongRest } from '../heroicInspiration';
 import { takeRest } from '../rest';
 import { ALL_RACES as RACES } from '../../content/races/index';

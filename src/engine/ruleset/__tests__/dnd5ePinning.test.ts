@@ -99,7 +99,7 @@ describe('resolving a pinned character', () => {
   it('a definition the character took on after it was pinned is reported as not pinned', () => {
     const store = new MemoryRevisionStore();
     const fighter = pinnedFighter(store);
-    const withPotion = { ...fighter, inventory: { ...fighter.inventory, carried: [...fighter.inventory.carried, { ...fighter.inventory.carried[0], id: 'inst-x', itemId: 'healers_kit' }] } } as Entity;
+    const withPotion = { ...fighter, inventory: { ...fighter.inventory, carried: [...fighter.inventory.carried, { ...fighter.inventory.carried[0], id: 'inst-x', itemId: 'healers_kit' }] } };
     expect(resolvePinnedContent(withPotion, pinningCatalog(packs()), store).issues.map(i => `${i.kind} ${i.key}`)).toEqual(['not_pinned item:healers_kit']);
   });
 });
@@ -130,7 +130,7 @@ describe('extending a lock', () => {
     const f = make('fighter');
     const fighter = attachLock(f, currentLockFor(f, pinningCatalog(packs()), 1, store));
     const before = pinnedLockOf(fighter)!.definitions;
-    const withPotion = { ...fighter, inventory: { ...fighter.inventory, carried: [...fighter.inventory.carried, { ...fighter.inventory.carried[0], id: 'inst-x', itemId: 'healers_kit' }] } } as Entity;
+    const withPotion = { ...fighter, inventory: { ...fighter.inventory, carried: [...fighter.inventory.carried, { ...fighter.inventory.carried[0], id: 'inst-x', itemId: 'healers_kit' }] } };
     const { entity, added } = extendLockDefinitions(withPotion, pinningCatalog(withEditedFighter()), store);
     expect(added).toBe(1);
     const after = pinnedLockOf(entity)!.definitions;

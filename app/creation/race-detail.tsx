@@ -1,6 +1,7 @@
 // app/creation/race-detail.tsx
 // Race detail with back button. Strips old race features before applying new ones.
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useEffect, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -12,18 +13,17 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 import { bannedContentIds } from '../../src/engine/packDiagnostics';
 import { loadInstalledPacks } from '../../src/db/packRegistryRepo';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
-import { applyGrant, queueChoice } from '../../src/engine/leveling';
+import { queueChoice } from '../../src/engine/levelingGrants';
+import { applyGrant } from '../../src/engine/levelingGrants';
+import { revokeEntitlementsFromSource, revokeEntitlementsFromChoice } from '../../src/engine/entitlements';
+import { ALL_LANGUAGES } from '../../src/content/languages';
 import { recomputeDerived, applyStatModifiers, collectAllEffects } from '../../src/engine/pipeline';
 import { Entity, Ability, Feature, RACE_CHOICE_PREFIX } from '../../src/engine/types';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
-import { EditionBadge } from '../../src/components/EditionBadge';
-import {
-  FilterSection, MultiSelectChipRow, OfficialHomebrewChipRow, ActiveFilterChips,
-} from '../../src/components/FilterChipRow';
+import { EditionBadge, OtherEditionNote } from '../../src/components/EditionBadge';
+import { FilterSection, MultiSelectChipRow, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import { SortControl } from '../../src/components/SortControl';
-import {
-  SubraceOwnTrait, SUBRACE_OWN_TRAIT_LABELS, subraceOwnTraits, subraceSortOptions,
-} from '../../src/content/races/subraceBrowse';
+import { SubraceOwnTrait, SUBRACE_OWN_TRAIT_LABELS, subraceOwnTraits, subraceSortOptions } from '../../src/content/races/subraceBrowse';
 import { sortByOption } from '../../src/content/contentQuery';
 import { currentContentExposure, exposedSubraces } from '../../src/content/contentExposure';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
@@ -96,6 +96,11 @@ function clearRaceFeatures(entity: Entity): Entity {
       .filter(f => f.source.kind === 'race')
       .flatMap(f => f.choices.map(c => c.id)),
   );
+  const isRaceChoice = (c: Entity['choices'][number]) => raceChoiceIds.has(c.definition.id) || c.definition.id.startsWith(RACE_CHOICE_PREFIX);
+  // The languages the previous race spoke (granted in selectRace) go with it, and so does whatever its swept choices
+  // granted (the extra language a High Elf picked), or the re-queued choice could not offer that pick again.
+  if (entity.identity.raceId) entity = revokeEntitlementsFromSource(entity, 'race', entity.identity.raceId);
+  for (const c of entity.choices.filter(isRaceChoice)) entity = revokeEntitlementsFromChoice(entity, c.id);
   return {
     ...entity,
     features: entity.features.filter(f => f.source.kind !== 'race'),
@@ -103,9 +108,7 @@ function clearRaceFeatures(entity: Entity): Entity {
     // choice) are namespaced with the RACE_CHOICE_PREFIX below precisely so
     // they can be swept here on race change/re-selection, same as feature-
     // sourced choices already are via raceChoiceIds.
-    choices: entity.choices.filter(c =>
-      !raceChoiceIds.has(c.definition.id) && !c.definition.id.startsWith(RACE_CHOICE_PREFIX),
-    ),
+    choices: entity.choices.filter(c => !isRaceChoice(c)),
   };
 }
 
@@ -380,6 +383,12 @@ export default function RaceDetailScreen() {
     for (const choice of [...(race!.pendingChoices ?? []), ...(chosenSubrace?.pendingChoices ?? [])]) {
       updated = queueChoice(updated, choice, 0);
     }
+    // ...and the languages every member of the race speaks. Entries that are not a language ("One extra language of
+    // your choice") are the race's own queued choices above.
+    const spoken = ALL_LANGUAGES.filter(l => detail!.languages.some(n => n.toLowerCase() === l.name.toLowerCase())).map(l => l.id);
+    if (spoken.length > 0) {
+      updated = applyGrant(updated, { kind: 'proficiency', value: { languages: spoken } }, 0, undefined, { kind: 'race', id: race!.id });
+    }
     const contentDB = getMergedContentDB(updated.rulesetId);
     updated = recomputeDerived(updated, rules, {
       classDefs: contentDB.classes, homebrewSpells: contentDB.spells, races: contentDB.races, items: contentDB.items,
@@ -401,6 +410,7 @@ export default function RaceDetailScreen() {
         {!homebrewRaceIds.includes(race.id) && isNonSrd(race.srd, race.rulesetId) && <NonSrdBadge />}
       </View>
       <RecordDetailPicture record={race} />
+      {!homebrewRaceIds.includes(race.id) && <OtherEditionNote item={race} />}
       <View style={styles.divider} />
 
       {detail && (

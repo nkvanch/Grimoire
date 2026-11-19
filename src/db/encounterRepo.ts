@@ -5,7 +5,6 @@
 // ActiveEncounter/CombatState instead). See engine/types.ts's
 // PreparedEncounter doc comment for the conceptual split.
 // ============================================================================
-import { Platform } from 'react-native';
 import { PreparedEncounter } from '../engine/types';
 import { getDb } from './db';
 

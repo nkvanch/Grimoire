@@ -13,10 +13,11 @@
 #>
 param(
   [switch]$AllAbis,
+  [string]$Abis,   # e.g. 'arm64-v8a,x86_64': the phone and the PC emulator in one APK
   [switch]$Clean,
   [switch]$Prebuild,
   [string]$KeystorePath,
-  [string]$KeyAlias = 'grimoire',
+  [string]$KeyAlias = 'Grimoire',
   [string]$CacheRoot = 'D:\DevCache'
 )
 
@@ -55,7 +56,7 @@ if ($Prebuild -or -not (Test-Path 'android\gradlew.bat')) {
   npx expo prebuild --platform android --no-install
 }
 
-$abis = if ($AllAbis) { 'armeabi-v7a,arm64-v8a,x86,x86_64' } else { 'arm64-v8a' }
+$abis = if ($Abis) { $Abis } elseif ($AllAbis) { 'armeabi-v7a,arm64-v8a,x86,x86_64' } else { 'arm64-v8a' }
 
 # --- optional: sign with a real release key (otherwise the generated project signs with the debug key) ---
 $signArgs = @()

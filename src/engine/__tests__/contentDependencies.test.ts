@@ -69,7 +69,7 @@ describe('collectContentDependencies', () => {
     const race: Race = {
       id: 'tideborn', name: 'Tideborn',
       features: [mkFeature({ source: { kind: 'race', refId: 'tideborn' } })],
-    } as Race;
+    };
     // No effects reference anything, and the feature's own source.refId
     // (handled elsewhere, not walked as a dependency at all) shouldn't
     // produce a spurious self-edge either way.
@@ -89,7 +89,7 @@ describe('collectContentDependencies', () => {
         id: 'aa_f', source: { kind: 'feat', refId: 'amphibious_adept' },
         effects: [{ type: 'grant_spell', target: 'na', operation: 'set', value: null, condition: null, spellIds: ['pressure_lance'] } as any],
       }),
-    } as any;
+    };
     expect(collectContentDependencies('feat', feat)).toEqual([{ type: 'spell', id: 'pressure_lance' }]);
   });
 
@@ -135,7 +135,7 @@ describe('collectContentDependencies', () => {
 });
 
 describe('buildDependencyClosure', () => {
-  const RACE: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+  const RACE: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
   const SUBRACE: Subrace = { id: 'reefborn', name: 'Reefborn', parentId: 'tideborn', features: [] };
   const SPELL: Spell = { id: 'pressure_lance', name: 'Pressure Lance', level: 1, school: 'Evocation', description: '' } as Spell;
   const FEAT_WITH_SPELL: HomebrewContent = {
@@ -144,7 +144,7 @@ describe('buildDependencyClosure', () => {
       id: 'aa_f', source: { kind: 'feat', refId: 'amphibious_adept' },
       effects: [{ type: 'grant_spell', target: 'na', operation: 'set', value: null, condition: null, spellIds: ['pressure_lance'] } as any],
     }),
-  } as any;
+  };
 
   function mkLookup(items: Record<string, HomebrewContent & { rulesetId?: string }>) {
     return (ref: DependencyRef) => items[`${ref.type}:${ref.id}`];
@@ -200,7 +200,7 @@ describe('buildDependencyClosure', () => {
     // spec item 8's "avoid duplicate exported definitions" actually cares
     // about, and it exercises the same visited-set machinery a true cycle
     // would need.
-    const raceA: Race = { id: 'race_a', name: 'A', features: [] } as Race;
+    const raceA: Race = { id: 'race_a', name: 'A', features: [] };
     const srA: Subrace = { id: 'sr_a', name: 'SR A', parentId: 'race_a', features: [] };
     const srB: Subrace = { id: 'sr_b', name: 'SR B', parentId: 'race_a', features: [] };
     const lookup = mkLookup({ 'race:race_a': raceA, 'subrace:sr_a': srA, 'subrace:sr_b': srB });
@@ -225,7 +225,7 @@ describe('buildDependencyClosure', () => {
       features: [mkFeature({
         effects: [{ type: 'grant_spell', target: 'na', operation: 'set', value: null, condition: null, spellIds: ['pressure_lance'] } as any],
       })],
-    } as Race;
+    };
     const lookup = mkLookup({
       'race:tideborn': raceWithSpell,
       'feat:amphibious_adept': FEAT_WITH_SPELL, // also grants pressure_lance, see const above
@@ -248,7 +248,7 @@ describe('buildDependencyClosure', () => {
       feature: mkFeature({
         effects: [{ type: 'grant_spell', target: 'na', operation: 'set', value: null, condition: null, spellIds: ['speak_with_fish'] } as any],
       }),
-    } as any;
+    };
     const lookup = mkLookup({ 'feat:sea_speaker': featWithMissingSpell }); // 'speak_with_fish' deliberately absent
     const { closure, unresolved } = buildDependencyClosure([{ type: 'feat', id: 'sea_speaker' }], lookup);
     expect(closure.map(c => `${c.type}:${c.id}`)).toEqual(['feat:sea_speaker']);

@@ -1,7 +1,7 @@
 // Two house rules the phone stored but did not apply (the desktop's docs/PHONE_APP_TODO.md): feats off, and death-save failures that persist.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { asiMode, featsEnabled } from '../houseRules';
-import { applyDamage, applyHealing } from '../combat';
+import { applyDamage, applyHealing } from '../combatDamage';
 import { takeRest } from '../rest';
 import type { CampaignRules, Entity } from '../types';
 

@@ -36,8 +36,8 @@ export function buildCardScenarios(base: Entity): CardScenario[] {
     out.push({ name, entity: e, uses });
   };
   const sc = (e: Entity & Json): Json => e.spellcasting as unknown as Json;
-  const res = (e: Entity & Json): Json => e.resources as unknown as Json;
-  const identity = (e: Entity & Json): Json => e.identity as unknown as Json;
+  const res = (e: Entity & Json): Json => e.resources;
+  const identity = (e: Entity & Json): Json => e.identity;
   const addEntitlements = (e: Entity & Json, ...list: Json[]) => { (e as Json).entitlements = [...((e as Json).entitlements as unknown[]), ...list]; };
   const addFeature = (e: Entity & Json, f: Json) => { e.features = [...e.features, f as never]; };
   const turn = (e: Entity & Json, used: Json = {}) => { (e as Json).turnState = { actionUsed: false, bonusActionUsed: false, reactionUsed: false, ...used }; };

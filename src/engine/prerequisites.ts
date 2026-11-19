@@ -8,7 +8,7 @@
 // text the same way a player would: "damage" appears in it, "ranged/melee spell attack" appears in it, and the
 // range string starts with a number of feet. That is a disclosed heuristic, kept in one place (spellTraits).
 // ============================================================================
-import { Entity, Prerequisite, ChoiceState } from './types';
+import { Entity, Prerequisite } from './types';
 import { getClassLevels } from './multiclass';
 import { spellRepo } from '../content/spellRepo';
 
@@ -49,7 +49,7 @@ export function splitSelection(selection: string): { optionId: string; target?: 
 /** Every option id the character holds through resolved choices (their `selections`). A targeted take counts as its option. */
 export function heldOptionIds(entity: Entity): Set<string> {
   const held = new Set<string>();
-  for (const c of entity.choices as ChoiceState[]) if (c.resolved) for (const id of c.selections) {
+  for (const c of entity.choices) if (c.resolved) for (const id of c.selections) {
     held.add(String(id));
     held.add(splitSelection(String(id)).optionId);
   }
@@ -68,7 +68,7 @@ export function lookupSpell(id: string): SpellLike | undefined { return defaultS
 // Spells are read through the spell repo, so installed content packs (officialSource.ts) are what answers. A spell the
 // character knows is in the repo's cache: the app warms every spell a character references when it loads it.
 function defaultSpellLookup(id: string): SpellLike | undefined {
-  return spellRepo.getSpellSync(id) as SpellLike | undefined;
+  return spellRepo.getSpellSync(id);
 }
 
 function levelFor(entity: Entity, classId: string | null | undefined): number {

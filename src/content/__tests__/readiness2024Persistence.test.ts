@@ -5,7 +5,7 @@ import { packContentProvider } from '../provider/contentProvider';
 import { createCharacter, recomputeContentOf } from '../provider/createCharacter';
 import { levelUpClass } from '../../engine/leveling';
 import { recomputeDerived } from '../../engine/pipeline';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../../engine/defaults';
 import { gainHeroicInspiration } from '../../engine/heroicInspiration';
 import { setWeaponMasteryPicks, eligibleMasteryWeapons } from '../../engine/weaponMastery';
 import { Entity, RulesetId } from '../../engine/types';

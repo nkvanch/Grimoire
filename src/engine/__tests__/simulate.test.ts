@@ -1,7 +1,7 @@
 // src/engine/__tests__/simulate.test.ts
 import { simulate } from '../simulate';
-import { applyDamage } from '../combat';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { applyDamage } from '../combatDamage';
+import { makeEmptyEntity } from '../defaults';
 
 describe('simulate', () => {
   function damagedEntity() {

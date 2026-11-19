@@ -5,7 +5,7 @@
 import { buildEquipmentSummaryRows } from '../EquipmentPreviewModal';
 import { equipItem } from '../../../engine/inventory';
 import { simulate } from '../../../engine/simulate';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity, Item, ItemInstance, Feature } from '../../../engine/types';
 
 function feature(id: string, effects: Feature['effects']): Feature {

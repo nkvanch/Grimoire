@@ -16,7 +16,7 @@ const k = classKit(classId);
 const CHANNEL = (lv: number) => (lv >= 11 ? 3 : 2);
 const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
 const auraSaves: Effect[] = ABILITIES.map(ab =>
-  ({ type: 'stat_modifier', target: `savingThrows.${ab}`, operation: 'add', value: 0, condition: null, addAbilityModifier: 'cha' } as Effect));
+  ({ type: 'stat_modifier', target: `savingThrows.${ab}`, operation: 'add', value: 0, condition: null, addAbilityModifier: 'cha' }));
 const immune = (condition: string): Effect => ({ type: 'condition_immunity', target: condition, operation: 'immunity', value: null, condition: null });
 
 export const paladin2024: ClassDef = {

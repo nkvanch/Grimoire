@@ -9,11 +9,15 @@ import { createCharacter } from '../../content/provider/createCharacter';
 import { getProgressionForClass } from '../../content/classes/progressions';
 import { DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyDamage, applyHealing, recordDeathSave, startWildShape, endWildShape, playerEndTurn, startTurn, dropConcentration } from '../combat';
+import { playerEndTurn, startTurn } from '../combat';
+import { startWildShape, endWildShape } from '../combatWildShape';
+import { applyDamage, applyHealing, recordDeathSave } from '../combatDamage';
+import { dropConcentration } from '../concentration';
 import { applyCondition, removeCondition } from '../conditions';
 import { equipItem, unequipItem } from '../inventory';
 import { takeRest, takeDawn, spendHitDie } from '../rest';
-import { levelUpClass, addGold } from '../leveling';
+import { levelUpClass } from '../leveling';
+import { addGold } from '../levelingResolveChoice';
 import type { Entity, RulesetId } from '../types';
 
 const MARK = 'x-unknown';

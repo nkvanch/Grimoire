@@ -2,7 +2,8 @@
 // The pop-up behind "Customize" on an owned item: its name, description, uses (charges and when they come back) and what it does to
 // ability scores ("sets Strength to 22"), and modes to switch between on the sheet. Saving makes the person's own homebrew copy of an official item, or changes their own
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';

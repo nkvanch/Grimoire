@@ -2,13 +2,15 @@ import { setManualEntitlement } from '../../engine/entitlements';
 // app/sheet/TabAbilities.tsx
 // Tab 3 — Ability scores, saving throws, skills.
 import { useState, memo } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, Ability, SkillName, CampaignRules } from '../../engine/types';
 import { modifier, effectiveAbilityScores, recomputeDerived } from '../../engine/pipeline';
 import { applyDmOverride, getActiveOverrides, cancelDmOverride } from '../../engine/dmOverride';
 import { AuditModal } from './AuditModal';
+import { proficiencyLabel } from '../../content/identityLabels';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -445,7 +447,7 @@ function TabAbilitiesInner({ entity, rules, isDm, campaignId, deviceId, onEntity
           proficiencies[cat].length > 0 && (
             <View key={cat} style={styles.profCatRow}>
               <Text style={styles.profCatLabel}>{cat}</Text>
-              <Text style={styles.profCatItems}>{proficiencies[cat].join(', ')}</Text>
+              <Text style={styles.profCatItems}>{proficiencies[cat].map(proficiencyLabel).join(', ')}</Text>
             </View>
           )
         ))}

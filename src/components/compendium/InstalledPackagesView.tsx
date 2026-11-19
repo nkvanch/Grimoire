@@ -9,7 +9,8 @@
 // (an editor) from a package's detail and pressing Back returns to that same
 // detail, and pressing Back again (or the "‹ Packages" row) returns to the list.
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, FlatList, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { ScrollView, FlatList } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useHomebrewStore } from '../../store/homebrewStore';

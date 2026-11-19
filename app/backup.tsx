@@ -4,13 +4,14 @@
 // a character survives a lost/reset device (see docs/PRIVACY_POLICY.md —
 // there is no cloud backup by design). docs/ROADMAP_1.0.md Phase 3.2.
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView } from '../src/components/Lists';
 import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../src/store/characterStore';
 import { Alert } from '../src/utils/alert';
 import { useHomebrewStore } from '../src/store/homebrewStore';
-import { useSessionStore } from '../src/store/sessionStore';
+import { useDeviceStore } from '../src/store/deviceStore';
 import { exportBackup, pickAndValidateBackup, ImportPreview, findStaleCharacterOverwrites, findHomebrewIdCollisions, HomebrewIdCollision } from '../src/io/backupIO';
 import { recordInstalledPack, PackItemRef } from '../src/db/packRegistryRepo';
 import { loadAllEntityMeta } from '../src/db/entityRepo';
@@ -25,7 +26,7 @@ export default function BackupScreen() {
   const applyIncomingEntity = useCharacterStore(s => s.applyIncomingEntity);
   const homebrew = useHomebrewStore(s => s);
   const saveHomebrewItem = useHomebrewStore(s => s.saveItem);
-  const deviceId = useSessionStore(s => s.session?.deviceId ?? null);
+  const deviceId = useDeviceStore(s => s.session?.deviceId ?? null);
 
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -99,9 +100,9 @@ export default function BackupScreen() {
     setCommitting(true);
     try {
       // Characters: applyIncomingEntity already handles add-or-replace-by-id
-      // and persists to SQLite — same function the sync system uses.
+      // and persists to SQLite.
       for (const entity of preview.pack.characters) {
-        applyIncomingEntity(entity);
+        await applyIncomingEntity(entity);
       }
       // Homebrew: saveItem is an upsert per category. itemRefs collects what
       // was actually imported so a content-pack (not a personal backup —
@@ -181,7 +182,7 @@ export default function BackupScreen() {
           characters and your homebrew content, then opens the share sheet
           so you choose where to save it.
         </Text>
-        <Pressable style={[styles.actionBtn, exporting && styles.actionBtnDisabled]} onPress={handleExport} disabled={exporting}>
+        <Pressable style={[styles.actionBtn, exporting && styles.actionBtnDisabled]} onPress={() => { void handleExport(); }} disabled={exporting}>
           {exporting ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.actionBtnTxt}>Export Backup</Text>}
         </Pressable>
       </Section>
@@ -192,7 +193,7 @@ export default function BackupScreen() {
           before anything is added — existing characters with the same ID
           are updated, not duplicated.
         </Text>
-        <Pressable style={[styles.actionBtnSecondary, importing && styles.actionBtnDisabled]} onPress={handlePickFile} disabled={importing}>
+        <Pressable style={[styles.actionBtnSecondary, importing && styles.actionBtnDisabled]} onPress={() => { void handlePickFile(); }} disabled={importing}>
           {importing ? <ActivityIndicator color={Colors.gold} /> : <Text style={styles.actionBtnSecondaryTxt}>Choose File…</Text>}
         </Pressable>
 
@@ -241,7 +242,7 @@ export default function BackupScreen() {
               <Pressable style={styles.previewCancelBtn} onPress={() => { setPreview(null); setStaleWarnings([]); setIdCollisions([]); }} disabled={committing}>
                 <Text style={styles.previewCancelTxt}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.previewConfirmBtn, committing && styles.actionBtnDisabled]} onPress={handleConfirmImport} disabled={committing}>
+              <Pressable style={[styles.previewConfirmBtn, committing && styles.actionBtnDisabled]} onPress={() => { void handleConfirmImport(); }} disabled={committing}>
                 {committing ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.previewConfirmTxt}>Import</Text>}
               </Pressable>
             </View>

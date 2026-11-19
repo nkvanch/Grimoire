@@ -7,7 +7,7 @@
 // Subclass: Champion.
 // ============================================================================
 import { ClassDef, classKit, activation, adv, stat } from './builder';
-import { ChoiceOption, Effect } from '../../engine/types';
+import { ChoiceOption } from '../../engine/types';
 
 const classId = 'fighter_2024';
 const k = classKit(classId);
@@ -18,7 +18,7 @@ const MASTERY = (lv: number) => (lv >= 16 ? 6 : lv >= 10 ? 5 : lv >= 4 ? 4 : 3);
 export const styles = (kit: ReturnType<typeof classKit>): ChoiceOption[] => [
   kit.option('fighting_style_archery', 'Archery', 1, 'You gain a +2 bonus to attack rolls you make with Ranged weapons.'),
   kit.option('fighting_style_defense', 'Defense', 1, 'While you\'re wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.',
-    { effects: [{ ...stat('ac', 'add', 1), situational: { id: 'fighting_style_defense_armored', question: 'Are you wearing Light, Medium, or Heavy armor?' } } as Effect] }),
+    { effects: [{ ...stat('ac', 'add', 1), situational: { id: 'fighting_style_defense_armored', question: 'Are you wearing Light, Medium, or Heavy armor?' } }] }),
   kit.option('fighting_style_great_weapon_fighting', 'Great Weapon Fighting', 1, 'When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.'),
   kit.option('fighting_style_two_weapon_fighting', 'Two-Weapon Fighting', 1, 'When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren\'t already adding it to the damage.'),
 ];
@@ -85,14 +85,16 @@ export const fighter2024: ClassDef = {
     id: 'champion_2024', name: 'Champion',
     entries: kit => [
       { level: 3, grants: [
-        kit.g('champion_improved_critical', 'Improved Critical', 3, 'Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20.'),
+        kit.g('champion_improved_critical', 'Improved Critical', 3, 'Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20.',
+          { effects: [stat('crit_range', 'set', 19)] }),
         kit.g('champion_remarkable_athlete', 'Remarkable Athlete', 3, 'You have Advantage on Initiative rolls and Strength (Athletics) checks. In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.',
           { effects: [adv('initiative'), adv('Strength (Athletics) checks')] }),
       ] },
       { level: 7, choices: [kit.pick('additional_fighting_style', 'Additional Fighting Style: choose another Fighting Style feat.', 1, styles(kit), { timing: 'level_up', rule: 'Whenever you gain a Fighter level, you can replace this with a different one.' })],
         grants: [kit.g('champion_additional_fighting_style', 'Additional Fighting Style', 7, 'You gain another Fighting Style feat of your choice.')] },
       { level: 10, grants: [kit.g('champion_heroic_warrior', 'Heroic Warrior', 10, 'The thrill of battle drives you toward victory. During combat, you can give yourself Heroic Inspiration whenever you start your turn without it (use Gain on the Heroic Inspiration card).')] },
-      { level: 15, grants: [kit.g('champion_superior_critical', 'Superior Critical', 15, 'Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18-20 on the d20.')] },
+      { level: 15, grants: [kit.g('champion_superior_critical', 'Superior Critical', 15, 'Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18-20 on the d20.',
+        { effects: [stat('crit_range', 'set', 18)] })] },
       { level: 18, grants: [kit.g('champion_survivor', 'Survivor', 18, 'You attain the pinnacle of resilience in battle. Defy Death: you have Advantage on Death Saving Throws, and when you roll 18-20 on a Death Saving Throw you gain the benefit of rolling a 20. Heroic Rally: at the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point.',
         { effects: [adv('death saving throws')] })] },
     ],

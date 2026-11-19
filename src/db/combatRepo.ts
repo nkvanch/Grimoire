@@ -10,7 +10,6 @@
 // project's established "blob storage, not normalized schema" design
 // (see schema.ts's own header comment) — no new table, no schema change.
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
 import { CombatState } from '../engine/combat';
 import { Entity } from '../engine/types';

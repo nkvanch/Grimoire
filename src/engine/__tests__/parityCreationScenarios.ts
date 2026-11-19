@@ -1,7 +1,7 @@
 // New characters, as the phone app's createCharacter makes them from the SRD packs: the native creation is held to the same entity.
 import type { Entity, Subrace } from '../types';
 import { compileSubraceFields } from '../../content/homebrewCompile';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { createCharacter } from '../../content/provider/createCharacter';
 import type { Providers } from './parityLevelScenarios';
 
@@ -21,7 +21,7 @@ export function buildCreationCases(providers: Providers): CreationCase[] {
     };
     const chosen = pickSubrace ? pickSubrace(p.getRace(raceId) as unknown as { subraces?: Subrace[] }) : undefined;
     if (chosen) spec.subraceId = chosen.subrace.id;
-    const entity = createCharacter(p, { id: spec.id, name: spec.name, classId, raceId, backgroundId, stats: STATS as never, level, subclassId, subrace: chosen?.subrace }, DEFAULT_RULES);
+    const entity = createCharacter(p, { id: spec.id, name: spec.name, classId, raceId, backgroundId, stats: STATS, level, subclassId, subrace: chosen?.subrace }, DEFAULT_RULES);
     out.push({ name, spec, stats: STATS, entity, ...(chosen?.standalone ? { subrace: chosen.subrace } : {}) });
   };
 
@@ -54,7 +54,7 @@ export function buildCreationCases(providers: Providers): CreationCase[] {
     pendingChoices: [{ localId: 'p1', kind: 'language', count: '1', prompt: '', poolMode: 'all', categories: [], restrictedIds: [] }],
   }, 'elf');
   make('5e-elf-attached-ash-elf', '5e', 'fighter', 'elf', providers.p2014.backgrounds()[0].id, 2, undefined, () => ({ subrace: attached, standalone: true }));
-  const replacing: Subrace = { ...attached, id: 'elf_replacer', name: 'Replacer', replacesBaseFeatureIds: ['elf_asi'] } as Subrace;
+  const replacing: Subrace = { ...attached, id: 'elf_replacer', name: 'Replacer', replacesBaseFeatureIds: ['elf_asi'] };
   make('5e-elf-replaces-a-base-feature', '5e', 'wizard', 'elf', providers.p2014.backgrounds()[0].id, 1, undefined, () => ({ subrace: replacing, standalone: true }));
   return out;
 }

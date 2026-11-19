@@ -2,7 +2,7 @@
 // FILE: src/engine/homebrewValidator.ts
 // Validates homebrew content before it enters the content database.
 // ============================================================================
-import { Race, CharClass, Spell, Feature, Background, Feat, HomebrewSubclass, Item, SpellList } from './types';
+import { Race, CharClass, Spell, Feature, Feat, HomebrewSubclass, Item, SpellList } from './types';
 import { MonsterTemplate } from '../content/monsters/types';
 import { validateEntityDeep } from './entityValidation';
 

@@ -20,6 +20,7 @@ module.exports = tseslint.config(
   {
     ignores: [
       'node_modules/**',
+      '.claude/**',     // agent working copies of this repo
       '.expo/**',
       'dist/**',
       'web-build/**',
@@ -78,6 +79,8 @@ module.exports = tseslint.config(
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-redundant-type-constituents': 'off',
       '@typescript-eslint/no-base-to-string': 'off',
+      // an async function with no await is how a mock or a promise-returning API is written here; nothing is unsafe about it
+      '@typescript-eslint/require-await': 'off',
 
       // Keep these as real signal.
       '@typescript-eslint/await-thenable': 'error',

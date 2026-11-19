@@ -3,7 +3,7 @@ import { ORIGIN_FEATS_2024 } from '../feats/origin2024';
 import { FULL_FEAT_LIBRARY } from '../feats';
 import { buildSrd521Pack } from '../packs/srdPacks';
 import { evaluatePrerequisite } from '../../engine/featPrereq';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 import { Entity } from '../../engine/types';
 
 function at(level: number, features: string[] = [], stats: Partial<Entity['stats']> = {}): Entity {

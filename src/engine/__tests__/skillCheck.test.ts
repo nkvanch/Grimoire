@@ -1,5 +1,5 @@
 // Skill checks: the engine states the bonus, the advantage state and the dice (the Lupine Mask finding of the creator audit).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { skillCheck } from '../skillCheck';
 import { rollExpression } from '../dice';

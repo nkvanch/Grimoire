@@ -9,7 +9,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules } from '../../engine/types';
-import { removeFeature } from '../../engine/leveling';
+import { removeFeature } from '../../engine/levelingAsiFeats';
 import { simulate } from '../../engine/simulate';
 import { buildFeatureGrantRows } from './featureGrantRows';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';

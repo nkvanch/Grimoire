@@ -15,7 +15,7 @@ import {
 } from '../../engine/rest';
 import { bumpedHitDie } from '../../engine/hitDieTier';
 import { expireOverrides } from '../../engine/dmOverride';
-import { endWildShape } from '../../engine/combat';
+import { endWildShape } from '../../engine/combatWildShape';
 import { simulate } from '../../engine/simulate';
 import { spellRepo } from '../../content/spellRepo';
 import { CONDITIONS_BY_ID } from '../../content/conditions/index';

@@ -8,6 +8,8 @@ import { exportFormatsFor } from '../../io/exportFormats';
 
 const root = path.resolve(__dirname, '../../..');
 const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
+// the screen is the route file plus the files it was split into
+const readSheetScreen = () => [read('app/sheet/[id].tsx'), ...fs.readdirSync(path.join(root, 'src/components/sheet/screen')).map(x => read('src/components/sheet/screen/' + x))].join('\n');
 
 describe('Export labels (D, E)', () => {
   it('a Homebrew export offers "Export Homebrew", never a Character file', () => {
@@ -41,11 +43,11 @@ describe('Export labels (D, E)', () => {
 
   it('the Homebrew library and the character sheet each pass the right kind to the sheet', () => {
     expect(read('src/components/compendium/HomebrewLibraryView.tsx')).toMatch(/<ExportFormatSheet[^>]*\n?\s*visible=\{!!exportTarget\}\s*\n\s*kind="homebrew"/);
-    expect(read('app/sheet/[id].tsx')).toMatch(/<ExportFormatSheet\s*\n\s*visible=\{exportSheetOpen\}\s*\n\s*kind="character"/);
+    expect(readSheetScreen()).toMatch(/<ExportFormatSheet\s*\n\s*visible=\{exportSheetOpen\}\s*\n\s*kind="character"/);
   });
 
   it('the generic "Export" labels are gone: entry export, package export and the sheet menu say what they export', () => {
-    expect(read('app/sheet/[id].tsx')).toContain('label="Export Character"');
+    expect(readSheetScreen()).toContain('label="Export Character"');
     const library = read('src/components/compendium/HomebrewLibraryView.tsx');
     expect(library).toContain('accessibilityLabel="Export Homebrew"');
     expect(library).not.toContain('Export portable homebrew package');

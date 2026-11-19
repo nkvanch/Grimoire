@@ -16,7 +16,7 @@ describe('Paladin (2024)', () => {
   });
 
   it('Paladin\'s Smite and Faithful Steed give free casts and always-prepared spells', () => {
-    let e = toLevel(newChar('paladin'), 'paladin', 5);
+    const e = toLevel(newChar('paladin'), 'paladin', 5);
     expect(max(e, 'paladins_smite')).toBe(1);
     expect(max(e, 'faithful_steed')).toBe(1);
     const known = JSON.stringify(e.entitlements ?? e.spellcasting);

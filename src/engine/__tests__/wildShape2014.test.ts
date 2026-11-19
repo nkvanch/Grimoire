@@ -1,5 +1,5 @@
 // The 2014 Druid's Wild Shape: one card, a picker of the SRD 5.1 beasts the Druid level (and any feature that raises the limits) allows.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { generateActionCard } from '../actionCards';
 import { applyActionCardUse } from '../actionUse';
@@ -140,7 +140,7 @@ describe('the Wild Shape card', () => {
   it('lasts half the druid level in hours', () => {
     const e = druid(8);
     const card = cardOf(e);
-    const used = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'giant_eagle')!);
+    const used = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'giant_eagle'));
     expect(used.wildShapeState?.expiresAt).toMatchObject({ unit: 'hours', remaining: 4 });
     expect(used.derived.movement.fly).toBe(80);
   });
@@ -155,8 +155,8 @@ describe('the Wild Shape card', () => {
   it('refuses to start a second form while already transformed', () => {
     const e = druid(2);
     const card = cardOf(e);
-    const once = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'wolf')!);
-    const twice = applyActionCardUse(once, cardOf(once), DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'boar')!);
+    const once = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'wolf'));
+    const twice = applyActionCardUse(once, cardOf(once), DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'boar'));
     expect(twice).toBe(once);
     expect(twice.resources.custom[0].current).toBe(1);
   });
@@ -175,13 +175,13 @@ describe('a druid saved with the three single-form features', () => {
 
 describe('the shaped form\'s attacks', () => {
   it('appear as cards with the stat block\'s to-hit while transformed, and not before', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { generateAllActionCards } = require('../actionCards');
     const e = druid(2);
     const before = generateAllActionCards(e).map((c: { name: string }) => c.name);
     expect(before.some((n: string) => /Bite/.test(n))).toBe(false);
     const card = generateActionCard(e.features[0], e)!;
-    const shaped = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'wolf')!);
+    const shaped = applyActionCardUse(e, card, DEFAULT_RULES, card.activation.options!.find(o => o.transformFormId === 'wolf'));
     const cards = generateAllActionCards(shaped) as { name: string; layer2: string; isWeaponAttack?: boolean }[];
     const bite = cards.find(c => c.name === 'Bite (Wolf)')!;
     expect(bite).toBeDefined();
@@ -189,7 +189,7 @@ describe('the shaped form\'s attacks', () => {
     expect(bite.isWeaponAttack).toBe(true);
   });
   it('a form with no printed to-hit uses its best of Strength and Dexterity plus proficiency', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { generateAllActionCards } = require('../actionCards');
     const e = druid(2);
     // The 2024 forms carry no printed to-hit: Wolf has Dex 15 (+2); the druid's proficiency bonus at level 2 is +2.

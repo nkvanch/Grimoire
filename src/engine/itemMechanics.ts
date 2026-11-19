@@ -1,5 +1,5 @@
 import { Effect, Entity, Item, ItemInstance } from './types';
-import { BASE_ARMOR_AC, SHIELD_AC_BONUS } from './ruleset/dnd5e';
+import { BASE_ARMOR_AC, NAMED_MAGIC_ARMOR, SHIELD_AC_BONUS } from './ruleset/dnd5e';
 import { itemRepo } from '../content/itemRepo';
 import { armorWeight, baseWeaponIdFromName, isShield, isToolOrKit, isWeapon } from '../content/items/itemBrowse';
 import { ItemIndexEntry, toItemIndexEntry } from '../content/itemRepo.types';
@@ -37,7 +37,7 @@ export function generateItemInstanceId(): string {
  * safe to call from every path that can hand a deserialized Entity to
  * normal runtime: characterStore.ts's own boot-time load hydration, portable
  * character import (characterPortable.ts), and any other direct-import path
- * (backup restore / inbound sync's applyIncomingEntity) that would
+ * (backup restore's applyIncomingEntity) that would
  * otherwise bypass boot hydration entirely and expose an identity-less
  * legacy item straight into gameplay. Never called from recomputeDerived or
  * another pure derivation function — those only ever CONSUME an
@@ -148,38 +148,81 @@ export function wornGearOf(equipped: readonly ItemInstance[], resolve: (itemId: 
     // The catalog when it resolves, otherwise the facts hydrated onto the instance when it was equipped.
     const def = resolve(i.itemId);
     const entry = def ? toItemIndexEntry(def) : undefined;
-    const w = entry ? armorWeight(entry) : (i.armorWeight ?? null);
+    const w = (entry ? armorWeight(entry) : (i.armorWeight ?? null)) ?? baseArmorWeight(i.baseArmor) ?? null;   // or its chosen base
     if (w && rank[w] > rank[armor]) armor = w;
     if (entry ? isShield(entry) : i.isShield === true) shield = true;
   }
   return { armor, shield };
 }
 
-export function statedArmorAc(item: Pick<Item, 'name' | 'properties' | 'features'> & { id?: string }): Effect | null {
+export function statedArmorAc(item: Pick<Item, 'name' | 'properties' | 'features'> & { id?: string }, plain = false, chosenBase?: string, chosenBonus?: number): Effect | null {
   const ownAc = (item.features ?? []).some(f => (f.effects ?? []).some(e => e.target === 'ac'));
-  if (ownAc) return null;
-  const entry = toItemIndexEntry({ id: item.id ?? item.name, weight: 0, cost: '', ...item } as Item);
-  const text = [item.name, ...(item.features ?? []).map(f => f.description ?? '')].join(' ');
+  if (ownAc && !plain) return null;
+  const entry = toItemIndexEntry({ id: item.id ?? item.name, weight: 0, cost: '', ...item });
+  const description = (item.features ?? []).map(f => f.description ?? '').join(' ');
+  const named = NAMED_MAGIC_ARMOR.find(n => n.name.test(item.name));
   // a bonus that only counts sometimes ("+2 bonus to AC against ranged attacks") is not added
-  const bonus = parseInt(item.name.match(/\+(\d)/)?.[1] ?? text.match(/\+(\d) bonus to (?:AC|Armor Class)(?! against)/i)?.[1] ?? '0', 10);
+  const textBonus = item.name.match(/\+(\d)/)?.[1] ?? description.match(/\+(\d) bonus to (?:AC|Armor Class)(?! against)/i)?.[1];
+  const bonus = plain ? 0 : chosenBonus ?? (textBonus !== undefined ? parseInt(textBonus, 10) : named?.bonus ?? 0);
   if (isShield(entry)) return { type: 'stat_modifier', target: 'ac', operation: 'add', value: SHIELD_AC_BONUS + bonus, condition: null };
+  if (isToolOrKit(entry)) return null;
   const weight = armorWeight(entry);
-  if (!weight || isToolOrKit(entry)) return null;
-  // armor by its own name only when the name says armor: Dragonhide Belt or Leatherworker's Tools are not hide or leather armor
+  // armor only when something says so: Dragonhide Belt or Leatherworker's Tools are not hide or leather armor
   const saysArmor = item.properties.some(p => /armor/i.test(p)) || /armor|mail|plate|breastplate|chain shirt|splint/i.test(item.name);
-  if (!saysArmor) return null;
+  if (!weight && !saysArmor) return null;
   const stated = item.properties.map(p => p.toLowerCase().match(/^ac (\d+)(.*)$/)).find(Boolean);
-  const name = item.name.toLowerCase();
-  const base = Object.keys(BASE_ARMOR_AC).sort((a, b) => b.length - a.length).find(k => name.includes(k));
-  const ac = stated ? parseInt(stated[1], 10) : base ? BASE_ARMOR_AC[base].ac + bonus : null;
+  // rules' own for a named magic armor, unless the heading says "Any…" (the player picks the base: no guess)
+  const keys = Object.keys(BASE_ARMOR_AC).sort((a, b) => b.length - a.length);
+  const firstIn = (s: string) => keys.map(k => ({ k, at: s.search(new RegExp(`\\b${k}\\b`)) })).filter(x => x.at >= 0)
+    .sort((a, b) => a.at - b.at || b.k.length - a.k.length)[0]?.k;
+  const heading = description.match(/^\s*Armor \(([^)]*)\)/i)?.[1].toLowerCase().replace(/,?\s*except\b.*$/, '');
+  const anyBase = !!heading && /^any\b/.test(heading);
+  const chosen = chosenBase && BASE_ARMOR_AC[chosenBase] ? chosenBase : undefined;
+  const base = firstIn(item.name.toLowerCase()) ?? (heading && !anyBase ? firstIn(heading) : undefined) ?? chosen ?? (anyBase ? undefined : named?.base);
+  // a stated "ac 14" is the armor's own AC, as in the armor table; a magic bonus adds to it like to a base found any other way
+  const ac = stated ? parseInt(stated[1], 10) + bonus : base ? BASE_ARMOR_AC[base].ac + bonus : null;
   if (ac === null) return null;
   const dexCap = stated
-    ? (/dexterity/.test(stated[2]) ? (stated[2].match(/max (\d+)/) ? parseInt(stated[2].match(/max (\d+)/)![1], 10) : null) : 0)
+    ? (/\bdex(?:terity)?\b/.test(stated[2]) ? (stated[2].match(/max (\d+)/) ? parseInt(stated[2].match(/max (\d+)/)![1], 10) : null) : 0)
     : base ? BASE_ARMOR_AC[base].dexCap : (weight === 'light' ? null : weight === 'medium' ? 2 : 0);
   return {
     type: 'base_ac_formula', target: 'ac', operation: 'set', value: ac, condition: null,
     ...(dexCap === 0 ? {} : { formulaAbilities: ['dex'], ...(dexCap === null ? {} : { formulaAbilityCap: { dex: dexCap } }) }),
-  } as Effect;
+  };
+}
+
+/** The bonuses the owner can pick for a record that covers several ("Armor, +1, +2, or +3": the SRD 5.2.1 armor, shield, weapon,
+ *  ammunition and Wand of the War Mage), or null. Until one is picked the name's first one (+1) counts. */
+export function bonusChoices(item: Pick<Item, 'name'>): number[] | null {
+  const m = item.name.match(/\+(\d),\s*\+(\d),?\s*or\s*\+(\d)/i);
+  return m ? [m[1], m[2], m[3]].map(n => parseInt(n, 10)) : null;
+}
+
+/** A base armor's weight, from its row of the armor table (no Dexterity cap: light; a cap of 2: medium; none added: heavy). */
+export function baseArmorWeight(base: string | undefined): 'light' | 'medium' | 'heavy' | undefined {
+  const row = base ? BASE_ARMOR_AC[base] : undefined;
+  return !row ? undefined : row.dexCap === null ? 'light' : row.dexCap === 2 ? 'medium' : 'heavy';
+}
+
+/**
+ * The base armors the owner can pick for a magic armor whose rules leave the base open ("Armor (Any Medium or Heavy, Except Hide
+ * Armor)": Adamantine Armor, Armor +1, Armor of Resistance), or null when the item fixes its own base or is not armor. From the
+ * description's "Any…" heading, else the rules' own for a named magic armor, else every base armor.
+ */
+export function baseArmorChoices(item: Pick<Item, 'name' | 'properties' | 'features'> & { id?: string }): string[] | null {
+  if ((item.features ?? []).some(f => (f.effects ?? []).some(e => e.target === 'ac'))) return null;
+  const entry = toItemIndexEntry({ id: item.id ?? item.name, weight: 0, cost: '', ...item });
+  if (isShield(entry) || isToolOrKit(entry) || statedArmorAc(item)) return null;
+  const saysArmor = item.properties.some(p => /armor/i.test(p)) || /\barmou?r\b/i.test(item.name);
+  if (!saysArmor) return null;
+  const description = (item.features ?? []).map(f => f.description ?? '').join(' ');
+  const heading = description.match(/^\s*Armor \(([^)]*)\)/i)?.[1].toLowerCase();
+  const named = NAMED_MAGIC_ARMOR.find(n => n.name.test(item.name));
+  const weights: readonly string[] = heading && /^any\b/.test(heading)
+    ? ['light', 'medium', 'heavy'].filter(w => heading.replace(/except\b.*$/, '').includes(w))
+    : named?.anyOf ?? ['light', 'medium', 'heavy'];
+  const except = heading?.match(/except\b(.*)$/)?.[1] ?? (named?.except ?? []).join(' ');
+  return Object.keys(BASE_ARMOR_AC).filter(k => weights.includes(baseArmorWeight(k)!) && !new RegExp(`\\b${k}\\b`).test(except));
 }
 
 export function itemWearsArmorOrShield(item: Item | undefined): boolean {
@@ -261,13 +304,15 @@ export function hydrateItemInstanceDefinitionFacts(
   const requiresAttunement = itemRequiresAttunement(definition);
   const wearsArmorOrShield = itemWearsArmorOrShield(definition);
   const entry = toItemIndexEntry(definition);
-  const weight = armorWeight(entry) ?? undefined;
+  const weight = armorWeight(entry) ?? baseArmorWeight(instance.baseArmor);
   const shield = isShield(entry);
+  const statedAc = statedArmorAc({ id: definition.id, name: definition.name, properties: definition.properties, features }, false, instance.baseArmor, instance.magicBonus) ?? undefined;
   if (features === instance.features
     && requiresAttunement === instance.requiresAttunement
     && wearsArmorOrShield === instance.wearsArmorOrShield
-    && weight === instance.armorWeight && (shield || undefined) === (instance.isShield || undefined)) return instance;
-  return { ...instance, features, requiresAttunement, wearsArmorOrShield, armorWeight: weight, isShield: shield };
+    && weight === instance.armorWeight && (shield || undefined) === (instance.isShield || undefined)
+    && JSON.stringify(statedAc) === JSON.stringify(instance.statedAc)) return instance;
+  return { ...instance, features, requiresAttunement, wearsArmorOrShield, armorWeight: weight, isShield: shield, statedAc };
 }
 
 export function hydrateEntityItemDefinitionFacts(entity: Entity): Entity {

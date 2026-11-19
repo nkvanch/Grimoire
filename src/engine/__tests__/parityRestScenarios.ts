@@ -29,7 +29,7 @@ export function buildRestCases(base: Entity): RestCase[] {
     tweak(e);
     out.push({ name, entity: e, op });
   };
-  const res = (e: Entity & Json): Json => e.resources as unknown as Json;
+  const res = (e: Entity & Json): Json => e.resources;
   const hp = (e: Entity & Json): Json => res(e).hp as Json;
   const sc = (e: Entity & Json): Json => e.spellcasting as unknown as Json;
   const addFeature = (e: Entity & Json, f: Json) => { e.features = [...e.features, f as never]; };

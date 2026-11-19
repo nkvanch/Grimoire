@@ -14,13 +14,13 @@ export const BUNDLED_PACKS: readonly BundledPack[] = [
   {
     id: 'grimoire.srd.5.1', name: 'SRD 5.1', ruleset: 'dnd5e-2014',
     summary: 'D&D 5e (2014) compatible: the System Reference Document 5.1 classes, species, spells, items and monsters.',
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     load: () => require('../../assets/packs/grimoire.srd.5.1.json'),
   },
   {
     id: 'grimoire.srd.5.2.1', name: 'SRD 5.2.1', ruleset: 'dnd5e-2024',
     summary: 'D&D 5.5e (2024) compatible: the System Reference Document 5.2.1 classes, species, backgrounds, Origin feats, spells and Weapon Mastery. Needs SRD 5.1.',
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     load: () => require('../../assets/packs/grimoire.srd.5.2.1.json'),
   },
   // the private build's non-SRD packs, when its build put them there (none in the public and web builds)

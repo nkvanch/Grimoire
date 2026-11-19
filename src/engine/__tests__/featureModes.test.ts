@@ -72,7 +72,7 @@ it('a custom feature on the character can carry modes too', () => {
 
 it('a rename carries to what is named after the item (its feature, so the mode switch), and leaves other names alone', () => {
   const withMore: Item = { ...belt, features: [...belt.features, { ...belt.features[0], id: 'belt_other', name: 'Giant Grip' }],
-    resources: [{ resourceId: 'belt_uses', name: 'Belt of Hill Giant Strength uses', maximum: 1, recharge: 'long_rest' }] } as unknown as Item;
+    resources: [{ resourceId: 'belt_uses', name: 'Belt of Hill Giant Strength uses', maximum: 1, recharge: 'long_rest' }] };
   const mine = customizedItem(withMore, { ...itemEditsOf(withMore), modes: edits().modes, name: 'Belt of the Twisted Giant' }, 'belt_mine');
   expect(mine.features.map(f => f.name)).toEqual(['Belt of the Twisted Giant', 'Giant Grip']);
   expect(mine.resources?.[0]?.name).toBe('Belt of the Twisted Giant uses');

@@ -2,11 +2,11 @@
 jest.mock('../../spellRepo', () => jest.requireActual('../../spellRepo.ts'));
 
 import { newChar, toLevel } from '../testKit';
-import { applyPoolChoiceToEntity, replacePoolOption } from '../../../engine/leveling';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { applyPoolChoiceToEntity, replacePoolOption } from '../../../engine/levelingPoolChoices';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 
 const setup = () => {
-  let e: any = toLevel(newChar('warlock'), 'warlock', 2);
+  const e: any = toLevel(newChar('warlock'), 'warlock', 2);
   const ch = e.choices.filter((c: any) => c.definition.id.includes('invocations_') && !c.resolved);
   return { e, id: ch[ch.length - 1].id as string };
 };

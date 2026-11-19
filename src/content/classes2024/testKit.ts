@@ -1,4 +1,4 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { levelUp, applySubclassToEntity } from '../../engine/leveling';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { Entity, CharClass } from '../../engine/types';

@@ -6,11 +6,12 @@
 // nothing ever presented it to the player, so the feature was genuinely
 // incomplete, not just unpolished.
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
-import { resolveChoice } from '../../src/engine/leveling';
+import { resolveChoice } from '../../src/engine/levelingResolveChoice';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 
 export default function SpellcastingAbilityScreen() {
@@ -23,9 +24,7 @@ export default function SpellcastingAbilityScreen() {
     if (!draft) router.replace('/creation/name');
   }, [draft]);
 
-  if (!draft) return null;
-
-  const pending = draft.choices.find(c => c.definition.kind === 'spellcasting_ability' && !c.resolved);
+  const pending = draft?.choices.find(c => c.definition.kind === 'spellcasting_ability' && !c.resolved);
 
   // Nothing pending (already resolved, or this class doesn't need it) —
   // just go back to the hub rather than show an empty screen.
@@ -33,7 +32,7 @@ export default function SpellcastingAbilityScreen() {
     if (draft && !pending) router.replace('/creation/hub');
   }, [draft, pending]);
 
-  if (!pending) return null;
+  if (!draft || !pending) return null;
 
   function choose(optionId: string) {
     const updated = resolveChoice(draft!, pending!.id, [optionId], rules);

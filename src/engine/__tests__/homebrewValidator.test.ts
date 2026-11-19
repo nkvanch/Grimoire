@@ -9,7 +9,7 @@
 // validators (validateSubclass, validateItem) enforce their own genuinely
 // different required-field shapes.
 import { validateContent, validateSubclass, validateItem, validateEntityShape } from '../homebrewValidator';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 
 describe('validateContent — dispatches every content type to a real validator (audit bug #10)', () => {
   it('routes "subrace" to the same {id, name, features[]} shape check as race', () => {

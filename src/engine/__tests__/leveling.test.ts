@@ -9,21 +9,24 @@
 // testing. Synthetic progressions are used throughout (rather than real
 // content from src/content/classes) so these tests don't break when class
 // content changes — same convention as combat.test.ts.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import {
-  applyGrant, applyHP, levelUp, resolveChoice, applySubclassToEntity,
-  applyInfusionChoiceToEntity, applySpellChoiceToEntity, levelUpClass, queueChoice,
-  removeFeature, swapBackground, projectToLevel, projectMulticlassSequence,
-  applyAsiToEntity, applyFeatToEntity, reapplyResolvedAsi, stripResolvedAsiStats,
-  applyToolChoiceToEntity, calculateLevelUpHpGain, isValidHpRoll,
-} from '../leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { levelUp, applySubclassToEntity, levelUpClass, projectToLevel, projectMulticlassSequence } from '../leveling';
+import { resolveChoice } from '../levelingResolveChoice';
+import { applySpellChoiceToEntity } from '../levelingSpells';
+import { applyToolChoiceToEntity } from '../levelingProficiencyChoices';
+import { applyInfusionChoiceToEntity } from '../levelingPoolChoices';
+import { swapBackground } from '../levelingBackground';
+import { removeFeature, applyAsiToEntity, applyFeatToEntity, reapplyResolvedAsi, stripResolvedAsiStats } from '../levelingAsiFeats';
+import { applyHP, calculateLevelUpHpGain, isValidHpRoll } from '../levelingHp';
+import { queueChoice } from '../levelingGrants';
+import { applyGrant } from '../levelingGrants';
 import { revokeEntitlementsFromChoice } from '../entitlements';
 import { recomputeDerived } from '../pipeline';
 import {
   Entity, Grant, ClassProgression, LevelEntry, ChoiceDefinition, CharClass,
   asClassId, Background, FeatureInstance, SkillName, Feature,
 } from '../types';
-import { resolveSpellAbility, resolveSpellSaveDC, resolveSpellAttackBonus } from '../actionCards';
+import { resolveSpellAbility, resolveSpellSaveDC, resolveSpellAttackBonus } from '../spellCastingContext';
 
 function entity(overrides: Partial<Entity> = {}): Entity {
   return { ...makeEmptyEntity('e1'), ...overrides };

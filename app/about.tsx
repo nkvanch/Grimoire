@@ -2,7 +2,8 @@
 // About & Legal — SRD 5.1 attribution (required by the CC-BY-4.0 license,
 // see docs/ROADMAP_1.0.md Phase 1 Step 1.5), plus a short "what is this app"
 // note and a link to the source document.
-import { View, Text, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
+import { ScrollView } from '../src/components/Lists';
 import { Pressable } from '../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -33,7 +34,7 @@ export default function AboutScreen() {
         <Text style={styles.body}>
           Grimoire is a table companion app for 5th-edition-compatible tabletop
           roleplaying games, built for personal use at a physical table.
-          Character sheets, homebrew content, and campaign sync all stay on
+          Character sheets, homebrew content, and campaigns all stay on
           your devices — nothing is collected or sent anywhere.
         </Text>
         <Text style={styles.body} testID="app-version">Version {VERSION}{BUILD ? ` (build ${BUILD})` : ''}</Text>
@@ -44,14 +45,14 @@ export default function AboutScreen() {
           This work includes material taken from the System Reference
           Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available
           at{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL(SRD_URL)}>
+          <Text style={styles.link} onPress={() => { void Linking.openURL(SRD_URL); }}>
             https://dnd.wizards.com/resources/systems-reference-document
           </Text>
           . The SRD 5.1 is licensed under the Creative Commons Attribution
           4.0 International License, available at{' '}
           <Text
             style={styles.link}
-            onPress={() => Linking.openURL('https://creativecommons.org/licenses/by/4.0/legalcode')}
+            onPress={() => { void Linking.openURL('https://creativecommons.org/licenses/by/4.0/legalcode'); }}
           >
             https://creativecommons.org/licenses/by/4.0/legalcode
           </Text>
@@ -62,14 +63,14 @@ export default function AboutScreen() {
           Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC (the 2024
           rules' classes, species, backgrounds, Origin feats and Weapon
           Mastery) and available at{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://www.dndbeyond.com/srd')}>
+          <Text style={styles.link} onPress={() => { void Linking.openURL('https://www.dndbeyond.com/srd'); }}>
             https://www.dndbeyond.com/srd
           </Text>
           . The SRD 5.2.1 is licensed under the Creative Commons Attribution
           4.0 International License, available at{' '}
           <Text
             style={styles.link}
-            onPress={() => Linking.openURL('https://creativecommons.org/licenses/by/4.0/legalcode')}
+            onPress={() => { void Linking.openURL('https://creativecommons.org/licenses/by/4.0/legalcode'); }}
           >
             https://creativecommons.org/licenses/by/4.0/legalcode
           </Text>

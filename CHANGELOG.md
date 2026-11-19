@@ -2,6 +2,31 @@
 
 One entry per build that testers can install. To see which build you have, open Android Settings, Apps, Grimoire.
 
+## 0.2.8 alpha
+
+Released 19 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.8-alpha).
+
+Same signing key as 0.2.6, so it installs over 0.2.0 to 0.2.6 as a normal update and keeps your characters.
+
+### New
+
+- Magic armor that leaves its base open, such as Adamantine Armor or Armor of Resistance, asks on the item which base armor it is. "Armor, +1, +2, or +3", "Shield, +1, +2, or +3" and "Weapon, +1, +2, or +3" ask which bonus.
+- Great Weapon Fighting and Two-Weapon Fighting count. A 1 or 2 on a damage die is rolled again (2014 rules) or counts as 3 (2024 rules), and two light weapons give an off-hand attack as a Bonus Action.
+- 2014 backgrounds give their starting equipment and gold.
+- Creation asks for class options such as a Fighting Style in their own step, and skips the Spells step for a class without spells.
+- Campaigns are kept on the DM's phone only. To play over Wi-Fi you start a live session, and the old campaign sync is gone.
+
+### Fixed
+
+- Only one suit of armor and one shield are worn at a time. Putting on another takes the first off, and the preview says so.
+- Magic armor gets its bonus even when its text does not state it (Efreeti Chain 19, Dragon Scale Mail 15), and an unattuned magic armor or weapon still works as plain armor or a plain weapon.
+- Magic items the SRD 5.1 text marks "requires attunement" now need it. After updating, an item you wear may need to be attuned on the sheet.
+- Each condition is listed once in the condition picker.
+- With the keyboard open, a tap on a list item works the first time, and pop-ups stay above the keyboard.
+- The dice button no longer covers the Long Rest button.
+- Spell cards show healing dice again, and a failed save no longer leaves the Save button stuck.
+- Fighting styles are no longer marked flavor-only, and their texts no longer say to add the bonus yourself.
+
 ## 0.2.6 alpha
 
 Released 15 November 2026. [Download it from GitHub Releases](https://github.com/nkvanch/Grimoire/releases/tag/v0.2.6-alpha).

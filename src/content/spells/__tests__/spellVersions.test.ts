@@ -8,9 +8,8 @@ import { spellRepo } from '../../spellRepo';
 import { resolveSpellById } from '../../contentResolution';
 import { generateSpellCard } from '../../../engine/actionCards';
 import { newChar } from '../../classes2024/testKit';
-import { Spell } from '../../../engine/types';
 
-const lib = FULL_SPELL_LIBRARY as Spell[];
+const lib = FULL_SPELL_LIBRARY;
 const base = (id: string) => lib.find(s => s.id === id)!;
 const R2024 = 'dnd5e-2024' as never;
 
@@ -71,7 +70,7 @@ describe('spell versions (SRD 5.2.1)', () => {
   });
 
   it("a homebrew spell with an official id wins and is never replaced by the SRD version", () => {
-    const mine = { ...base('fireball'), description: 'My table fireball.' } as Spell;
+    const mine = { ...base('fireball'), description: 'My table fireball.' };
     expect(resolveSpellById('fireball', [mine], R2024)!.description).toBe('My table fireball.');
   });
 

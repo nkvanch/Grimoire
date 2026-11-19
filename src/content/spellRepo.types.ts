@@ -1,9 +1,6 @@
 // ============================================================================
 // FILE: src/content/spellRepo.types.ts
-// Shared types for spellRepo.ts (web/default) and spellRepo.native.ts
-// (SQLite-backed). Both implementations import these so callers get a
-// single, platform-independent type surface regardless of which one Metro
-// actually resolves.
+// Types for spellRepo.ts.
 // ============================================================================
 import { Entity, Feature, Spell, RulesetId } from '../engine/types';
 

@@ -5,18 +5,19 @@
 // had zero tests before despite every action card in the app going through
 // them.
 import { Feature, FeatureInstance, Entity, SpellSlots, Race, Subrace, Spell, CharClass, Item, EntitlementRecord, ClassLevelEntry, asClassId, asSubclassId, ActionCard, SpellCastingContext, ActivationOption } from '../types';
+import { generateActionCard, generateAllActionCards, generateSpellCard, isLargeCreature } from '../actionCards';
+import { getTriggeredFeatures, isFeatureAvailable } from '../actionCardAvailability';
+import { buildLayer1, buildLayer2, buildLayer3, buildOutcomeLines, buildLayer2ForSpell, buildLayer3ForSpell } from '../actionCardLayers';
 import {
-  buildLayer1, buildLayer2, buildLayer3, buildOutcomeLines, generateActionCard, generateAllActionCards, generateSpellCard,
-  getTriggeredFeatures, isFeatureAvailable, isLargeCreature,
-  isSpellPreparationLegal, resolveSpellAbility, PREPARED_CASTER_CLASS_IDS,
-  resolveSpellCastingContexts, selectSpellCastingContext, resolveSpellSaveDC, resolveSpellAttackBonus,
-  buildLayer2ForSpell, buildLayer3ForSpell, collapseDistinctSpellCastingContexts,
-  formatCastingContextLabel, isContextLegalForCastMode, needsPreparationOverride,
-} from '../actionCards';
+  isSpellPreparationLegal, resolveSpellAbility, isPreparedCasterClass,
+  resolveSpellCastingContexts, selectSpellCastingContext, resolveSpellSaveDC, resolveSpellAttackBonus, collapseDistinctSpellCastingContexts,
+  formatCastingContextLabel, isContextLegalForCastMode, needsPreparationOverride
+} from '../spellCastingContext';
 import { ALL_CHAR_CLASSES } from '../../content/classes';
 import { applyActionCardUse } from '../actionUse';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { startTurn, markActionSlotUsed, applyDamage } from '../combat';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { startTurn, markActionSlotUsed } from '../combat';
+import { applyDamage } from '../combatDamage';
 import { useHomebrewStore } from '../../store/homebrewStore';
 import { recomputeDerived } from '../pipeline';
 
@@ -510,7 +511,7 @@ describe('isSpellPreparationLegal (rules-engine blocker A)', () => {
     const base = { ...makeEmptyEntity('e1'), entitlements: [ent('spell_access', 'fireball', 'class', 'wizard')] };
     const unprepared = { ...base, spellcasting: { ability: 'int' as const, slots: emptySlots(), cantrips: [], known: ['fireball'], prepared: [], concentrating: null } };
     expect(isSpellPreparationLegal(unprepared, 'fireball')).toBe(false);
-    const prepared = { ...unprepared, spellcasting: { ...unprepared.spellcasting!, prepared: ['fireball'] } };
+    const prepared = { ...unprepared, spellcasting: { ...unprepared.spellcasting, prepared: ['fireball'] } };
     expect(isSpellPreparationLegal(prepared, 'fireball')).toBe(true);
   });
 
@@ -1304,6 +1305,12 @@ describe('production card UI shows real per-spell numbers, not just helper-level
     const atk = resolveSpellAttackBonus(e, 'fire_bolt');
     expect(buildLayer2ForSpell(attackSpell, e)).toContain(`${atk! >= 0 ? '+' : ''}${atk} to hit`);
   });
+
+  // the word boundaries in this pattern were once saved as backspace characters, so no spell ever matched it
+  it('buildLayer2ForSpell shows the healing dice of a spell that gives hit points back, and only of such a spell', () => {
+    expect(buildLayer2ForSpell(leveledSpell('mend_flesh', 1, { description: 'A creature you touch regains 2d8 + 3 hit points.' }))).toContain('Heal 2d8 + 3');
+    expect(buildLayer2ForSpell(leveledSpell('doze', 1, { description: 'Roll 5d8; creatures with that many hit points fall asleep.' }))).not.toContain('Heal');
+  });
 });
 
 // ============================================================================
@@ -1614,11 +1621,11 @@ describe('homebrew caster + item survive an unrelated ordinary mutation (closure
   });
 
   it('purity: the SAME explicit content snapshot produces the SAME result across the mutation, regardless of concurrent useHomebrewStore mutations', () => {
-    useHomebrewStore.setState({ items: [], classes: [], spells: [] } as any);
+    useHomebrewStore.setState({ items: [], classes: [], spells: [] });
     const initial = recomputeDerived(buildEntity(), DEFAULT_RULES, cardContent);
     // Mutate the store with CONFLICTING content in between — the explicit
     // snapshot passed to both calls below must be the only thing consulted.
-    useHomebrewStore.setState({ items: [{ ...homebrewItem, features: [] }] } as any);
+    useHomebrewStore.setState({ items: [{ ...homebrewItem, features: [] }] });
     const damaged = applyDamage(initial, 5, DEFAULT_RULES);
     const mutated = recomputeDerived(damaged, DEFAULT_RULES, cardContent);
     expect(mutated.derived.ac).toBe(12);
@@ -1788,5 +1795,21 @@ describe('isContextLegalForCastMode / needsPreparationOverride (UI legality deci
     // SPELL is ritual-capable through SOME source.
     expect(isContextLegalForCastMode(sorcererCtx, 'ritual')).toBe(false);
     expect(needsPreparationOverride(sorcererCtx, 'ritual')).toBe(false); // no misleading "not prepared" prompt either
+  });
+});
+
+describe('isPreparedCasterClass', () => {
+  it('follows the class catalog as it is now, not as it was at import', () => {
+    const { setOfficialContentProvider } = require('../../content/officialSource');
+    expect(isPreparedCasterClass('wizard')).toBe(true);
+    expect(isPreparedCasterClass('sorcerer')).toBe(false);
+    // The app builds start with an empty catalog and get classes from a pack afterwards.
+    setOfficialContentProvider({ classes: () => [{ id: 'pack_mage', spellPreparationPolicy: 'full_list_prepared' }] });
+    try {
+      expect(isPreparedCasterClass('pack_mage')).toBe(true);
+      expect(isPreparedCasterClass('wizard')).toBe(false);
+    } finally {
+      setOfficialContentProvider(null);
+    }
   });
 });

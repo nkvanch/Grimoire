@@ -10,26 +10,22 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, ThemeProvider, DarkTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import { View, Text, StyleSheet, ActivityIndicator, AppState, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Pressable } from '../src/components/AccessibleControls';
 import { useLayout } from '../src/platform/layout';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/theme';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { initDb, isStorageLockError } from '../src/db/db';
-import { initContentDb } from '../src/db/contentDb';
 import { spellRepo } from '../src/content/spellRepo';
 import { itemRepo } from '../src/content/itemRepo';
 import { getMeta, setMeta } from '../src/db/appMetaRepo';
 import { clearStaleSessionEffects } from '../src/session/effectBridge';
 import { useCharacterStore } from '../src/store/characterStore';
-import { useSessionStore }   from '../src/store/sessionStore';
+import { useDeviceStore }   from '../src/store/deviceStore';
 import { useCampaignStore }  from '../src/store/campaignStore';
 import { useEncounterStore } from '../src/store/encounterStore';
 import { useHomebrewStore }  from '../src/store/homebrewStore';
-import { syncManager }       from '../src/sync/syncManager';
-import { useSyncStore }      from '../src/store/syncStore';
-import { useCombatTurnStore } from '../src/store/combatTurnStore';
 import { hydrateCombatStateOnBoot } from '../src/store/combatStore';
 import { useCustomRuleProfileStore } from '../src/store/customRuleProfileStore';
 import { loadDraftState } from '../src/db/draftRepo';
@@ -80,7 +76,7 @@ export default function RootLayout() {
   const router = useRouter();
 
   const loadCharacters = useCharacterStore(s => s.loadCharacters);
-  const initSession    = useSessionStore(s => s.initSession);
+  const initSession    = useDeviceStore(s => s.initSession);
   const loadHomebrew   = useHomebrewStore(s => s.loadHomebrew);
 
   useEffect(() => {
@@ -95,7 +91,7 @@ export default function RootLayout() {
       try {
         // 1. Open / migrate the character database (idempotent). Nothing
         //    downstream can do much without this, but a throw here still
-        //    shouldn't prevent the content DB / homebrew / sync steps from
+        //    shouldn't prevent the content DB / homebrew steps from
         //    at least attempting to run.
         try {
           await initDb();
@@ -112,19 +108,11 @@ export default function RootLayout() {
           console.error('[_layout] revision store unavailable — pinned versions are kept for this session only:', e);
         }
 
-        // 2. Open the static-content DB (spells + items, seeded from a
-        //    bundled asset on first launch — see src/db/contentDb.ts) and
-        //    build the Tier-1 indexes. Normally finishes before
-        //    loadCharacters(), which warms Tier-2 for every loaded
-        //    character's known spells and equipped/carried items — but a
-        //    failure here degrades to an empty spell/item index (spellRepo/
-        //    itemRepo.native.ts already catch their own SQLite/JSON errors)
-        //    rather than blocking characters from loading at all.
+        // 2. Start the spell and item repos (no-ops today: both serve the installed packs from memory).
         try {
-          await initContentDb();
           await Promise.all([spellRepo.init(), itemRepo.init()]);
         } catch (e) {
-          console.error('[_layout] Content DB (spells/items) init failed — spells/items unavailable this session:', e);
+          console.error('[_layout] spell/item repo init failed — spells/items unavailable this session:', e);
         }
 
         // 3. Hydrate homebrew. loadHomebrew() already catches its own
@@ -208,46 +196,7 @@ export default function RootLayout() {
           }
         } catch (e) { console.error('[_layout] clearing stale session effects failed:', e); }
 
-        // 6. Wire up the sync manager — must run after stores are hydrated
-        try {
-          const { applyIncomingEntity, applyIncomingPatch } = useCharacterStore.getState();
-          const { applyIncomingCampaign, applyIncomingCampaignPatch } = useCampaignStore.getState();
-          const { setStatus }           = useSyncStore.getState();
-          const { setTurn }             = useCombatTurnStore.getState();
-
-          syncManager.initialise({
-            onStatusChange: (status) => {
-              setStatus(status);
-            },
-            onEntityReceived: (entity) => {
-              void applyIncomingEntity(entity);
-            },
-            onEntityPatchReceived: (entityId, patch) => {
-              void applyIncomingPatch(entityId, patch);
-            },
-            onCampaignReceived: (campaign) => {
-              void applyIncomingCampaign(campaign);
-            },
-            onCampaignPatchReceived: (campaignId, patch) => {
-              void applyIncomingCampaignPatch(campaignId, patch);
-            },
-            onCombatTurnReceived: (turn) => {
-              setTurn(turn);
-            },
-            onSyncEvent: (event) => {
-              // DM responds to entity_full_sync requests from players
-              if (event.changeType === 'entity_full_sync' && event.payload === null) {
-                const entity = useCharacterStore.getState().characters
-                  .find(c => c.id === event.entityId);
-                if (entity) syncManager.broadcastEntity(entity);
-              }
-            },
-          });
-        } catch (e) {
-          console.error('[_layout] Sync manager init failed:', e);
-        }
-
-        // 6b. Keep characterStore.rules synchronized with the active
+        // 6. Keep characterStore.rules synchronized with the active
         // campaign's own rules — every engine call in the app reads
         // characterStore.rules, but Campaign.rules used to be written once
         // and never read by anything (audit finding CAMPAIGN-RULES-1), so
@@ -255,7 +204,7 @@ export default function RootLayout() {
         // different house rules. Subscribed here (not scattered across
         // every campaignStore call site that can set activeCampaign) so
         // it's one choke point regardless of HOW activeCampaign changed —
-        // join, switch, snapshot/patch sync, or boot restore. Leaving a
+        // create, switch, or boot restore. Leaving a
         // campaign (activeCampaign becomes null) intentionally leaves
         // characterStore.rules as-is — solo play keeps whatever the device's
         // own default already was, same as before this existed.
@@ -265,19 +214,17 @@ export default function RootLayout() {
           }
         });
 
-        // 7. Restore campaign state and re-establish sync if a campaign was
-        //    active before the app was last closed. loadCampaigns sets isDm and
-        //    activeCampaign from the persisted session; resumeSync then re-hosts
-        //    (DM) or reconnects (player). Both are safe no-ops when offline.
+        // 7. Restore campaign state if a campaign was active before the app was
+        //    last closed. loadCampaigns sets isDm and activeCampaign from the
+        //    persisted session.
         try {
           await useCampaignStore.getState().loadCampaigns();
-          await useCampaignStore.getState().resumeSync();
         } catch (e) {
           console.error('[_layout] Campaign restore failed:', e);
         }
 
         // 8. Prepared-encounter library (DM planning data) — independent of
-        //    campaign/sync restore above, so a failure here can't block them
+        //    campaign restore above, so a failure here can't block it
         //    (same isolated-per-step pattern the rest of this sequence uses).
         try {
           await useEncounterStore.getState().loadEncounters();
@@ -301,31 +248,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (!dbReady) return;
     getMeta('onboarding_complete').then(v => {
-      if (v !== 'true') router.replace('/onboarding' as any);
+      if (v !== 'true') router.replace('/onboarding');
     }).catch(() => { /* if the check fails, just skip onboarding rather than block startup */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbReady]);
-
-  // Item 16 (LAN/session UX) — resumeSync() only ever ran once, at cold
-  // boot. A device that sleeps/loses WiFi mid-session (phone locks, walks
-  // out of range) never re-triggers it: JS timers are typically suspended
-  // during sleep, so the client's own backoff retries may have already
-  // silently exhausted themselves in the background by the time the app is
-  // reopened, leaving the player stuck until they notice and manually find
-  // the buried "Enter a new room code" flow. Re-attempting on every
-  // foreground transition (only when not already connected — this is not a
-  // periodic poll, just a resume hook) closes that gap for free: startAsClient
-  // (and startAsServer) already tear down any stale connection first, so this
-  // is always safe to call, never doubles up a working connection.
-  useEffect(() => {
-    if (!dbReady) return;
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-      if (useSyncStore.getState().status.connected) return;
-      if (!useCampaignStore.getState().activeCampaign) return;
-      useCampaignStore.getState().resumeSync().catch(e => console.error('[_layout] Foreground resumeSync failed:', e));
-    });
-    return () => sub.remove();
   }, [dbReady]);
 
   // First launch with no content packs installed: offer the SRD packs once (the choice is remembered, and skipping is fine).
@@ -333,7 +258,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!dbReady) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         if (installedOfficialPacks().length > 0) return;
         if ((await getMeta('content_packs_prompt_seen')) === '1') return;
@@ -374,7 +299,6 @@ export default function RootLayout() {
             comment (audit finding ROUTE-GUARD-1). */}
         <Stack.Screen name="dm"                  options={{ headerShown: false }} />
         <Stack.Screen name="live"                options={{ headerShown: false }} />
-        <Stack.Screen name="homebrew/import-review"      options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/package-builder"    options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/spell-builder"      options={{ headerShown: false }} />
         <Stack.Screen name="homebrew/class-builder"      options={{ headerShown: false }} />

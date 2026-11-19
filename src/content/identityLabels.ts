@@ -5,6 +5,8 @@
 import type { Entity, Race, CharClass, Background, HomebrewSubclass } from '../engine/types';
 import { getClassLevels, formatClassLabel } from '../engine/multiclass';
 import { getSubclassEntryMerged } from './subclasses/subclassBrowse';
+import { getLanguageById } from './languages';
+import { getToolById } from './tools';
 
 export type IdentityLabels = {
   race: string;
@@ -19,6 +21,11 @@ export type IdentityLabels = {
 /** "hill_dwarf" -> "Hill Dwarf" — the fallback when content can't be found (e.g. a removed homebrew id). */
 export function prettyId(id: string): string {
   return id.replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** A stored proficiency key ("draconic", "calligraphers supplies", "longsword") as its display name. */
+export function proficiencyLabel(key: string): string {
+  return getLanguageById(key)?.name ?? getToolById(key.replace(/ /g, '_'))?.name ?? prettyId(key);
 }
 
 export function resolveIdentityLabels(

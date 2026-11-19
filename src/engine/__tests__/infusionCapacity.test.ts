@@ -1,5 +1,5 @@
 // Infusion capacity follows Artificer levels and accepts a feature's bonus (the creator audit's Infusion Adept finding).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { infusionCapacity } from '../infusionCapacity';
 import { asClassId } from '../types';

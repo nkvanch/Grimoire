@@ -3,7 +3,8 @@
 import { rulesetLabel } from '../../src/content/rulesets';
 import { suggestFirst } from '../../src/content/rulesetSuggestion';
 import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FlatList } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -13,6 +14,7 @@ import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
 import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
 import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
+import { useEditionFilter, EditionFilterSections } from '../../src/components/EditionFilter';
 import { EditionBadge } from '../../src/components/EditionBadge';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import {
@@ -57,7 +59,7 @@ export default function RaceScreen() {
   const [sizeFilter, setSizeFilter] = useState<string | null>((savedFilters.sizeFilter as string) ?? null);
   const [darkvisionOnly, setDarkvisionOnly] = useState(!!savedFilters.darkvisionOnly);
   const [movementFilter, setMovementFilter] = useState<Set<string>>(new Set((savedFilters.movementFilter as string[]) ?? []));
-  const [rulesetFilter, setRulesetFilter] = useState<string | null>((savedFilters.rulesetFilter as string) ?? null);
+  const edition = useEditionFilter(savedFilters);   // Game / Version, starting on the character's own rules
   const [officialFilter, setOfficialFilter] = useState<'all' | 'official' | 'homebrew'>((savedFilters.officialFilter as 'all' | 'official' | 'homebrew') ?? 'all');
   const [hasSubracesOnly, setHasSubracesOnly] = useState(!!savedFilters.hasSubracesOnly);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -65,10 +67,10 @@ export default function RaceScreen() {
   useEffect(() => {
     setBrowseState(SCREEN_KEY, {
       search, sort,
-      filters: { sizeFilter, darkvisionOnly, movementFilter: Array.from(movementFilter), rulesetFilter, officialFilter, hasSubracesOnly },
+      filters: { sizeFilter, darkvisionOnly, movementFilter: Array.from(movementFilter), ...edition.toSave, officialFilter, hasSubracesOnly },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sort, sizeFilter, darkvisionOnly, movementFilter, rulesetFilter, officialFilter, hasSubracesOnly]);
+  }, [search, sort, sizeFilter, darkvisionOnly, movementFilter, edition.choice, officialFilter, hasSubracesOnly]);
   const homebrewRaces = useHomebrewStore(s => s.races);
   const sortOptions = raceSortOptions(r => homebrewRaces.some(hr => hr.id === r.id));
 
@@ -99,10 +101,6 @@ export default function RaceScreen() {
   const availableSizes = SIZE_ORDER.filter(s => globalContentDB.races.some(r => r.size === s));
   const availableMovement = RACE_MOVEMENT_TYPES.filter(m => globalContentDB.races.some(r => raceMovementTypes(r).includes(m)))
     .map(m => ({ id: m, label: m[0].toUpperCase() + m.slice(1) }));
-  // Ruleset — real field, sparsely populated app-wide (see FilterChipRow's
-  // own <=1-option auto-hide) — lights up once ruleset-tagged races exist.
-  const availableRulesets = Array.from(new Set(globalContentDB.races.map(r => r.rulesetId).filter((r): r is NonNullable<typeof r> => !!r)))
-    .map(String).sort().map(r => ({ id: r, label: r }));
 
   useOfficialContentVersion();   // follow pack installs and removals while this list is open
   const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
@@ -111,23 +109,24 @@ export default function RaceScreen() {
     (!sizeFilter || r.size === sizeFilter) &&
     (!darkvisionOnly || hasDarkvision(r)) &&
     (movementFilter.size === 0 || Array.from(movementFilter).some(m => raceMovementTypes(r).includes(m))) &&
-    (!rulesetFilter || r.rulesetId === rulesetFilter) &&
+    edition.matches(r, true) &&
     (!hasSubracesOnly || hasSubraces(r))
   ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewRaces = officialFilter === 'official' ? [] : homebrewRaces.filter(r =>
+    edition.matches(r, false) &&
     r.name.toLowerCase().includes(search.toLowerCase())
   );
   const activeFilterChips = [
     ...(sizeFilter ? [{ key: 'size', label: sizeFilter, onClear: () => setSizeFilter(null) }] : []),
     ...(darkvisionOnly ? [{ key: 'dv', label: 'Darkvision', onClear: () => setDarkvisionOnly(false) }] : []),
     ...Array.from(movementFilter).map(m => ({ key: `mv_${m}`, label: m, onClear: () => setMovementFilter(prev => { const n = new Set(prev); n.delete(m); return n; }) })),
-    ...(rulesetFilter ? [{ key: 'ruleset', label: rulesetFilter, onClear: () => setRulesetFilter(null) }] : []),
+    ...edition.chips,
     ...(officialFilter !== 'all' ? [{ key: 'official', label: officialFilter === 'official' ? 'Official' : 'Homebrew', onClear: () => setOfficialFilter('all') }] : []),
     ...(hasSubracesOnly ? [{ key: 'has_subraces', label: 'Has Subraces', onClear: () => setHasSubracesOnly(false) }] : []),
   ];
   function clearAllFilters() {
     setSizeFilter(null); setDarkvisionOnly(false); setMovementFilter(new Set());
-    setRulesetFilter(null); setOfficialFilter('all'); setHasSubracesOnly(false);
+    edition.clear(); setOfficialFilter('all'); setHasSubracesOnly(false);
   }
 
   // SCROLL-HEADER-1: heading/search/filters used to sit in a plain View
@@ -171,9 +170,7 @@ export default function RaceScreen() {
           <FilterSection label="Movement">
             <MultiSelectChipRow options={availableMovement} values={movementFilter} onChange={setMovementFilter} />
           </FilterSection>
-          <FilterSection label="Ruleset">
-            <FilterChipRow options={availableRulesets} value={rulesetFilter} onChange={setRulesetFilter} />
-          </FilterSection>
+          <EditionFilterSections edition={edition} official={globalContentDB.races} homebrew={homebrewRaces} />
           <FilterSection label="Official / Homebrew">
             <OfficialHomebrewChipRow value={officialFilter} onChange={setOfficialFilter} />
           </FilterSection>
@@ -305,7 +302,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: FontSize.xl, fontWeight: FontWeight.black,
     color: Colors.textPrimary, textAlign: 'center',
-    paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md,
   },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
   search: {

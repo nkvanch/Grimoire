@@ -18,7 +18,7 @@ describe('dm.grant_reward', () => {
   it('rejects a target that is not a player', async () => {
     const rig = await newRig();
     const dm = await addDm(rig);
-    const opId = dm.peer.grantReward('host1' as never, 'campaign_boon', 'Favor of the Crown').opId;
+    const opId = dm.peer.grantReward('host1', 'campaign_boon', 'Favor of the Crown').opId;
     await rig.settle();
     expect(dm.peer.resultOf(opId)?.status).toBe('rejected');
   });

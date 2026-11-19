@@ -64,7 +64,7 @@ export function previewOfficialPack(data: unknown, current: readonly InstalledPa
   const pack = data;
   const manifestProblems = validateManifest(pack.manifest);
   if (manifestProblems.length > 0) return { ok: false, problems: manifestProblems };
-  if (sha256Hex(packHashInput(pack as { homebrew?: unknown; rules?: unknown })) !== pack.manifest.contentHash) {
+  if (sha256Hex(packHashInput(pack)) !== pack.manifest.contentHash) {
     return { ok: false, problems: ['The pack’s content does not match its content hash, so it was changed or damaged. It was not installed.'] };
   }
   const contentProblems = validatePackContents(pack);

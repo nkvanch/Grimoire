@@ -26,7 +26,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
-import { applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity, effectiveRequiredCount, withExpertiseChoiceGrantStripped, withProficiencyChoiceGrantStripped } from '../../src/engine/leveling';
+import { applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity, effectiveRequiredCount, withExpertiseChoiceGrantStripped, withProficiencyChoiceGrantStripped } from '../../src/engine/levelingProficiencyChoices';
 import { eligibleExpertiseOptions, eligibleToolOptions, eligibleLanguageOptions } from '../../src/engine/choiceEligibility';
 import { ALL_SKILL_OPTIONS } from '../../src/content/skills';
 import { RepeatedChoicePicker, RepeatedChoiceOption } from '../../src/components/RepeatedChoicePicker';

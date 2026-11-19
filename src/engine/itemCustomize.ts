@@ -8,7 +8,7 @@
 // ============================================================================
 import { Ability, Effect, Entity, Feature, Item, ItemInstance, ResourceGrant } from './types';
 import { hydrateItemInstanceDefinitionFacts, itemRequiresAttunement } from './itemMechanics';
-import { applyGrant } from './leveling';
+import { applyGrant } from './levelingGrants';
 
 export const ITEM_ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 export type ItemRecharge = 'short_rest' | 'long_rest' | 'dawn' | 'never';

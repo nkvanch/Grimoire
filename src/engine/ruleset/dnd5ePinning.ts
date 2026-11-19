@@ -49,7 +49,7 @@ function namedBy(entity: Entity): { type: string; id: string }[] {
 }
 
 const dependencies = (type: string, record: DefinitionRecord) =>
-  collectContentDependencies(type as ContentCacheType, record as unknown as HomebrewContent).map(d => ({ type: d.type as string, id: d.id }));
+  collectContentDependencies(type as ContentCacheType, record as unknown as HomebrewContent).map(d => ({ type: d.type, id: d.id }));
 
 const pinned = (type: string) => PINNED_KINDS.includes(type);
 const current = (catalog: PinningCatalog, ruleset: string, type: string, id: string) =>
@@ -117,7 +117,7 @@ export function pinnedLockOf(entity: Entity): DependencyLock | null {
 }
 
 /** Writes the lock to the character. Replacing an existing lock is the caller's explicit decision. */
-export const attachLock = (entity: Entity, lock: DependencyLock): Entity => ({ ...entity, pins: lockToJson(lock) } as Entity);
+export const attachLock = (entity: Entity, lock: DependencyLock): Entity => ({ ...entity, pins: lockToJson(lock) });
 
 /** How the character's lock stands against what is installed: nothing to say when it is not pinned or nothing differs. */
 export function lockReport(entity: Entity, catalog: PinningCatalog, operations: OperationRegistry = DND5E_OPERATIONS): LockMismatch[] {

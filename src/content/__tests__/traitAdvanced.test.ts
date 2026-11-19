@@ -107,15 +107,15 @@ describe('advanced trait fields added with the creator-audit work', () => {
     expect(feature.effects).toContainEqual(expect.objectContaining({ type: 'stat_modifier', target: 'infusion_capacity', operation: 'add', value: 2 }));
   });
   it('the compiled outcome feature drives the real card flow', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { makeEmptyEntity, DEFAULT_RULES } = require('../../store/characterStore');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
+    const { makeEmptyEntity, DEFAULT_RULES } = require('../../engine/defaults');
+     
     const { recomputeDerived } = require('../../engine/pipeline');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { generateActionCard } = require('../../engine/actionCards');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { applyActionCardUse } = require('../../engine/actionUse');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { confirmOutcome, outcomeOffersForCard } = require('../../engine/outcomes');
     const { feature, resource } = build(trait({ effectKind: 'resource_ability', uses: '1', recharge: 'short_rest', outcomeOn: 'hit', outcomeRegain: '1' }));
     const base = makeEmptyEntity('b');

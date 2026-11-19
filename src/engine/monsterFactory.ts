@@ -11,8 +11,8 @@ import { makeEmptyEntity }  from './defaults';
 import { recomputeDerived, modifier } from './pipeline';
 import { rollExpression }   from './dice';
 import { DEFAULT_RULES }    from './defaults';
-import { applyGrant }       from './leveling';
-import { resolveFeatureRechargeTag } from './combat';
+import { applyGrant } from './levelingGrants';
+import { resolveFeatureRechargeTag } from './combatRecharge';
 
 function uid(): string {
   return `m_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;

@@ -1,6 +1,7 @@
 // Shared UI primitives for the Host / DM / Player live-session screens.
 import { ReactNode } from 'react';
-import { View, Text, ScrollView, StyleSheet, TextInputProps } from 'react-native';
+import { View, Text, StyleSheet, TextInputProps } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { useSafeGoBack } from '../../hooks/useSafeGoBack';
 import { SafeBottomView } from '../SafeBottomView';

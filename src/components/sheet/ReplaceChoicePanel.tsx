@@ -5,11 +5,12 @@
 // are enforced by the engine (replacePoolOption), and the reasons are shown here. Renders nothing when the
 // character has no replaceable choice that has been made.
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Feature } from '../../engine/types';
-import { replacePoolOption, replaceableOptions } from '../../engine/leveling';
+import { replacePoolOption, replaceableOptions } from '../../engine/levelingPoolChoices';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 const TIMING_LABEL = { level_up: 'on level-up', rest: 'after a rest', long_rest: 'after a Long Rest' } as const;
@@ -29,7 +30,7 @@ export function ReplaceChoicePanel({ entity, rules, onEntityUpdate }: { entity: 
     ? replaceableOptions(entity, target.choiceId).find(o => o.optionId === target.optionId)
     : undefined;
   const targetChoice = target ? entity.choices.find(c => c.id === target.choiceId) : undefined;
-  const pool = Array.isArray(targetChoice?.definition.pool) ? targetChoice!.definition.pool : [];
+  const pool = Array.isArray(targetChoice?.definition.pool) ? targetChoice.definition.pool : [];
 
   function close() { setTarget(null); setPick(null); setError(null); }
   function confirm() {

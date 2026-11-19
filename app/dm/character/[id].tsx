@@ -11,10 +11,12 @@ import { STEP_OPERATIONS } from '../../../src/store/pinningService';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCharacterStore } from '../../../src/store/characterStore';
 import { useCampaignStore }  from '../../../src/store/campaignStore';
-import { useSessionStore }   from '../../../src/store/sessionStore';
+import { useDeviceStore }   from '../../../src/store/deviceStore';
 import { useHomebrewStore }  from '../../../src/store/homebrewStore';
 import { recomputeDerived }  from '../../../src/engine/pipeline';
-import { applyHealing, playerEndTurn, endConcentration } from '../../../src/engine/combat';
+import { playerEndTurn } from '../../../src/engine/combat';
+import { applyHealing } from '../../../src/engine/combatDamage';
+import { endConcentration } from '../../../src/engine/concentration';
 import { dmDamageMutation } from '../../../src/engine/dmCharacterDamage';
 import { applyCondition, removeCondition } from '../../../src/engine/conditions';
 import { dmFullStatVisibility } from '../../../src/engine/houseRules';
@@ -46,7 +48,7 @@ export default function DmCharacterView() {
   const rules           = useCharacterStore(s => s.rules);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
   const campaignId = useCampaignStore(s => s.activeCampaign?.id ?? '');
-  const deviceId   = useSessionStore(s => s.session?.deviceId ?? '');
+  const deviceId   = useDeviceStore(s => s.session?.deviceId ?? '');
 
   const entity     = characters.find(c => c.id === id);
   const [activeTab, setActiveTab] = useState<TabId>('character');

@@ -1,7 +1,8 @@
 // Features that switch off for a time: by taking damage of a type, and ending on the turn counter.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyDamage, startTurn } from '../combat';
+import { startTurn } from '../combat';
+import { applyDamage } from '../combatDamage';
 import { suspendFeature, resumeFeature, isFeatureSuspended } from '../suspension';
 import type { Entity, Feature } from '../types';
 

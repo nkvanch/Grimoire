@@ -4,7 +4,7 @@
 // — a real drift risk (Phase 1 of the fundamental-changes migration). These
 // tests lock the invariant that the two can never disagree again: for every
 // stat covered, the audit trail's total must equal the actual derived value.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { explainValue } from '../audit';
 import { Entity, Effect, Feature, FeatureInstance } from '../types';
@@ -72,7 +72,7 @@ describe('explainValue matches recomputeDerived — AC', () => {
       inventory: {
         ...makeEmptyEntity('e1').inventory,
         equipped: [{
-          itemId: 'bracers_of_defense', quantity: 1, attuned: true,
+          itemId: 'test_bracers', quantity: 1, attuned: true,
           features: [itemFeature('bracers_formula', [{ type: 'base_ac_formula', target: 'ac', operation: 'add', value: 10, formulaAbilities: ['dex'] }])],
         }],
       },
@@ -81,7 +81,7 @@ describe('explainValue matches recomputeDerived — AC', () => {
     const trail = explainValue(derived, 'ac');
     expect(derived.derived.ac).toBe(13); // 10 + dex mod(3)
     expect(trail.total).toBe(derived.derived.ac);
-    expect(trail.entries.some(en => en.sourceId === 'bracers_of_defense')).toBe(true);
+    expect(trail.entries.some(en => en.sourceId === 'test_bracers')).toBe(true);
   });
 
   it('agrees on a flat AC bonus (shield) stacked on armor', () => {

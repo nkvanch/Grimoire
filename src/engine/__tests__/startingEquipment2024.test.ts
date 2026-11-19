@@ -1,7 +1,8 @@
 import { newChar } from '../../content/classes2024/testKit';
-import { resolveChoice, resolveEquipmentChoice, parseStartingItem } from '../leveling';
+import { parseStartingItem } from '../leveling';
+import { resolveChoice, resolveEquipmentChoice } from '../levelingResolveChoice';
 import { reopenEquipmentChoice, skipEquipmentChoice } from '../../content/items/equipmentDisplay';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { BACKGROUNDS_2024 } from '../../content/backgrounds/backgrounds2024';
 import { CLASSES_2024 } from '../../content/classes2024';
 import { FULL_ITEM_LIBRARY } from '../../content/items/index';

@@ -22,13 +22,14 @@
 // longRest's until_rest sweep) conditions already use, with zero new engine
 // code. A permanent grant keeps using applyGrant, unchanged from before.
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useEdited, closeAsking } from '../../hooks/useDiscardGuard';
 import { Entity, CampaignRules, DraftTrait, DurationTracker } from '../../engine/types';
 import { newDraftTrait, buildTraitFeature, TraitEditorModal } from '../homebrew/TraitEditor';
-import { applyGrant } from '../../engine/leveling';
+import { applyGrant } from '../../engine/levelingGrants';
 import { applyCondition } from '../../engine/conditions';
 import { simulate } from '../../engine/simulate';
 import { buildFeatureGrantRows } from './featureGrantRows';

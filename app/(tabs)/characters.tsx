@@ -1,11 +1,12 @@
 // app/(tabs)/characters.tsx
 // Character list — all saved characters. Tap to open sheet. Long press (or right-click, or the delete button in the wide layout) to delete.
-import { gridProps, withGridCell } from '../../src/components/GridCell';
+import { gridKey, gridProps, withGridCell } from '../../src/components/GridCell';
 import { useListColumns, useLayout } from '../../src/platform/layout';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { RecordIcon } from '../../src/components/RecordPicture';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { FlatList, ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -171,7 +172,7 @@ export default function CharactersScreen() {
   const sortLabel = sortMode === 'name' ? 'Name' : sortMode === 'date' ? 'Date' : 'Campaign';
 
   const openSheet = useCallback((id: string) => {
-    router.push(`/sheet/${id}` as any);
+    router.push(`/sheet/${id}`);
   }, [router]);
 
   // Re-audit A09 (item 11): a persisted draft can exist here (restored on
@@ -223,7 +224,7 @@ export default function CharactersScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Characters</Text>
         <View style={styles.headerActions}>
-          <Pressable style={styles.settingsBtn} onPress={() => router.push('/settings' as any)}>
+          <Pressable style={styles.settingsBtn} onPress={() => router.push('/settings')}>
             <Text style={styles.settingsBtnText}>⚙️</Text>
           </Pressable>
           <Pressable testID="import-character" accessibilityRole="button" accessibilityLabel="Import Character" style={styles.importBtn} onPress={() => router.push('/import-character')}>
@@ -318,6 +319,7 @@ export default function CharactersScreen() {
           )}
 
           <FlatList
+            key={gridKey(columns)}
             {...gridProps(columns)}
             data={visibleCharacters}
             keyExtractor={c => c.id}

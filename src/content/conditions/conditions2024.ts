@@ -40,7 +40,7 @@ const poisonImmunity = {
 const initiativeDisadvantage = (id: string): Feature => ({
   id: `${id}_initiative_disadvantage`, name: 'Incapacitated', description: 'You have Disadvantage on Initiative rolls.',
   source: { kind: 'condition' as const, refId: id }, level: null,
-  effects: [{ type: 'stat_modifier', target: 'initiative', operation: 'disadvantage', value: null, condition: null } as Effect],
+  effects: [{ type: 'stat_modifier', target: 'initiative', operation: 'disadvantage', value: null, condition: null }],
   actions: [], choices: [], passive: true,
 });
 const INCAPACITATING = new Set(['incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious']);

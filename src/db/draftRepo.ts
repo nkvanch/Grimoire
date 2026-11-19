@@ -5,7 +5,6 @@
 // combat_state pattern exactly — the creation flow only ever has one active
 // draft at a time (characterStore.ts's `draft: Entity | null`).
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
 import { Entity, stripTransientRuntimeState } from '../engine/types';
 

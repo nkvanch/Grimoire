@@ -247,7 +247,7 @@ describe('the table-wide log lines do not name a monster the DM keeps hidden', (
     const encounterId = Object.keys(rig.host.debugState().encounters)[0];
     dm.peer.addCombatant(encounterId, { id: 'ghoul', name: 'Secret Ghoul Of Harrow' });
     await rig.settle();
-    const heard = toAlice(rig as never);
+    const heard = toAlice(rig);
     expect(heard).toContain('Unknown Creature joined');
     expect(heard).not.toContain('Secret Ghoul Of Harrow');
   });

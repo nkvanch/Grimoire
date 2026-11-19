@@ -42,5 +42,5 @@ export function advanceTurnCounter(e: Entity): Entity {
 export function clearDamageLog(e: Entity): Entity {
   if (!e.damageLog && !e.turnCounter) return e;
   const { damageLog: _d, turnCounter: _t, ...rest } = e;
-  return rest as Entity;
+  return rest;
 }

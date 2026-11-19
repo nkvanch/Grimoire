@@ -1,7 +1,8 @@
 // app/sheet/TabNotes.tsx
 // Tab 6 — Backstory, Session Notes, Personal Notes. Auto-save on blur.
 import { useState, memo } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { TextInput } from '../AccessibleControls';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 

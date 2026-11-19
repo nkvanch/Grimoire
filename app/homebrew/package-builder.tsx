@@ -18,7 +18,8 @@
 // This is package ASSEMBLY, not Homebrew creation: entries are made on the
 // Homebrew tab and merely picked here.
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, ScrollView, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import { FlatList, ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { makeHomebrewLookup } from '../../src/store/homebrewLookup';

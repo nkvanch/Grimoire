@@ -29,12 +29,23 @@ it('the non-SRD Plate Armor (only "heavy armor, ac 18") gives AC 18', () => {
 it('armor known only by its name takes its base armor; a medium one adds Dexterity up to 2; a stated one is read as stated', () => {
   expect(acWearing(item('t_gleaming_plate', 'Gleaming Plate Armor', []))).toBe(18);
   expect(acWearing(item('t_half', 'Test Half Plate', ['medium armor', 'ac 15 + dexterity modifier (max 2)']))).toBe(15 + 2);
-  expect(acWearing(item('t_scale', 'Dragon Scale Mail', ['magic item', 'very rare']))).toBe(14 + 2);
+  expect(acWearing(item('t_scale', 'Dragon Scale Mail', ['magic item', 'very rare']))).toBe(14 + 1 + 2);   // scale mail, its +1, Dex
 });
 
 it('a magic bonus in the name or the text is added', () => {
   expect(acWearing(item('t_dwarven', 'Dwarven Plate', ['magic item', 'armor'], 'While wearing this armor, you gain a +2 bonus to Armor Class.'))).toBe(20);
   expect(acWearing(item('t_plate1', 'Mithral Plate +1', []))).toBe(19);
+});
+
+it('a magic armor whose text states neither bonus nor base gets the ones the rules fix (paraphrased pack data)', () => {
+  expect(acWearing(item('t_efreeti', 'Efreeti Chain Mail', ['magic item'], 'Fire-infused chain mail.'))).toBe(16 + 3);
+  expect(acWearing(item('t_scale', 'Black Dragon Scale Mail', ['medium armor', 'ac 14 + dex (max 2)'], 'Crafted from black dragon scales.'))).toBe(15 + 2);
+  expect(acWearing(item('t_invuln', 'Armor of Invulnerability', ['heavy armor'], 'Grants resistance.'))).toBe(18);
+});
+
+it('the base armor can come from the "Armor (…)" heading; "Any…" means the player picks it, so nothing is guessed', () => {
+  expect(acWearing(item('t_heading', 'Armor of Something', ['armor'], 'Armor (Plate Armor), Legendary. Shiny.'))).toBe(18);
+  expect(statedArmorAc(item('t_any', 'Demon Armor', ['armor'], 'Armor (Any Light, Medium, or Heavy), Very Rare. You gain a +1 bonus to Armor Class.'))).toBeNull();
 });
 
 it('a shield with no AC effect adds 2 on top of the armor', () => {

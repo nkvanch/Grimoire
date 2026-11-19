@@ -152,12 +152,18 @@ export function armorWeight(i: ItemIndexEntry): ArmorWeight | null {
   if (p.some(x => x.includes('heavy armor')))  return 'heavy';
   if (p.some(x => x.includes('medium armor'))) return 'medium';
   if (p.some(x => x.includes('light armor')))  return 'light';
+  // By name only for armor that the name really names: whole words, never a tool or kit, and the words that also name other
+  // things (leather, hide, padded) only with "armor" in the name or properties (Dragonhide Belt, Leatherworker's Tools are not armor).
+  if (isToolOrKit(i)) return null;
   const name = i.name.toLowerCase();
   for (const base of BASE_ARMOR_KEYS_BY_LENGTH) {
-    if (name.includes(base)) return BASE_ARMORS[base];
+    if (!new RegExp(`\\b${base}\\b`).test(name)) continue;
+    if (AMBIGUOUS_ARMOR_WORDS.has(base) && ![name, ...p].some(s => /\barmou?r\b/.test(s))) continue;
+    return BASE_ARMORS[base];
   }
   return null;
 }
+const AMBIGUOUS_ARMOR_WORDS = new Set(['padded', 'leather', 'studded leather', 'hide']);
 export function isArmorItem(i: ItemIndexEntry): boolean {
   if (hasProp(i, 'armor')) return true;
   if (armorWeight(i) !== null) return true;

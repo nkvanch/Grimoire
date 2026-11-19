@@ -1,6 +1,6 @@
 import { newChar, toLevel, bindSubclass, sub } from '../testKit';
-import { applyPoolChoiceToEntity } from '../../../engine/leveling';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 import { weaponMasteryCapacity, weaponMasteryRules, setWeaponMasteryPicks, masteredWeaponIds, masteryPropertyFor } from '../../../engine/weaponMastery';
 import { generateAllActionCards } from '../../../engine/actionCards';
 

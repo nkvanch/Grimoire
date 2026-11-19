@@ -3,7 +3,7 @@
 // The default campaign rules and the empty entity every character and monster starts from. Pure data, so the
 // engine does not reach into the store for them (contract ARCH-003); src/store/characterStore.ts re-exports both.
 // ============================================================================
-import { Entity, CampaignRules, SkillName, SkillEntry, AbilityScores } from './types';
+import { Entity, CampaignRules, SkillName, SkillEntry, AbilityScores, RulesetId } from './types';
 
 // ── Default campaign rules ────────────────────────────────────────────────────
 
@@ -121,4 +121,16 @@ export function makeEmptyEntity(id: string, kind: Entity['kind'] = 'character'):
     wildShapeState:   null,
     notes:            '',
   };
+}
+
+/** The ruleset of a character saved before characters had one (the app was 2014-only then); the engine already reads a missing
+ *  ruleset as 2014 (ruleset/dnd5ePinning.ts). */
+export const LEGACY_RULESET_ID = 'dnd5e-2014' as RulesetId;
+
+/**
+ * A character with its ruleset set: one with none gets the 2014 rules. Without it, content looked up for the character covered every
+ * edition (found 2026-11-17: the sample character's condition picker listed each condition twice, the 2014 and the 2024 record).
+ */
+export function withDefaultRuleset(entity: Entity): Entity {
+  return entity.rulesetId ? entity : { ...entity, rulesetId: LEGACY_RULESET_ID };
 }

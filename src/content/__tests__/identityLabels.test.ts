@@ -1,7 +1,7 @@
 // Review shows names, not stored ids, and includes the chosen subclass (stress-test finding: "human", "bard", no subclass).
 import { resolveIdentityLabels, prettyId } from '../identityLabels';
 import { globalContentDB } from '../classes/library';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 import { buildUnderstudyPack } from '../../../demo/sample-packs/samplePacks';
 import type { Entity, HomebrewSubclass } from '../../engine/types';
 

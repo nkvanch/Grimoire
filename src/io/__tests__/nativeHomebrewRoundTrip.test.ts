@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { validateGrimoirePack, validatePackContents } from '../../engine/backup';
 import { validateFeat, validateItem, validateSpell } from '../../engine/homebrewValidator';
-import { compileItemFields, type ItemDraft } from '../../content/homebrewCompile';
+import { compileItemFields } from '../../content/homebrewCompile';
 import { buildItemCases } from '../../engine/__tests__/parityHomebrewScenarios';
 import type { Feat, Item, Spell } from '../../engine/types';
 
@@ -44,7 +44,7 @@ run('a homebrew package written by the native app', () => {
   it('an item compiled natively equals the one this app compiles from the same draft', () => {
     const p = pack();
     const c = buildItemCases().find(x => x.name === 'armor-medium')!;
-    const mine = JSON.parse(JSON.stringify(compileItemFields(c.draft as ItemDraft, c.id)));
+    const mine = JSON.parse(JSON.stringify(compileItemFields(c.draft, c.id)));
     const theirs = (p.homebrew.items as Item[]).find(i => i.id === c.id);
     // the local id of a draft trait is generated per session
     for (const it of [mine, theirs] as { homebrewDraft: { trait: { localId?: string } } }[]) delete it.homebrewDraft.trait.localId;

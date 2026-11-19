@@ -8,7 +8,7 @@
 import { findStaleCharacterOverwrites, findHomebrewIdCollisions, prepareImportedPack } from '../backupIO';
 import { GrimoirePack, GrimoirePackHomebrew } from '../../engine/backup';
 import { EntityMeta } from '../../db/entityRepo';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 
 function packWithCharacters(createdAt: number, characterIds: string[]): GrimoirePack {
   return {

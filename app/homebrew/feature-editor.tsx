@@ -1,7 +1,8 @@
 // app/homebrew/feature-editor.tsx
 // Homebrew feature editor — name, description, effects, activation toggle.
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useLocalSearchParams } from 'expo-router';
 import { Feature, Effect, Entity } from '../../src/engine/types';
@@ -12,10 +13,10 @@ import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { NAME_INPUT } from '../../src/components/nameInput';
@@ -65,7 +66,7 @@ function AddEffectPanel({ onAdd }: { onAdd: (e: Effect) => void }) {
       operation: 'add',
       value:     isNaN(numVal) ? (value.trim() || null) : numVal,
       condition: null,
-    } as Effect);
+    });
     setTarget(''); setValue('');
   }
 

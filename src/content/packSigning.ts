@@ -37,7 +37,7 @@ export const publicKeyOf = (privateKeyHex: string): string => bytesToHex(ed25519
 
 /** A copy of the pack with its manifest signed by the key (Ed25519 signatures are deterministic: the same pack always gets the same one). */
 export function signPack<T extends { manifest: ContentPackManifest }>(pack: T, keyId: string, privateKeyHex: string): T {
-  const unsigned = { ...pack.manifest } as ContentPackManifest;
+  const unsigned = { ...pack.manifest };
   delete unsigned.signature;
   const value = bytesToHex(ed25519.sign(utf8(signingPayload(unsigned)), hexToBytes(privateKeyHex)));
   const signature: PackSignature = { alg: 'ed25519', keyId, value };

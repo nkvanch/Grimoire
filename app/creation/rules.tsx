@@ -15,10 +15,12 @@
 // registry the rest of this screen uses), so they're rendered as their own
 // accordion sections with bespoke controls, same visual language as before.
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, Switch } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
-import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { DEFAULT_RULES } from '../../src/engine/defaults';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import {
   HOUSE_RULES, HouseRuleDef,
@@ -49,8 +51,7 @@ export default function CreationRulesScreen() {
   // written once at creation and never read by anything (audit finding
   // CAMPAIGN-RULES-1), so two players at the same table could silently run
   // under different house rules. When this device is the DM of an active
-  // campaign, every rule change here now also updates (and syncs, via the
-  // Campaign metadata sync machinery — see CAMPAIGN-SYNC-1) Campaign.rules,
+  // campaign, every rule change here now also updates Campaign.rules,
   // which characterStore.rules is kept in sync with everywhere (see
   // app/_layout.tsx's activeCampaign subscription). Outside a campaign
   // (solo play) this behaves exactly as before — device-local only.
@@ -60,7 +61,7 @@ export default function CreationRulesScreen() {
   function setRules(partial: Partial<CampaignRules>) {
     setRulesLocal(partial);
     if (activeCampaign && isDm) {
-      updateCampaign(activeCampaign.id, c => ({ ...c, rules: { ...c.rules, ...partial } }));
+      void updateCampaign(activeCampaign.id, c => ({ ...c, rules: { ...c.rules, ...partial } }));
     }
   }
 
@@ -69,7 +70,7 @@ export default function CreationRulesScreen() {
   function toggle(title: string) {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(title) ? next.delete(title) : next.add(title);
+      if (next.has(title)) next.delete(title); else next.add(title);
       return next;
     });
   }
@@ -84,8 +85,8 @@ export default function CreationRulesScreen() {
 
   function handleDone() {
     if (!hasDraft) { safeGoBack(); return; }
-    const notes = (() => { try { return JSON.parse(draft!.notes || '{}'); } catch { return {}; } })();
-    const updated: Entity = { ...draft!, notes: JSON.stringify({ ...notes, rulesVisited: true }) };
+    const notes = (() => { try { return JSON.parse(draft.notes || '{}'); } catch { return {}; } })();
+    const updated: Entity = { ...draft, notes: JSON.stringify({ ...notes, rulesVisited: true }) };
     setDraft(updated);
     router.push('/creation/hub');
   }

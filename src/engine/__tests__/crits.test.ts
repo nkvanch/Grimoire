@@ -1,5 +1,5 @@
 // Critical hits: a creature whose crits against it are negated, and an extended crit range shown on attack cards.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { generateActionCard } from '../actionCards';
 import type { Entity, Feature, Effect } from '../types';
@@ -8,7 +8,7 @@ const feat = (id: string, effects: Effect[]) => ({
   id, name: id, description: '', source: { kind: 'class', refId: 'x' }, level: null, effects, actions: [], choices: [], passive: true, isActive: true,
 }) as Feature & { isActive: boolean };
 const withFeatures = (fs: (Feature & { isActive: boolean })[]): Entity =>
-  recomputeDerived({ ...makeEmptyEntity('t'), features: fs as never }, DEFAULT_RULES);
+  recomputeDerived({ ...makeEmptyEntity('t'), features: fs }, DEFAULT_RULES);
 
 describe('crits', () => {
   it('defaults to a 20 and crits that count', () => {

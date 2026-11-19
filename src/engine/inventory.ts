@@ -8,8 +8,8 @@ import { Entity, Item, ItemInstance, CampaignRules, Feature } from './types';
 import { recomputeDerived } from './pipeline';
 import { DEFAULT_RULES } from './defaults';
 import { ATTUNEMENT } from './ruleset/dnd5e';
-import { hydrateItemInstanceDefinitionFacts, generateItemInstanceId } from './itemMechanics';
-import { applyGrant } from './leveling';
+import { hydrateItemInstanceDefinitionFacts, generateItemInstanceId, resolveItemDefinition } from './itemMechanics';
+import { applyGrant } from './levelingGrants';
 
 export { generateItemInstanceId } from './itemMechanics';
 
@@ -64,6 +64,12 @@ export function equipItem(
   // equipped copies of the same item now legitimately stay two separate
   // rows, each with its own stable id — mirroring 5e RAW itself (e.g. two
   // daggers when dual-wielding each get their own attack).
+  // One suit of armor and one shield at a time: whatever already fills the same place goes back to carried. The worn copies are
+  // classified from their current definitions, not facts stored at an older equip.
+  const place = wornPlace(hydrated);
+  const displaced = place
+    ? entity.inventory.equipped.filter(i => wornPlace(hydrateItemInstanceDefinitionFacts(i, resolveItemDefinition(i.itemId))) === place)
+    : [];
   const updated: Entity = {
     ...entity,
     inventory: {
@@ -72,8 +78,8 @@ export function equipItem(
       // itemId (independent stateful instances), and matching unequipItem's
       // own reference-based removal below keeps the invariant self-
       // enforcing rather than assumed.
-      carried: entity.inventory.carried.filter(i => i !== inst),
-      equipped: [...entity.inventory.equipped, hydrated],
+      carried: [...entity.inventory.carried.filter(i => i !== inst), ...displaced],
+      equipped: [...entity.inventory.equipped.filter(i => !displaced.includes(i)), hydrated],
     },
   };
   // First equip of an item that carries its own limited-use pools (Item.resources): create each
@@ -84,6 +90,27 @@ export function equipItem(
     updated,
   );
   return recomputeDerived(withPools, rules);
+}
+
+/** What the owner chose on one copy of an item whose record leaves it open: its base armor, its magic bonus. */
+export type ItemChoices = Pick<ItemInstance, 'baseArmor' | 'magicBonus'>;
+
+/**
+ * Sets the owner's choices on the copy with `instanceId`: the base armor of a magic armor whose rules leave it open
+ * (baseArmorChoices, e.g. 'plate'), the bonus of a record that covers several (bonusChoices: "Armor, +1, +2, or +3").
+ * A worn copy is put on again, so the one-armor rule treats it by what it now is.
+ */
+export function setItemChoices(entity: Entity, instanceId: string, choices: ItemChoices, itemDef: Item | undefined, rules: CampaignRules = DEFAULT_RULES): Entity {
+  const set = (list: ItemInstance[]) => list.map(i => i.id === instanceId ? hydrateItemInstanceDefinitionFacts({ ...i, ...choices }, itemDef) : i);
+  const worn = entity.inventory.equipped.find(i => i.id === instanceId);
+  const updated: Entity = { ...entity, inventory: { ...entity.inventory, equipped: set(entity.inventory.equipped), carried: set(entity.inventory.carried) } };
+  if (!worn) return recomputeDerived(updated, rules);
+  return equipItem(unequipItem(updated, worn.itemId, rules, instanceId), worn.itemId, itemDef, rules, instanceId);
+}
+
+/** Where a worn item goes on the body, for the one-armor, one-shield rule. */
+function wornPlace(i: ItemInstance): 'armor' | 'shield' | null {
+  return i.isShield ? 'shield' : i.armorWeight ? 'armor' : null;
 }
 
 /**

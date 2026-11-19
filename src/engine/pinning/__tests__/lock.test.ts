@@ -121,7 +121,7 @@ describe('the revision store', () => {
 
   it('hashes UTF-8 the way the desktop app does', () => {
     expect(revisionKeyOf('abc')).toBe('sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const node = require('crypto') as typeof import('crypto');
     for (const text of ['é', 'Mordenkainen’s Sword', '{"name":"Ætherfire 🔥"}']) {
       expect(revisionKeyOf(text)).toBe('sha256:' + node.createHash('sha256').update(text, 'utf8').digest('hex'));

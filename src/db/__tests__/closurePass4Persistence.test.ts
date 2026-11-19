@@ -1,8 +1,9 @@
 import { Platform } from 'react-native';
 import { getDb } from '../db';
 import { saveEntity, loadEntity } from '../entityRepo';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { acquireClass, applyGrant } from '../../engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
+import { acquireClass } from '../../engine/leveling';
+import { applyGrant } from '../../engine/levelingGrants';
 import { ALL_CHAR_CLASSES } from '../../content/classes';
 import { recomputeDerived } from '../../engine/pipeline';
 import { grantEntitlement } from '../../engine/entitlements';

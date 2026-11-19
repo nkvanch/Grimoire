@@ -3,16 +3,13 @@
 import { useLayout } from '../../src/platform/layout';
 import { LAN_SESSIONS_AVAILABLE } from '../../src/platform/features';
 import { useState, useCallback, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
-import { useCampaignStore }  from '../../src/store/campaignStore';
-import { useSyncStore }      from '../../src/store/syncStore';
+import { useCampaignStore } from '../../src/store/campaignStore';
 import { useLastCharacterStore } from '../../src/store/lastCharacterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { resolveIdentityLabels } from '../../src/content/identityLabels';
@@ -112,61 +109,17 @@ function DiceRollerModal({ visible, onClose }: { visible: boolean; onClose: () =
 }
 
 // ── Active Campaign Card ─────────────────────────────────────────────────────
-// Three states driven by campaign + sync status:
-//   between-sessions: name, quest count, last session note, party size
-//   live:             name + sync dot, player count, DM shortcut
+// Name, quest count, last session note, party size.
 
 function ActiveCampaignCard({ onOpen }: { onOpen: () => void }) {
-  const router         = useRouter();
   const activeCampaign = useCampaignStore(s => s.activeCampaign);
-  const isDm           = useCampaignStore(s => s.isDm);
-  const syncStatus     = useSyncStore(s => s.status);
-  const characters     = useCharacterStore(s => s.characters);
 
   if (!activeCampaign) return null;
 
-  const isLive        = syncStatus.connected;
   const activeQuests  = (activeCampaign.quests ?? []).filter(q => q.status === 'active');
   const lastEntry     = activeCampaign.sessionLog?.[0] ?? null;
   const partyCount    = activeCampaign.characterIds.length;
 
-  if (isLive) {
-    // ── Live state ───────────────────────────────────────────────────────────
-    return (
-      <Pressable style={[styles.campaignCard, styles.campaignCardLive]} onPress={onOpen}>
-        <View style={styles.campaignCardTop}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.campaignLiveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveTxt}>LIVE</Text>
-            </View>
-            <Text style={styles.campaignCardName}>{activeCampaign.name}</Text>
-            <Text style={styles.campaignCardMeta}>
-              {isDm
-                ? `${syncStatus.clientCount} player${syncStatus.clientCount !== 1 ? 's' : ''} connected`
-                : 'Connected to DM'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.campaignCardActions}>
-          {isDm && (
-            <Pressable
-              style={styles.campaignActionBtn}
-              onPress={() => router.push('/dm/dashboard' as any)}
-            >
-              <Text style={styles.campaignActionTxt}>🎲 DM Dashboard</Text>
-            </Pressable>
-          )}
-          <Pressable style={[styles.campaignActionBtn, styles.campaignActionBtnSecondary]} onPress={onOpen}>
-            <Text style={styles.campaignActionTxtSecondary}>Open Campaign →</Text>
-          </Pressable>
-        </View>
-      </Pressable>
-    );
-  }
-
-  // ── Between-sessions state ─────────────────────────────────────────────────
   return (
     <Pressable style={styles.campaignCard} onPress={onOpen}>
       <Text style={styles.campaignCardName}>{activeCampaign.name}</Text>
@@ -275,7 +228,7 @@ export default function HomeScreen() {
   const lastChar = characters.find(c => c.id === lastOpenedId) ?? characters[0] ?? null;
 
   const openSheet = useCallback((id: string) => {
-    router.push(`/sheet/${id}` as any);
+    router.push(`/sheet/${id}`);
   }, [router]);
 
   // Re-audit A09 (item 11) — see the identical comment/logic in
@@ -325,13 +278,13 @@ export default function HomeScreen() {
         <Text style={styles.sectionLabel}>Active Campaign</Text>
         {activeCampaign ? (
           <ActiveCampaignCard
-            onOpen={() => router.push('/(tabs)/campaigns' as any)}
+            onOpen={() => router.push('/(tabs)/campaigns')}
           />
         ) : (
           <View style={styles.stubCard}>
             <Text style={styles.stubIcon}>🗺️</Text>
             <Text style={styles.stubText}>No active campaign</Text>
-            <Text style={styles.stubSub}>Join a campaign from the Campaigns tab</Text>
+            <Text style={styles.stubSub}>Create or open a campaign from the Campaigns tab</Text>
           </View>
         )}
 
@@ -349,7 +302,7 @@ export default function HomeScreen() {
           {activeCampaign ? (
             <Pressable
               style={[styles.actionBtn, styles.actionBtnSecondary]}
-              onPress={() => router.push('/(tabs)/campaigns' as any)}
+              onPress={() => router.push('/(tabs)/campaigns')}
             >
               <Text style={styles.actionBtnIcon}>🗺️</Text>
               <Text style={styles.actionBtnText}>Open Campaign</Text>
@@ -357,10 +310,10 @@ export default function HomeScreen() {
           ) : LAN_SESSIONS_AVAILABLE ? (
             <Pressable
               style={[styles.actionBtn, styles.actionBtnSecondary]}
-              onPress={() => router.push({ pathname: '/(tabs)/campaigns', params: { action: 'join' } } as any)}
+              onPress={() => router.push({ pathname: '/(tabs)/campaigns', params: { action: 'join' } })}
             >
               <Text style={styles.actionBtnIcon}>🤝</Text>
-              <Text style={styles.actionBtnText}>Join Campaign</Text>
+              <Text style={styles.actionBtnText}>Join Live Session</Text>
             </Pressable>
           ) : null}
 
@@ -475,24 +428,10 @@ const styles = StyleSheet.create({
     padding:         Spacing.md,
     gap:             Spacing.sm,
   },
-  campaignCardLive: {
-    borderColor: Colors.green + '66',
-    backgroundColor: Colors.green + '08',
-  },
-  campaignCardTop:  { flexDirection: 'row', alignItems: 'flex-start' },
   campaignCardName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  campaignCardMeta: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   campaignOpenHint: { fontSize: FontSize.xs, color: Colors.textDim, textAlign: 'right' },
 
-  // Live badge
-  campaignLiveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
-  liveDot: {
-    width: 8, height: 8, borderRadius: Radius.full,
-    backgroundColor: Colors.green,
-  },
-  liveTxt: { fontSize: FontSize.xs, color: Colors.green, fontWeight: FontWeight.bold, letterSpacing: 1 },
-
-  // Between-sessions meta pills
+  // Meta pills
   campaignMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   campaignPill: {
     backgroundColor: Colors.surfaceHigh,
@@ -515,20 +454,6 @@ const styles = StyleSheet.create({
   },
   lastSessionLabel: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.bold, letterSpacing: 1 },
   lastSessionText:  { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 18 },
-
-  // Campaign action buttons
-  campaignCardActions: { flexDirection: 'row', gap: Spacing.sm },
-  campaignActionBtn: {
-    flex: 1, backgroundColor: Colors.green,
-    borderRadius: Radius.md, padding: Spacing.sm,
-    alignItems: 'center',
-  },
-  campaignActionBtnSecondary: {
-    backgroundColor: Colors.surfaceHigh,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  campaignActionTxt:          { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  campaignActionTxtSecondary: { color: Colors.textPrimary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
 
   // Quick actions
   quickActions: { gap: Spacing.sm },

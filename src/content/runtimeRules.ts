@@ -50,9 +50,9 @@ export function originFeats(): readonly Feat[] {
 /** The official classes and species (the installed packs', else the built-in fallback): the default content the engine reads when a caller passes none. */
 export function officialClasses(): readonly CharClass[] {
   const p = getOfficialContentProvider();
-  return p ? (p.classes() as CharClass[]) : ALL_CHAR_CLASSES;
+  return p ? (p.classes()) : ALL_CHAR_CLASSES;
 }
 export function officialRaces(): readonly Race[] {
   const p = getOfficialContentProvider();
-  return p ? (p.races() as Race[]) : ALL_RACES;
+  return p ? (p.races()) : ALL_RACES;
 }

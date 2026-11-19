@@ -5,8 +5,9 @@
 // the exact same queueChoice path the ASI/spellcasting_ability choices already
 // use — no new runtime wiring, just a new content source feeding an existing pipe.
 import { buildProgressionFromClass } from '../progressions';
-import { levelUp, applyToolChoiceToEntity } from '../../../engine/leveling';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { levelUp } from '../../../engine/leveling';
+import { applyToolChoiceToEntity } from '../../../engine/levelingProficiencyChoices';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import type { CharClass, ChoiceDefinition } from '../../../engine/types';
 
 function toolDef(id: string): ChoiceDefinition {

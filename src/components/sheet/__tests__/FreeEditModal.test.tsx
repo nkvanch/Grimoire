@@ -6,7 +6,7 @@
 import React from 'react';
 import { TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { recomputeDerived } from '../../../engine/pipeline';
 import { FreeEditModal } from '../FreeEditModal';
 import type { Entity } from '../../../engine/types';

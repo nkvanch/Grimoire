@@ -1,8 +1,10 @@
 // Temp HP and damage-log healing as card effects, and an ability that also uses the bonus action.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyDamage, startTurn, toggleActionEconomy } from '../combat';
-import { generateActionCard, buildLayer2, resolveProficiencyDice } from '../actionCards';
+import { startTurn, toggleActionEconomy } from '../combat';
+import { applyDamage } from '../combatDamage';
+import { generateActionCard } from '../actionCards';
+import { buildLayer2, resolveProficiencyDice } from '../actionCardLayers';
 import { applyActionCardUse } from '../actionUse';
 import type { Entity, Feature } from '../types';
 

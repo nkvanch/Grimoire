@@ -7,8 +7,6 @@
 // imports (a user restoring their OWN device) are never registered here —
 // only 'content-pack' imports (content brought in from elsewhere) are.
 // ============================================================================
-import { Platform } from 'react-native';
-import { ContentCacheType } from './contentCacheRepo';
 import { getDb } from './db';
 
 import type { PackItemRef, InstalledPack } from '../engine/contentRecords';

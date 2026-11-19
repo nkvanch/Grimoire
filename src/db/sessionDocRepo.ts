@@ -4,9 +4,8 @@
 // (src/session/kv.ts defines the interface; InMemoryKv is the test double).
 // Web-safe: behaves as an empty in-memory store where SQLite is unavailable.
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
-import { InMemoryKv, KeyValueStore } from '../session/kv';
+import { KeyValueStore } from '../session/kv';
 
 type DocRow = { key: string; data: string };
 

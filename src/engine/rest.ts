@@ -4,10 +4,10 @@
 // ============================================================================
 import { applyLongRestHeroicInspiration } from './heroicInspiration';
 import { clearDamageLog } from './damageLog';
-import { Entity, SpellcastingBlock, SpellSlots, CampaignRules, HitDiceBlock, HitDicePool } from './types';
+import { Entity, SpellcastingBlock, CampaignRules, HitDiceBlock, HitDicePool } from './types';
 import { recomputeDerived, modifier, collectAllEffects, applyStatModifiers } from './pipeline';
 import { removeCondition, reduceExhaustion } from './conditions';
-import { dropConcentration } from './combat';
+import { dropConcentration } from './concentration';
 import { longRestRestoresAllHitDice } from './houseRules';
 import { DEFAULT_RULES } from './defaults';
 import { getClassLevels } from './multiclass';
@@ -567,7 +567,7 @@ export function discardHitDie(
 /** Restores all `.slots` used counts to 0 (called on short rest for a solo pact caster, long rest for all). */
 function rechargeSlots(block: SpellcastingBlock): SpellcastingBlock {
   const tiers = ['1','2','3','4','5','6','7','8','9'] as const;
-  const slots = { ...block.slots } as SpellSlots;
+  const slots = { ...block.slots };
   for (const tier of tiers) {
     slots[tier] = { ...slots[tier], used: 0 };
   }
@@ -579,7 +579,7 @@ function rechargeSlots(block: SpellcastingBlock): SpellcastingBlock {
 function rechargePactSlots(block: SpellcastingBlock): SpellcastingBlock {
   if (!block.pactSlots) return block;
   const tiers = ['1','2','3','4','5','6','7','8','9'] as const;
-  const pactSlots = { ...block.pactSlots } as SpellSlots;
+  const pactSlots = { ...block.pactSlots };
   for (const tier of tiers) {
     pactSlots[tier] = { ...pactSlots[tier], used: 0 };
   }

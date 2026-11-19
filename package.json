@@ -1,6 +1,6 @@
 {
   "name": "grimoire",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "license": "GPL-3.0-or-later",
   "main": "index.ts",
   "dependencies": {
@@ -44,6 +44,7 @@
     "jest": "^29.7.0",
     "jest-expo": "~56.0.0",
     "patch-package": "^8.0.1",
+    "prettier": "3.10.1",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.62.0"

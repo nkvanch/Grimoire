@@ -7,7 +7,7 @@
 // it, and a rest clears it. Nothing is applied just because a card was used.
 // ============================================================================
 import type { AbilityEffect, ActionCard, CampaignRules, Entity, Feature, OutcomeKey, OutcomeOffer } from './types';
-import { applyAbilityEffects } from './combat';
+import { applyAbilityEffects } from './combatAbilityEffects';
 import { DEFAULT_RULES } from './defaults';
 
 const KEYS: OutcomeKey[] = ['hit', 'miss', 'success', 'failure'];

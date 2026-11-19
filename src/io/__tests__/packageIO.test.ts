@@ -36,7 +36,7 @@ beforeEach(() => jest.clearAllMocks());
 
 describe('exportPackage — file naming (item 24)', () => {
   it('sanitizes the package name into a meaningful filename, not a generic "export.json"', async () => {
-    const homebrew: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] } as Race] };
+    const homebrew: GrimoirePackHomebrew = { races: [{ id: 'tideborn', name: 'Tideborn', features: [] }] };
     const contents: PackageContentRef[] = [{ type: 'race', id: 'tideborn', name: 'Tideborn', included: 'selected' }];
     await exportPackage(homebrew, contents, { name: 'Tideborn Collection', packageVersion: '1.2' }, null, 'share');
 
@@ -90,7 +90,7 @@ describe('pickAndValidatePackage — item 13 (file-layer malformed JSON) and ite
   });
 
   it('returns a full preview (pack/validation/conflicts/identical/suggestedName) for a valid package', async () => {
-    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
     const pack = {
       formatVersion: 1, packType: 'content-pack', createdAt: 0, appVersion: '1.0.0', deviceId: null,
       characters: [], homebrew: { races: [race] }, name: 'Tideborn Collection',
@@ -105,10 +105,10 @@ describe('pickAndValidatePackage — item 13 (file-layer malformed JSON) and ite
     expect(picked).not.toBeNull();
     expect(picked && 'kind' in picked).toBe(false);          // an ordinary homebrew package, not a first-party content pack
     const result = picked as PackageImportPreview;
-    expect(result!.suggestedName).toBe('Tideborn Collection');
-    expect(result!.validation.blocking).toEqual([]);
-    expect(result!.conflicts).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn (local)', incomingName: 'Tideborn' }]);
-    expect(result!.identical).toEqual([]);
+    expect(result.suggestedName).toBe('Tideborn Collection');
+    expect(result.validation.blocking).toEqual([]);
+    expect(result.conflicts).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn (local)', incomingName: 'Tideborn' }]);
+    expect(result.identical).toEqual([]);
   });
 
   // Item 36: oversized/pathological file rejection, checked BEFORE
@@ -121,7 +121,7 @@ describe('pickAndValidatePackage — item 13 (file-layer malformed JSON) and ite
   });
 
   it('reports an identical local match separately from conflicts (item 17)', async () => {
-    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] } as Race;
+    const race: Race = { id: 'tideborn', name: 'Tideborn', features: [] };
     const pack = {
       formatVersion: 1, packType: 'content-pack', createdAt: 0, appVersion: '1.0.0', deviceId: null,
       characters: [], homebrew: { races: [race] }, name: 'Tideborn Collection',
@@ -133,8 +133,8 @@ describe('pickAndValidatePackage — item 13 (file-layer malformed JSON) and ite
     const localLookup = (ref: { type: string; id: string }) => (ref.type === 'race' && ref.id === 'tideborn') ? ({ ...race } as never) : undefined;
     const result = (await pickAndValidatePackage(new Set(['dnd5e-2014']), localLookup)) as PackageImportPreview;
 
-    expect(result!.conflicts).toEqual([]);
-    expect(result!.identical).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn', incomingName: 'Tideborn' }]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.identical).toEqual([{ type: 'race', id: 'tideborn', localName: 'Tideborn', incomingName: 'Tideborn' }]);
   });
 });
 

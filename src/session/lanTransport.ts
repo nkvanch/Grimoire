@@ -1,8 +1,6 @@
 // ============================================================================
 // FILE: src/session/lanTransport.ts
-// Production LAN transport for the session layer, on react-native-tcp-socket
-// (same native module as the legacy campaign sync). Separate port from the
-// legacy server so a device can keep using either.
+// Production LAN transport for the session layer, on react-native-tcp-socket.
 // ============================================================================
 import TcpSocket from 'react-native-tcp-socket';
 import { tcpAvailable } from '../platform/tcp';
@@ -11,7 +9,7 @@ import type Server from 'react-native-tcp-socket/lib/types/Server';
 import { ClientTransport, Connection, ServerTransport } from './transport';
 import { SocketConnection } from './socketConnection';
 
-/** Legacy campaign sync uses 7742. */
+/** 7742 was the removed campaign sync's port; an older app version on the same network may still listen there. */
 export const SESSION_PORT = 7743;
 
 function nativeReady(): boolean {

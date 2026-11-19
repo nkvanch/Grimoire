@@ -1,10 +1,10 @@
 // app/creation/background.tsx
 // Background list + detail page with personality trait selectors.
-import { applyBackgroundOriginFeat, revokeBackgroundOriginFeat } from '../../src/engine/originFeat';
 import { rulesetLabel } from '../../src/content/rulesets';
 import { suggestFirst } from '../../src/content/rulesetSuggestion';
 import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
-import { View, Text, FlatList, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FlatList, ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -12,8 +12,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { globalContentDB } from '../../src/content/classes/library';
-import { Background, SkillName, Ability, Feature, BACKGROUND_CHOICE_PREFIX } from '../../src/engine/types';
-import { applyGrant, queueChoice } from '../../src/engine/leveling';
+import { SkillName, Ability, Feature, BACKGROUND_CHOICE_PREFIX } from '../../src/engine/types';
+import { applyBackgroundOriginFeat, revokeBackgroundOriginFeat } from '../../src/engine/levelingBackground';
+import { queueChoice } from '../../src/engine/levelingGrants';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { revokeResourceSource } from '../../src/engine/entitlements';
 import { applyStatModifiers, collectAllEffects } from '../../src/engine/pipeline';
 import { backgroundSkillGrants, backgroundSortOptions } from '../../src/content/backgrounds/backgroundBrowse';
@@ -23,10 +25,11 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
 import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
 import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
-import { EditionBadge } from '../../src/components/EditionBadge';
+import { useEditionFilter, EditionFilterSections } from '../../src/components/EditionFilter';
+import { EditionBadge, OtherEditionNote } from '../../src/components/EditionBadge';
 import {
-  FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow,
-  ActiveFilterChips, ZeroResultsState,
+  MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow,
+  ActiveFilterChips, ZeroResultsState
 } from '../../src/components/FilterChipRow';
 import { Colors, Spacing, Radius, FontSize, FontWeight, scrollBottomPadding } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
@@ -182,7 +185,7 @@ export default function BackgroundScreen() {
   // carries no structured fields for either (classic PHB backgrounds grant
   // neither; only a 2024-style background would, via a mechanism that
   // doesn't exist yet).
-  const [rulesetFilter, setRulesetFilter] = useState<string | null>((savedFilters.rulesetFilter as string) ?? null);
+  const edition = useEditionFilter(savedFilters);   // Game / Version, starting on the character's own rules
   const [officialFilter, setOfficialFilter] = useState<'all' | 'official' | 'homebrew'>((savedFilters.officialFilter as 'all' | 'official' | 'homebrew') ?? 'all');
   // FILTER-METADATA-2: real, derived from each background's own Feature
   // effects (official) or an equivalent homebrew grant — see
@@ -196,43 +199,43 @@ export default function BackgroundScreen() {
   useEffect(() => {
     setBrowseState(SCREEN_KEY, {
       search, sort,
-      filters: { rulesetFilter, officialFilter, skillFilter: Array.from(skillFilter), toolFilter: Array.from(toolFilter) },
+      filters: { ...edition.toSave, officialFilter, skillFilter: Array.from(skillFilter), toolFilter: Array.from(toolFilter) },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sort, rulesetFilter, officialFilter, skillFilter, toolFilter]);
+  }, [search, sort, edition.choice, officialFilter, skillFilter, toolFilter]);
+
+  useOfficialContentVersion();   // follow pack installs and removals while this list is open
 
   // If ?detail=id is in the URL, show the detail view inline. This branch comes
   // AFTER all hooks above so hook order stays identical across renders.
   if (detail) return <BackgroundDetail id={detail} />;
 
-  const availableRulesets = Array.from(new Set(globalContentDB.backgrounds.map(b => b.rulesetId).filter((r): r is NonNullable<typeof r> => !!r)))
-    .map(String).sort().map(r => ({ id: r, label: r }));
-  const availableSkills = (Array.from(new Set(globalContentDB.backgrounds.flatMap(backgroundSkillGrants))) as SkillName[])
+  const availableSkills = (Array.from(new Set(globalContentDB.backgrounds.flatMap(backgroundSkillGrants))))
     .sort().map(s => ({ id: s, label: s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }));
   const availableTools = Array.from(new Set(globalContentDB.backgrounds.flatMap(b => b.toolProficiencies ?? [])))
     .sort().map(t => ({ id: t, label: t }));
 
-  useOfficialContentVersion();   // follow pack installs and removals while this list is open
   const suggestedRuleset = useCreationDraftStore.getState().draft?.rulesetId;
   const backgrounds = officialFilter === 'homebrew' ? [] : suggestFirst(sortByOption(globalContentDB.backgrounds.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) &&
-    (!rulesetFilter || b.rulesetId === rulesetFilter) &&
+    edition.matches(b, true) &&
     (skillFilter.size === 0 || Array.from(skillFilter).some(s => backgroundSkillGrants(b).includes(s))) &&
     (toolFilter.size === 0 || Array.from(toolFilter).some(t => (b.toolProficiencies ?? []).includes(t)))
   ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewBackgrounds = officialFilter === 'official' ? [] : sortByOption(homebrewBackgrounds.filter(b =>
+    edition.matches(b, false) &&
     b.name.toLowerCase().includes(search.toLowerCase()) &&
     (skillFilter.size === 0 || Array.from(skillFilter).some(s => backgroundSkillGrants(b).includes(s))) &&
     (toolFilter.size === 0 || Array.from(toolFilter).some(t => (b.toolProficiencies ?? []).includes(t)))
   ), sortOptions, sort);
   const activeFilterChips = [
-    ...(rulesetFilter ? [{ key: 'ruleset', label: rulesetFilter, onClear: () => setRulesetFilter(null) }] : []),
+    ...edition.chips,
     ...(officialFilter !== 'all' ? [{ key: 'official', label: officialFilter === 'official' ? 'Official' : 'Homebrew', onClear: () => setOfficialFilter('all') }] : []),
     ...Array.from(skillFilter).map(s => ({ key: `skill_${s}`, label: s, onClear: () => setSkillFilter(prev => { const n = new Set(prev); n.delete(s); return n; }) })),
     ...Array.from(toolFilter).map(t => ({ key: `tool_${t}`, label: t, onClear: () => setToolFilter(prev => { const n = new Set(prev); n.delete(t); return n; }) })),
   ];
   function clearAllFilters() {
-    setRulesetFilter(null); setOfficialFilter('all'); setSkillFilter(new Set()); setToolFilter(new Set());
+    edition.clear(); setOfficialFilter('all'); setSkillFilter(new Set()); setToolFilter(new Set());
   }
   const noResults = backgrounds.length === 0 && filteredHomebrewBackgrounds.length === 0;
 
@@ -267,9 +270,7 @@ export default function BackgroundScreen() {
 
       {filtersOpen && (
         <View style={styles.filterPanel}>
-          <FilterSection label="Ruleset">
-            <FilterChipRow options={availableRulesets} value={rulesetFilter} onChange={setRulesetFilter} />
-          </FilterSection>
+          <EditionFilterSections edition={edition} official={globalContentDB.backgrounds} homebrew={homebrewBackgrounds} />
           <FilterSection label="Skill Proficiency">
             <MultiSelectChipRow options={availableSkills} values={skillFilter} onChange={setSkillFilter} scrollable />
           </FilterSection>
@@ -470,8 +471,9 @@ function BackgroundDetail({ id }: { id: string }) {
 
     // ...and the Origin feat the (2024) background names: granted for real, with this background as
     // its source so changing the background removes it again.
+    // Looked up across editions, as the background itself is: a 2024 background on a 2014 character still names its feat.
     if (bg!.originFeat) {
-      updated = applyBackgroundOriginFeat(updated, bg!, (getMergedContentDB(updated.rulesetId).feats ?? []).find(f => f.id === bg!.originFeat));
+      updated = applyBackgroundOriginFeat(updated, bg!, (getMergedContentDB().feats ?? []).find(f => f.id === bg!.originFeat));
     }
 
     // ...and the flexible ability score choice, compiled into one generated
@@ -539,6 +541,7 @@ function BackgroundDetail({ id }: { id: string }) {
         {!isHomebrew && <EditionBadge item={bg} official />}
         {!isHomebrew && isNonSrd(bg.srd, bg.rulesetId) && <NonSrdBadge />}
       </View>
+      {!isHomebrew && <OtherEditionNote item={bg} />}
       <View style={styles.divider} />
 
       <Text style={styles.sectionTitle}>Skill Proficiencies</Text>

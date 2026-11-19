@@ -50,7 +50,7 @@ beforeEach(() => { mockInstalled.current = []; mockPick.mockReset(); });
 
 describe('first import (nothing installed matches)', () => {
   it('reads as an import: no "Updating installed pack", and the button says Import', async () => {
-    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' } as never);
+    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' });
     const t = joined(r);
     expect(t).toContain('Understudy Test Pack');
     expect(t).not.toContain('Updating installed pack');
@@ -60,13 +60,13 @@ describe('first import (nothing installed matches)', () => {
   });
 
   it('a multi-content pack still says Import All, never Update', async () => {
-    const r = await openPreview({ ...buildBreadthPack(), packageId: 'pkg_breadth' } as never);
+    const r = await openPreview({ ...buildBreadthPack(), packageId: 'pkg_breadth' });
     expect(texts(r)).toContain('Import All');
     expect(texts(r)).not.toContain('Update');
   });
 
   it('passes the official-content check to the validator (so bundled Bard/Fighter are not reported missing)', async () => {
-    await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' } as never);
+    await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' });
     const [, , isOfficial] = mockPick.mock.calls[0];
     expect(typeof isOfficial).toBe('function');
   });
@@ -75,7 +75,7 @@ describe('first import (nothing installed matches)', () => {
 describe('the same pack is already installed', () => {
   it('asks update-or-copy first, naming the real installed pack', async () => {
     mockInstalled.current = [{ id: 'pkg_understudy', name: 'Understudy Test Pack', importedAt: 1, itemRefs: [], packageVersion: '0.9' }];
-    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' } as never);
+    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' });
     const t = joined(r);
     expect(t).toContain('UPDATE AVAILABLE');
     expect(texts(r).join('')).toContain('"Understudy Test Pack" is already installed');
@@ -85,7 +85,7 @@ describe('the same pack is already installed', () => {
 
   it('after choosing Update Pack: shows the real installed name and an Update button', async () => {
     mockInstalled.current = [{ id: 'pkg_understudy', name: 'Understudy Test Pack', importedAt: 1, itemRefs: [] }];
-    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' } as never);
+    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' });
     await pressText(r, 'Update Pack');
     expect(joined(r)).toContain('Updating installed pack "Understudy Test Pack"');
     expect(texts(r)).toContain('Update');
@@ -93,7 +93,7 @@ describe('the same pack is already installed', () => {
 
   it('after choosing Install As Separate Copy: an import, not an update', async () => {
     mockInstalled.current = [{ id: 'pkg_understudy', name: 'Understudy Test Pack', importedAt: 1, itemRefs: [] }];
-    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' } as never);
+    const r = await openPreview({ ...buildUnderstudyPack(), packageId: 'pkg_understudy' });
     await pressText(r, 'Install As Separate Copy');
     expect(joined(r)).not.toContain('Updating installed pack');
     expect(texts(r)).toContain('Import All');

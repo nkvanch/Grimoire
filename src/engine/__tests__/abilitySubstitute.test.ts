@@ -1,5 +1,5 @@
 // ability_substitute: "use Constitution instead of Strength for ..." as a typed effect (a pattern several features share).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { skillCheck } from '../skillCheck';
 import type { Entity, Feature, Effect, AbilityUseKind, Ability } from '../types';
@@ -57,7 +57,7 @@ describe('ability_substitute', () => {
 });
 
 describe('ability_substitute authored in the builder', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   const { newDraftTrait, buildTraitFeature, hasAdvancedFields } = require('../../content/traitCompiler');
   const opts = { idPrefix: 't', sourceKind: 'class' as const, sourceRefId: 'x', level: 3 };
   it('compiles the three fields into one typed effect', () => {

@@ -58,7 +58,7 @@ export function compileFeatFields(draft: FeatDraft, id: string, feature?: Featur
     skillChoice: draft.skillPicks.length > 0 ? { picks: draft.skillPicks } : undefined,
     pendingChoices: serializeLosslessChoices(undefined, draft.pendingChoices ?? [], FEAT_CHOICE_PREFIX),
     rulesetId: draft.rulesetId,
-  } as Feat;
+  };
 }
 
 // ── spell ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ export function compileSpellFields(draft: SpellDraft, id: string): Spell {
     concentration: draft.concentration,
     spellType: draft.spellTypes.length > 0 ? draft.spellTypes : undefined,
     rulesetId: draft.rulesetId,
-  } as Spell;
+  };
 }
 
 // ── item ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ export function compileItemFields(draft: ItemDraft, id: string): Item {
     imageUri: draft.imageUri,
     rulesetId: draft.rulesetId,
     homebrewDraft: { ...stored, editorFeatureId: feature.id },
-  } as Item;
+  };
 }
 
 // ── class ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -514,7 +514,7 @@ export type ConditionDraft = {
  * traits (an edit that kept the record's own mechanics).
  */
 export function compileConditionFields(draft: ConditionDraft, id: string, features?: Condition['features']) {
-  let compiled: Condition['features'] = features ?? [];
+  const compiled: Condition['features'] = features ?? [];
   if (!features) {
     const usedIds = new Set<string>();
     for (const t of draft.traits) {
@@ -648,6 +648,7 @@ export type SubraceDraft = {
 export function compileSubraceFields(draft: SubraceDraft, parentId: string, editing?: Subrace | null): Subrace {
   const named = { localId: 'draft', name: draft.name.trim(), abiBonuses: draft.abiBonuses, traits: draft.traits };
   const compiled = buildSubrace(named, parentId);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the cast types traitOwners; without it the line below does not compile
   const originalDraft = editing?.homebrewDraft as (Record<string, unknown> & { traitOwners?: never[] }) | undefined;
   const generatedIds = compiled.features.filter(f => f.id.endsWith('_asi')).map(f => f.id);
   const generated = compiled.features.filter(f => generatedIds.includes(f.id));

@@ -7,9 +7,9 @@
 // applyFeatToEntity() call rather than a hand-crafted stats diff — that's
 // the actual shape a feat commit produces.
 import { buildFeatSummaryRows } from '../FeatPreviewModal';
-import { applyFeatToEntity } from '../../engine/leveling';
+import { applyFeatToEntity } from '../../engine/levelingAsiFeats';
 import { recomputeDerived } from '../../engine/pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { Entity, Feature } from '../../engine/types';
 
 function feature(id: string, effects: Feature['effects'] = []): Feature {

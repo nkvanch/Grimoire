@@ -5,15 +5,16 @@
 // (app/dm/encounter.tsx), which owns runtime ActiveEncounter state — see
 // PreparedEncounter's own doc comment in engine/types.ts.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
-import { Alert } from '../../src/utils/alert';
+import { Alert, reportFailure } from '../../src/utils/alert';
 import { useEncounterStore } from '../../src/store/encounterStore';
 import { parsePreparedEncounterFile, pickPreparedEncounterText } from '../../src/io/preparedEncounterFile';
 import { useCampaignStore } from '../../src/store/campaignStore';
 import { PreparedEncounter, EncounterStatus } from '../../src/engine/types';
-import { activeSession } from '../../src/engine/session';
+import { activeSession } from '../../src/engine/sessionLog';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { NAME_INPUT } from '../../src/components/nameInput';
@@ -119,7 +120,7 @@ export default function EncounterLibraryScreen() {
     const session = activeCampaign ? activeSession(activeCampaign) : null;
     const encounter = await createEncounter(trimmed, activeCampaign?.id, session?.id);
     setNewName(''); setCreating(false);
-    router.push({ pathname: '/dm/encounter-builder', params: { id: encounter.id } } as any);
+    router.push({ pathname: '/dm/encounter-builder', params: { id: encounter.id } });
   }
 
   // A prepared fight exported by the desktop app (or another device); never overwrites one already here.
@@ -200,9 +201,9 @@ export default function EncounterLibraryScreen() {
             placeholder="Encounter name…"
             placeholderTextColor={Colors.textDim}
             autoFocus
-            onSubmitEditing={() => { void handleCreate(); }}
+            onSubmitEditing={() => { void handleCreate().catch(reportFailure('create the encounter')); }}
           />
-          <Pressable style={styles.createGo} onPress={() => { void handleCreate(); }}>
+          <Pressable style={styles.createGo} onPress={() => { void handleCreate().catch(reportFailure('create the encounter')); }}>
             <Text style={styles.createGoTxt}>Create</Text>
           </Pressable>
           <Pressable style={styles.createCancel} onPress={() => { setCreating(false); setNewName(''); }}>
@@ -223,8 +224,8 @@ export default function EncounterLibraryScreen() {
             <EncounterCard
               key={encounter.id}
               encounter={encounter}
-              onOpen={() => router.push({ pathname: '/dm/encounter-builder', params: { id: encounter.id } } as any)}
-              onStart={() => router.push({ pathname: '/dm/encounter', params: { preparedId: encounter.id } } as any)}
+              onOpen={() => router.push({ pathname: '/dm/encounter-builder', params: { id: encounter.id } })}
+              onStart={() => router.push({ pathname: '/dm/encounter', params: { preparedId: encounter.id } })}
               onDuplicate={() => { void duplicateEncounter(encounter.id); }}
               onArchiveToggle={() => { void setStatus(encounter.id, encounter.status === 'archived' ? 'draft' : 'archived'); }}
               onDelete={() => confirmDelete(encounter)}

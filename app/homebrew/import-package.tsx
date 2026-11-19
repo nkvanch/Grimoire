@@ -9,7 +9,8 @@
 import { PackDownloadPanel } from '../../src/components/PackDownloadPanel';
 import { PRIVATE_BUNDLED_HOMEBREW } from '../../src/content/privateBundledPacks';
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { useCharacterStore } from '../../src/store/characterStore';

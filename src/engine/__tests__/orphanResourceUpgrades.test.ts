@@ -1,8 +1,13 @@
 import { Platform } from 'react-native';
 import { getDb } from '../../db/db';
 import { saveEntity, loadEntity } from '../../db/entityRepo';
-import { makeEmptyEntity, DEFAULT_RULES, useCharacterStore } from '../../store/characterStore';
-import { applyGrant, queueChoice, resolveChoice, removeFeature, resetCreationClass } from '../leveling';
+import { useCharacterStore } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { resetCreationClass } from '../leveling';
+import { resolveChoice } from '../levelingResolveChoice';
+import { removeFeature } from '../levelingAsiFeats';
+import { queueChoice } from '../levelingGrants';
+import { applyGrant } from '../levelingGrants';
 import { revokeEntitlementsFromSource, revokeEntitlementsFromChoice, revokeResourceSource } from '../entitlements';
 import { recomputeDerived } from '../pipeline';
 import { migrateEntity } from '../multiclass';

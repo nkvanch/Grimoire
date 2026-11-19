@@ -33,7 +33,7 @@ describe('the Understudy pack traits (the exact case the stress test hit)', () =
 });
 
 describe('genuinely text-only traits stay labelled as such', () => {
-  const text: Feature = { id: 't', name: 'Story', description: 'Just words', source: { kind: 'subclass', refId: 's' }, level: 3, effects: [], actions: [], choices: [], passive: true } as Feature;
+  const text: Feature = { id: 't', name: 'Story', description: 'Just words', source: { kind: 'subclass', refId: 's' }, level: 3, effects: [], actions: [], choices: [], passive: true };
   it('no effects, no activation, no resource => Flavor only', () => {
     expect(describeFeatureMechanics([text])).toEqual([]);
     expect(mechanicsLabel([text])).toBe('Flavor only');

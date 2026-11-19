@@ -7,18 +7,15 @@
 // so a homebrew background's skills correctly survive a class change with
 // zero extra engine wiring needed.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Background, Feature, SkillName, Entity, RulesetId, BACKGROUND_CHOICE_PREFIX } from '../../src/engine/types';
-import {
-  ChoiceDefinitionListEditor, DraftChoice,
-} from '../../src/components/homebrew/ChoiceDefinitionEditor';
+import { ChoiceDefinitionListEditor, DraftChoice } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
@@ -30,10 +27,11 @@ import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { disambiguateId } from '../../src/content/traitCompiler';
 import { globalContentDB } from '../../src/content/classes/library';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
@@ -43,6 +41,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { PictureField } from '../../src/components/homebrew/PictureField';
 import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
 import { NAME_INPUT } from '../../src/components/nameInput';
+import { newId } from '../../src/engine/ids';
 
 // Same 18-skill list used in race-builder.tsx and the PDF export.
 const SKILLS: { id: SkillName; label: string }[] = [
@@ -77,7 +76,7 @@ const COMMON_TOOLS = [
 type DraftFeature = { localId: string; name: string; description: string };
 
 function newDraftFeature(name: string): DraftFeature {
-  return { localId: `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, name, description: '' };
+  return { localId: newId('f'), name, description: '' };
 }
 
 function FeatureListEditor({ features, onChange }: {
@@ -196,7 +195,7 @@ export default function BackgroundBuilderScreen() {
     setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
-    const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
+    const draft = editing.homebrewDraft;
     if (draft) {
       setSkills((draft.skills as SkillName[]) ?? []);
       setToolProfs((draft.toolProfs as string[]) ?? []);
@@ -249,7 +248,7 @@ export default function BackgroundBuilderScreen() {
     // builders (race/monster/subclass/condition-builder) via
     // traitCompiler's disambiguateId.
     const generatedIds = bgFeatures.map(f => f.id);
-    const originalDraft = editing?.homebrewDraft as Record<string, unknown> | undefined;
+    const originalDraft = editing?.homebrewDraft;
     const serializedFeatures = serializeBackgroundFeatures(editing, (originalDraft?.features as DraftFeature[] | undefined) ?? [], features, id, bgFeatures, generatedIds);
 
     return withPictures(pictures, mergeHomebrewDefinition(editing, {

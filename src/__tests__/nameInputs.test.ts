@@ -2,7 +2,7 @@
 // typed. Scans app/ and src/ (scripts/name-inputs.js) so a new name box can't skip it; `node scripts/name-inputs.js --fix <file>`.
 import * as fs from 'fs';
 import * as path from 'path';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const { nameInputs, tsxFiles } = require('../../scripts/name-inputs.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');

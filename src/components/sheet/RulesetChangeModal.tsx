@@ -11,7 +11,8 @@
 // `preview.after` verbatim on Confirm — never recompute the change a
 // second time.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules, HomebrewSubclass, RulesetId } from '../../engine/types';

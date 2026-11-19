@@ -3,110 +3,48 @@
 // Sections: Basics → Saving Throws → Proficiencies →
 //           Spellcasting → Per-Level Features → ASI Levels → Save
 import { useState, useEffect, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
-import { Pressable, TextInput } from '../../src/components/AccessibleControls';
-import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import { View, Text, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
+import { Pressable } from '../../src/components/AccessibleControls';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
-import { CharClass, Ability, DraftTrait, Entity, RulesetId, ChoiceDefinition } from '../../src/engine/types';
+import { CharClass, Ability, Entity, RulesetId } from '../../src/engine/types';
 import {
-  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice, CHOICE_KIND_LABELS, summarizeDraftChoice,
+  ChoiceDefinitionEditorModal, DraftChoice, newDraftChoice,
 } from '../../src/components/homebrew/ChoiceDefinitionEditor';
-import { draftChoiceToDefinition, definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
-import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
-import { gameIdForRuleset } from '../../src/content/rulesets';
 import { Alert } from '../../src/utils/alert';
 import { mergeItemIndex, resolveItemById } from '../../src/content/contentResolution';
 import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
-import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { poolChoicesBefore } from '../../src/content/classes/knownResources';
-import { newDraftTrait, TraitEditorModal, COMMON_TOOLS, disambiguateId, EFFECT_KIND_LABELS as TRAIT_KIND_LABELS } from '../../src/components/homebrew/TraitEditor';
+import { newDraftTrait, TraitEditorModal, disambiguateId } from '../../src/components/homebrew/TraitEditor';
 import { globalContentDB } from '../../src/content/classes/library';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { compileClassFields, multiclassNeedsDraft } from '../../src/content/homebrewCompile';
-import { hydrateLeveledChoices, serializeLeveledChoices, LeveledLosslessDraftChoice } from '../../src/engine/homebrewNestedSerializers';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
-import { PictureField } from '../../src/components/homebrew/PictureField';
+import { hydrateLeveledChoices, serializeLeveledChoices } from '../../src/engine/homebrewNestedSerializers';
 import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
-import { NAME_INPUT } from '../../src/components/nameInput';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const HIT_DICE = [4, 6, 8, 10, 12] as const;
-
-const ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
-const ABILITY_LABELS: Record<Ability, string> = {
-  str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA',
-};
-
-const ARMOR_PROFS = ['light', 'medium', 'heavy', 'shield'] as const;
-const WEAPON_PROFS = ['simple', 'martial'] as const;
-
-const SPELL_ABILITIES: Ability[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
-const SPELL_STYLES = [
-  { key: 'full', label: 'Full Caster', sub: 'Wizard/Cleric slots' },
-  { key: 'half', label: 'Half Caster', sub: 'Paladin/Ranger slots' },
-  { key: 'pact', label: 'Pact Magic',  sub: 'Warlock-style slots' },
-] as const;
-/**
- * Rules-engine blocker closure (2C — homebrew class preparation policy):
- * production spell-card generation now reads CharClass.spellPreparationPolicy
- * for real legality/DC — see actionCards.ts's isSpellPreparationLegal/
- * resolveSpellCastingContexts — so a homebrew caster needs a way to author
- * it. Slot Table (SPELL_STYLES above) can't stand in for this: it's a
- * completely separate axis (Sorcerer and Wizard are both 'full' Slot Table
- * but opposite preparation policies), so this is a genuinely new field, not
- * a relabeled existing one.
- */
-const SPELL_PREP_POLICIES = [
-  { key: 'known', label: 'Known Spells', sub: "Fixed list, always castable — Sorcerer/Bard/Warlock-style" },
-  { key: 'spellbook_prepared', label: 'Spellbook + Prepared', sub: 'Owns a spellbook, prepares a subset daily — Wizard-style' },
-  { key: 'full_list_prepared', label: 'Full-List Prepared', sub: 'Prepares directly from the whole class list daily — Cleric/Druid-style' },
-] as const;
-
-const DEFAULT_ASI_LEVELS = [4, 8, 12, 16, 19];
-
-function toId(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-}
-
-type LevelFeature = DraftTrait & { level: number };
-type LevelChoice = LeveledLosslessDraftChoice;
-
-/**
- * Classes saved before class features gained real effect kinds have
- * levelFeatures entries shaped as just {level, name, description} — fill in
- * DraftTrait's other fields (effectKind defaulting to 'none', a fresh
- * localId if missing) so editing an old homebrew class in the builder
- * doesn't hand the trait editor an incomplete object.
- */
-function normalizeLevelFeature(f: Partial<DraftTrait> & { level: number; name: string; description?: string }): LevelFeature {
-  const base = newDraftTrait(f.name);
-  return { ...base, ...f, localId: f.localId ?? base.localId, effectKind: f.effectKind ?? 'none' };
-}
-
-// ── Section header component ───────────────────────────────────────────────────
-
-function SectionHeader({ title, n }: { title: string; n: number }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionNum}><Text style={styles.sectionNumTxt}>{n}</Text></View>
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
-  );
-}
+import { styles } from '../../src/components/homebrew/classBuilder/classBuilderStyles';
+import { LevelFeature, LevelChoice, DEFAULT_ASI_LEVELS, normalizeLevelFeature, toId } from '../../src/components/homebrew/classBuilder/classBuilderModel';
+import { BasicsSection } from '../../src/components/homebrew/classBuilder/BasicsSection';
+import { SavingThrowsSection } from '../../src/components/homebrew/classBuilder/SavingThrowsSection';
+import { StartingProficienciesSection } from '../../src/components/homebrew/classBuilder/StartingProficienciesSection';
+import { MulticlassSection } from '../../src/components/homebrew/classBuilder/MulticlassSection';
+import { StartingEquipmentSection } from '../../src/components/homebrew/classBuilder/StartingEquipmentSection';
+import { SpellcastingSection } from '../../src/components/homebrew/classBuilder/SpellcastingSection';
+import { LevelFeaturesSection } from '../../src/components/homebrew/classBuilder/LevelFeaturesSection';
+import { LevelChoicesSection } from '../../src/components/homebrew/classBuilder/LevelChoicesSection';
+import { AsiLevelsSection } from '../../src/components/homebrew/classBuilder/AsiLevelsSection';
+import { ClassBuilderFooter } from '../../src/components/homebrew/classBuilder/ClassBuilderFooter';
 
 // ── Main screen ────────────────────────────────────────────────────────────────
 
@@ -385,7 +323,7 @@ export default function ClassBuilderScreen() {
       multiclassProficiencies:  fields.multiclassProficiencies || editing?.multiclassProficiencies?.languages?.length
         ? { ...(fields.multiclassProficiencies ?? {}), ...(editing?.multiclassProficiencies?.languages?.length ? { languages: editing.multiclassProficiencies.languages } : {}) }
         : undefined,
-    } as CharClass));
+    }));
   }
 
   // Read-only test: reuses getProgressionForClass() — the SAME compile
@@ -527,521 +465,109 @@ export default function ClassBuilderScreen() {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* ── 1. Basics ─────────────────────────────────────────────────── */}
-        <SectionHeader title="Basics" n={1} />
-
-        <PictureField value={pictures} onChange={setPictures} />
-        <Text style={styles.fieldLabel}>Class Name *</Text>
-        <TextInput {...NAME_INPUT} style={styles.input} value={name} onChangeText={setName}
-          placeholder="e.g. Runesmith" placeholderTextColor={Colors.textDim} />
-
-        <OriginFields value={origin} onChange={setOrigin} />
-
-        <Text style={styles.fieldLabel}>Game / Ruleset</Text>
-        <GameRulesetPicker value={rulesetId} onChange={setRulesetId} defaultGameId={gameIdForRuleset(draftRulesetId)} />
-
-        <Text style={styles.fieldLabel}>Hit Die</Text>
-        <View style={styles.chipRow}>
-          {HIT_DICE.map(d => (
-            <Pressable key={d} style={[styles.chip, hitDie === d && styles.chipActive]}
-              onPress={() => setHitDie(d)}>
-              <Text style={[styles.chipTxt, hitDie === d && styles.chipTxtActive]}>d{d}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.fieldLabel}>HP Ability</Text>
-        <Text style={styles.hint}>Which ability's modifier adds to HP gain each level. Standard is Constitution.</Text>
-        <View style={styles.chipRow}>
-          {ABILITIES.map(ab => (
-            <Pressable key={ab} style={[styles.chip, hpAbility === ab && styles.chipActive]}
-              onPress={() => setHpAbility(ab)}>
-              <Text style={[styles.chipTxt, hpAbility === ab && styles.chipTxtActive]}>{ABILITY_LABELS[ab]}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.fieldLabel}>Description</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe this class…"
-          placeholderTextColor={Colors.textDim}
-          multiline
-          textAlignVertical="top"
+        <BasicsSection
+          pictures={pictures}
+          setPictures={setPictures}
+          name={name}
+          setName={setName}
+          origin={origin}
+          setOrigin={setOrigin}
+          rulesetId={rulesetId}
+          setRulesetId={setRulesetId}
+          draftRulesetId={draftRulesetId}
+          hitDie={hitDie}
+          setHitDie={setHitDie}
+          hpAbility={hpAbility}
+          setHpAbility={setHpAbility}
+          description={description}
+          setDescription={setDescription}
         />
 
-        {/* ── 2. Saving Throws ──────────────────────────────────────────── */}
-        <View style={styles.divider} />
-        <SectionHeader title="Saving Throws" n={2} />
-        <Text style={styles.hint}>
-          Which saving throws does this class grant proficiency in?
-        </Text>
-        <View style={styles.chipRow}>
-          {ABILITIES.map(ab => {
-            const active = savingThrows.includes(ab);
-            return (
-              <Pressable key={ab}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleSavingThrow(ab)}
-              >
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                  {ABILITY_LABELS[ab]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {savingThrows.length > 2 && (
-          <Text style={styles.warn}>⚠ Most classes use exactly 2 saving throw proficiencies.</Text>
-        )}
+        <SavingThrowsSection savingThrows={savingThrows} toggleSavingThrow={toggleSavingThrow} />
 
-        {/* ── 3. Starting Proficiencies ─────────────────────────────────── */}
-        <View style={styles.divider} />
-        <SectionHeader title="Starting Proficiencies" n={3} />
+        <StartingProficienciesSection
+          armorProfs={armorProfs}
+          toggleArmorProf={toggleArmorProf}
+          weaponProfs={weaponProfs}
+          toggleWeaponProf={toggleWeaponProf}
+          toolProfs={toolProfs}
+          toggleTool={toggleTool}
+          removeTool={removeTool}
+          newTool={newTool}
+          setNewTool={setNewTool}
+          addTool={addTool}
+        />
 
-        <Text style={styles.fieldLabel}>Armor</Text>
-        <View style={styles.chipRow}>
-          {ARMOR_PROFS.map(p => {
-            const active = armorProfs.includes(p);
-            return (
-              <Pressable key={p}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleArmorProf(p)}
-              >
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <MulticlassSection
+          mcArmor={mcArmor}
+          setMcArmor={setMcArmor}
+          mcWeapons={mcWeapons}
+          setMcWeapons={setMcWeapons}
+          mcTools={mcTools}
+          setMcTools={setMcTools}
+          mcNeeds={mcNeeds}
+          setMcNeeds={setMcNeeds}
+          mcNeedMin={mcNeedMin}
+          setMcNeedMin={setMcNeedMin}
+          mcNeedAny={mcNeedAny}
+          setMcNeedAny={setMcNeedAny}
+        />
 
-        <Text style={styles.fieldLabel}>Weapons</Text>
-        <View style={styles.chipRow}>
-          {WEAPON_PROFS.map(p => {
-            const active = weaponProfs.includes(p);
-            return (
-              <Pressable key={p}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleWeaponProf(p)}
-              >
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <StartingEquipmentSection
+          startingEquipment={startingEquipment}
+          removeStartingItem={removeStartingItem}
+          equipSearch={equipSearch}
+          setEquipSearch={setEquipSearch}
+          equipResults={equipResults}
+          addStartingItem={addStartingItem}
+          equipmentNotes={equipmentNotes}
+          setEquipmentNotes={setEquipmentNotes}
+        />
 
-        <Text style={styles.fieldLabel}>Tools</Text>
-        <Text style={styles.hint}>Tap to add a common tool, or type your own below.</Text>
-        <View style={styles.chipRow}>
-          {COMMON_TOOLS.map(t => {
-            const active = toolProfs.includes(t);
-            return (
-              <Pressable key={t} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleTool(t)}>
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{t}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {toolProfs.filter(t => !COMMON_TOOLS.includes(t)).length > 0 && (
-          <View style={styles.chipRow}>
-            {toolProfs.filter(t => !COMMON_TOOLS.includes(t)).map(t => (
-              <Pressable key={t} style={[styles.chip, styles.chipActive]} onPress={() => removeTool(t)}>
-                <Text style={[styles.chipTxt, styles.chipTxtActive]}>{t} ✕</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        <View style={styles.inlineAddRow}>
-          <TextInput style={[styles.input, { flex: 1 }]} value={newTool} onChangeText={setNewTool}
-            placeholder="Something not listed above" placeholderTextColor={Colors.textDim} onSubmitEditing={addTool} />
-          <Pressable style={styles.inlineAddBtn} onPress={addTool}>
-            <Text style={styles.inlineAddTxt}>Add</Text>
-          </Pressable>
-        </View>
+        <SpellcastingSection
+          setIsCaster={setIsCaster}
+          isCaster={isCaster}
+          spellAbilities={spellAbilities}
+          toggleSpellAbility={toggleSpellAbility}
+          spellStyle={spellStyle}
+          setSpellStyle={setSpellStyle}
+          spellPrepPolicy={spellPrepPolicy}
+          setSpellPrepPolicy={setSpellPrepPolicy}
+          spellSource={spellSource}
+          setSpellSource={setSpellSource}
+          savedSpellLists={savedSpellLists}
+          borrowableClasses={borrowableClasses}
+          spellStartLevel={spellStartLevel}
+          setSpellStartLevel={setSpellStartLevel}
+        />
 
-        {/* ── 3a. As a second class ──────────────────────────────── */}
-        <View style={styles.divider} />
-        <Text style={styles.fieldLabel}>When taken as a second class</Text>
-        <Text style={styles.hint}>
-          What a character who already has another class gains from this one. The multiclassing rules give a reduced set;
-          leave it empty to grant nothing.
-        </Text>
-        <View style={styles.chipRow}>
-          {ARMOR_PROFS.map(p => {
-            const active = mcArmor.includes(p);
-            return (
-              <Pressable key={p} style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setMcArmor(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-              </Pressable>
-            );
-          })}
-          {WEAPON_PROFS.map(p => {
-            const active = mcWeapons.includes(p);
-            return (
-              <Pressable key={p} style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setMcWeapons(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <TextInput style={styles.input} value={mcTools} onChangeText={setMcTools}
-          placeholder="Tools, separated by commas" placeholderTextColor={Colors.textDim} />
-        <Text style={styles.fieldLabel}>Abilities needed</Text>
-        <Text style={styles.hint}>
-          The scores a character needs to take this class with another, or to leave it for another. None picked: it asks for nothing.
-        </Text>
-        <View style={styles.chipRow}>
-          {(['str', 'dex', 'con', 'int', 'wis', 'cha'] as Ability[]).map(a => {
-            const active = mcNeeds.includes(a);
-            return (
-              <Pressable key={a} style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setMcNeeds(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])}>
-                <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{a.toUpperCase()}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {mcNeeds.length > 0 && (
-          <View style={styles.chipRow}>
-            <TextInput style={[styles.input, { width: 64 }]} value={mcNeedMin} onChangeText={setMcNeedMin} keyboardType="number-pad" accessibilityLabel="Minimum score" />
-            {mcNeeds.length > 1 && ([false, true] as const).map(any => (
-              <Pressable key={String(any)} style={[styles.chip, mcNeedAny === any && styles.chipActive]} onPress={() => setMcNeedAny(any)}>
-                <Text style={[styles.chipTxt, mcNeedAny === any && styles.chipTxtActive]}>{any ? 'Any one' : 'All of them'}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <LevelFeaturesSection
+          sortedLevels={sortedLevels}
+          featuresByLevel={featuresByLevel}
+          setOpenFeatureId={setOpenFeatureId}
+          EFFECT_KIND_LABELS={EFFECT_KIND_LABELS}
+          deleteFeature={deleteFeature}
+          addLevel={addLevel}
+          setAddLevel={setAddLevel}
+          addName={addName}
+          setAddName={setAddName}
+          addFeature={addFeature}
+        />
 
-        {/* ── 3b. Starting Equipment ───────────────────────────── */}
-        <View style={styles.divider} />
-        <Text style={styles.fieldLabel}>Starting Equipment</Text>
-        <Text style={styles.hint}>
-          Fixed gear granted automatically — not a choice between options,
-          just what this class always starts with.
-        </Text>
-        {startingEquipment.length > 0 && (
-          <View style={styles.chipRow}>
-            {startingEquipment.map(i => (
-              <Pressable key={i.id} style={[styles.chip, styles.chipActive]} onPress={() => removeStartingItem(i.id)}>
-                <Text style={[styles.chipTxt, styles.chipTxtActive]}>{i.name} ✕</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        <TextInput style={styles.input} value={equipSearch} onChangeText={setEquipSearch}
-          placeholder="Search items to add…" placeholderTextColor={Colors.textDim} />
-        {equipResults.length > 0 && (
-          <View style={styles.equipResults}>
-            {equipResults.map(item => (
-              <Pressable key={item.id} style={styles.equipResultRow} onPress={() => addStartingItem(item.id, item.name)}>
-                <Text style={styles.equipResultTxt}>{item.name}</Text>
-                <Text style={styles.equipResultAdd}>+ Add</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>Other Equipment Notes (optional)</Text>
-        <Text style={styles.hint}>
-          For gear that isn't a real item in the catalog — shown as flavor text only,
-          not granted as an actual inventory item (there'd be nothing for it to resolve to).
-        </Text>
-        <TextInput style={[styles.input, styles.textArea]} value={equipmentNotes} onChangeText={setEquipmentNotes}
-          placeholder="e.g. a set of masterwork lockpicks, a tattered field journal…"
-          placeholderTextColor={Colors.textDim} multiline textAlignVertical="top" />
+        <LevelChoicesSection
+          levelChoicesList={levelChoicesList}
+          setOpenChoiceId={setOpenChoiceId}
+          deleteLevelChoice={deleteLevelChoice}
+          addChoiceLevel={addChoiceLevel}
+          setAddChoiceLevel={setAddChoiceLevel}
+          addLevelChoice={addLevelChoice}
+        />
 
-        {/* ── 4. Spellcasting ───────────────────────────────────────────── */}
-        <View style={styles.divider} />
-        <SectionHeader title="Spellcasting" n={4} />
-
-        <Pressable style={styles.toggleRow} onPress={() => setIsCaster(v => !v)}>
-          <View style={[styles.toggle, isCaster && styles.toggleOn]}>
-            <View style={[styles.toggleThumb, isCaster && styles.toggleThumbOn]} />
-          </View>
-          <Text style={styles.toggleLabel}>
-            {isCaster ? 'Spellcasting class' : 'Non-spellcasting (martial)'}
-          </Text>
-        </Pressable>
-
-        {isCaster && (
-          <View style={styles.spellConfig}>
-            <Text style={styles.fieldLabel}>Spellcasting Ability</Text>
-            <Text style={styles.hint}>
-              Select one for a fixed ability, or two+ for a rare case where the
-              player chooses their casting ability at creation.
-            </Text>
-            <View style={styles.chipRow}>
-              {SPELL_ABILITIES.map(ab => {
-                const active = spellAbilities.includes(ab);
-                return (
-                  <Pressable key={ab}
-                    style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => toggleSpellAbility(ab)}
-                  >
-                    <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>
-                      {ABILITY_LABELS[ab]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {spellAbilities.length >= 2 && (
-              <Text style={styles.warn}>
-                ℹ Player will choose between {spellAbilities.map(a => a.toUpperCase()).join(', ')} at creation.
-              </Text>
-            )}
-
-            <Text style={styles.fieldLabel}>Slot Table</Text>
-            {SPELL_STYLES.map(s => {
-              const active = spellStyle === s.key;
-              return (
-                <Pressable key={s.key}
-                  style={[styles.styleRow, active && styles.styleRowActive]}
-                  onPress={() => setSpellStyle(s.key)}
-                >
-                  <View style={[styles.styleRadio, active && styles.styleRadioActive]}>
-                    {active && <View style={styles.styleRadioDot} />}
-                  </View>
-                  <View>
-                    <Text style={[styles.styleLabel, active && styles.styleLabelActive]}>
-                      {s.label}
-                    </Text>
-                    <Text style={styles.styleSub}>{s.sub}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-
-            <Text style={styles.fieldLabel}>Preparation Model</Text>
-            <Text style={styles.hint}>
-              How this class's LEVELED spells (not cantrips) become castable —
-              independent of Slot Table above (Wizard and Sorcerer are both
-              Full Caster but opposite preparation models).
-            </Text>
-            {SPELL_PREP_POLICIES.map(p => {
-              const active = spellPrepPolicy === p.key;
-              return (
-                <Pressable key={p.key}
-                  style={[styles.styleRow, active && styles.styleRowActive]}
-                  onPress={() => setSpellPrepPolicy(p.key)}
-                >
-                  <View style={[styles.styleRadio, active && styles.styleRadioActive]}>
-                    {active && <View style={styles.styleRadioDot} />}
-                  </View>
-                  <View>
-                    <Text style={[styles.styleLabel, active && styles.styleLabelActive]}>
-                      {p.label}
-                    </Text>
-                    <Text style={styles.styleSub}>{p.sub}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-
-            <Text style={styles.fieldLabel}>Spell List</Text>
-            <Text style={styles.hint}>
-              Which spells this class picks from by default. Choose one of your saved Spell Lists or borrow
-              another class's list. (A player can still switch to a different list while picking.)
-            </Text>
-            <View style={styles.chipRow}>
-              <Pressable style={[styles.chip, spellSource === 'own' && styles.chipActive]} onPress={() => setSpellSource('own')}>
-                <Text style={[styles.chipTxt, spellSource === 'own' && styles.chipTxtActive]}>This class's own</Text>
-              </Pressable>
-            </View>
-            {savedSpellLists.length > 0 && (
-              <>
-                <Text style={styles.hint}>Your Spell Lists</Text>
-                <View style={styles.chipRow}>
-                  {savedSpellLists.map(l => (
-                    <Pressable key={l.id} style={[styles.chip, spellSource === `list:${l.id}` && styles.chipActive]} onPress={() => setSpellSource(`list:${l.id}`)}>
-                      <Text style={[styles.chipTxt, spellSource === `list:${l.id}` && styles.chipTxtActive]}>{l.name} ({l.spellIds.length})</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </>
-            )}
-            <Text style={styles.hint}>Another class's list</Text>
-            <View style={styles.chipRow}>
-              {borrowableClasses.map(c => (
-                <Pressable key={c.id} style={[styles.chip, spellSource === `class:${c.id}` && styles.chipActive]} onPress={() => setSpellSource(`class:${c.id}`)}>
-                  <Text style={[styles.chipTxt, spellSource === `class:${c.id}` && styles.chipTxtActive]}>{c.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-            {savedSpellLists.length === 0 && (
-              <Text style={styles.hint}>No saved Spell Lists yet. Create one under Homebrew, then pick it here.</Text>
-            )}
-
-            <Text style={styles.fieldLabel}>Spellcasting Begins at Level</Text>
-            <TextInput
-              style={[styles.input, styles.smallInput]}
-              value={spellStartLevel}
-              onChangeText={setSpellStartLevel}
-              keyboardType="number-pad"
-              placeholder="1"
-              placeholderTextColor={Colors.textDim}
-            />
-            <Text style={styles.hint}>
-              Set to 2+ for classes where slots begin later (e.g. Paladin starts at level 2).
-            </Text>
-          </View>
-        )}
-
-        {/* ── 5. Per-Level Features ─────────────────────────────────────── */}
-        <View style={styles.divider} />
-        <SectionHeader title="Per-Level Features" n={5} />
-        <Text style={styles.hint}>
-          Add the class features characters gain at each level. Tap "+ Add Feature" to begin.
-        </Text>
-
-        {sortedLevels.length === 0 ? (
-          <Text style={styles.emptyNote}>No features added yet.</Text>
-        ) : (
-          sortedLevels.map(lvl => (
-            <View key={lvl} style={styles.featureLevelGroup}>
-              <Text style={styles.featureLevelLabel}>LEVEL {lvl}</Text>
-              {featuresByLevel.get(lvl)!.map(f => (
-                <Pressable key={f.localId} style={styles.featureItem} onPress={() => setOpenFeatureId(f.localId)}>
-                  <View style={styles.featureItemBody}>
-                    <Text style={styles.featureItemName}>{f.name}</Text>
-                    <Text style={styles.featureItemDesc} numberOfLines={1}>{EFFECT_KIND_LABELS[f.effectKind] ?? TRAIT_KIND_LABELS[f.effectKind]}</Text>
-                  </View>
-                  <Pressable
-                    style={styles.featureDeleteBtn}
-                    onPress={() => deleteFeature(f.localId)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.featureDeleteTxt}>✕</Text>
-                  </Pressable>
-                </Pressable>
-              ))}
-            </View>
-          ))
-        )}
-
-        <Text style={styles.hint}>
-          Add a feature by name and level, then tap it to optionally add a description and
-          choose what it actually does — an ability score bonus, a skill proficiency, a sense,
-          extra movement, or a limited-use ability.
-        </Text>
-        <View style={styles.inlineAddRow}>
-          <TextInput
-            style={[styles.input, styles.smallInput]}
-            value={addLevel}
-            onChangeText={setAddLevel}
-            keyboardType="number-pad"
-            placeholder="Lv"
-            placeholderTextColor={Colors.textDim}
-          />
-          <TextInput {...NAME_INPUT}
-            style={[styles.input, { flex: 1 }]}
-            value={addName}
-            onChangeText={setAddName}
-            placeholder="Feature name (e.g. Second Wind)"
-            placeholderTextColor={Colors.textDim}
-            onSubmitEditing={addFeature}
-          />
-          <Pressable style={styles.inlineAddBtn} onPress={addFeature}>
-            <Text style={styles.inlineAddTxt}>Add</Text>
-          </Pressable>
-        </View>
-
-        {/* ── 5b. Per-Level Player Choices ──────────────────────────────── */}
-        <View style={styles.divider} />
-        <Text style={styles.fieldLabel}>Per-Level Player Choices</Text>
-        <Text style={styles.hint}>
-          A real choice the player resolves at a specific level — e.g. "at level 3,
-          choose one tool proficiency." Distinct from a Feature above: this doesn't
-          grant anything by itself, it queues a pick.
-        </Text>
-        {levelChoicesList.length === 0 ? (
-          <Text style={styles.emptyNote}>No player choices added yet.</Text>
-        ) : (
-          Array.from(new Set(levelChoicesList.map(c => c.level))).sort((a, b) => a - b).map(lvl => (
-            <View key={lvl} style={styles.featureLevelGroup}>
-              <Text style={styles.featureLevelLabel}>LEVEL {lvl}</Text>
-              {levelChoicesList.filter(c => c.level === lvl).map(c => (
-                <Pressable key={c.localId} style={styles.featureItem} onPress={() => setOpenChoiceId(c.localId)}>
-                  <View style={styles.featureItemBody}>
-                    <Text style={styles.featureItemName}>{CHOICE_KIND_LABELS[c.kind]} choice</Text>
-                    <Text style={styles.featureItemDesc} numberOfLines={1}>{summarizeDraftChoice(c)}</Text>
-                  </View>
-                  <Pressable style={styles.featureDeleteBtn} onPress={() => deleteLevelChoice(c.localId)} hitSlop={8}>
-                    <Text style={styles.featureDeleteTxt}>✕</Text>
-                  </Pressable>
-                </Pressable>
-              ))}
-            </View>
-          ))
-        )}
-        <View style={styles.inlineAddRow}>
-          <TextInput
-            style={[styles.input, styles.smallInput]}
-            value={addChoiceLevel}
-            onChangeText={setAddChoiceLevel}
-            keyboardType="number-pad"
-            placeholder="Lv"
-            placeholderTextColor={Colors.textDim}
-          />
-          <Pressable style={[styles.inlineAddBtn, { flex: 1 }]} onPress={addLevelChoice}>
-            <Text style={styles.inlineAddTxt}>+ Add Player Choice</Text>
-          </Pressable>
-        </View>
-
-        {/* ── 6. ASI Levels ─────────────────────────────────────────────── */}
-        <View style={styles.divider} />
-        <SectionHeader title="Ability Score Improvements" n={6} />
-        <Text style={styles.hint}>
-          Tap levels to toggle ASIs. Default (gold) matches most official classes.
-        </Text>
-
-        <View style={styles.asiGrid}>
-          {Array.from({ length: 20 }, (_, i) => i + 1).map(lvl => {
-            const active = asiLevels.includes(lvl);
-            return (
-              <Pressable
-                key={lvl}
-                style={[styles.asiCell, active && styles.asiCellActive]}
-                onPress={() => toggleAsiLevel(lvl)}
-              >
-                <Text style={[styles.asiCellTxt, active && styles.asiCellTxtActive]}>
-                  {lvl}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={styles.hint}>
-          Selected: {asiLevels.length > 0 ? asiLevels.join(', ') : 'none (no ASIs)'}
-        </Text>
+        <AsiLevelsSection asiLevels={asiLevels} toggleAsiLevel={toggleAsiLevel} />
 
       </ScrollView>
 
-      {/* Footer: Test + Save */}
-      <SafeBottomView>
-        <View style={styles.footer}>
-          <Pressable
-            style={[styles.testBtn, !name.trim() && styles.btnDisabled]}
-            onPress={runTest}
-            disabled={!name.trim()}
-          >
-            <Text style={styles.testBtnTxt}>🧪 Test</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.saveBtn, (!name.trim() || saving) && styles.btnDisabled]}
-            onPress={() => { void handleSave(); }}
-            disabled={!name.trim() || saving}
-          >
-            <Text style={styles.saveBtnTxt}>{saving ? 'Saving...' : 'Save Class'}</Text>
-          </Pressable>
-        </View>
-      </SafeBottomView>
+      <ClassBuilderFooter name={name} runTest={runTest} saving={saving} handleSave={handleSave} />
 
       {/* ── Feature effect editor — same component race traits use ───────────── */}
       <TraitEditorModal
@@ -1074,187 +600,3 @@ export default function ClassBuilderScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    backgroundColor:   Colors.surfaceHigh,
-    paddingTop:        Spacing.xl + 8,
-    paddingBottom:     Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: { marginBottom: 4 },
-  backTxt: { color: Colors.gold, fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  title:   { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-
-  scroll:  { flex: 1 },
-  content: { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
-
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.xs },
-
-  // Section header
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: Spacing.sm, marginBottom: Spacing.xs,
-  },
-  sectionNum: {
-    width: 24, height: 24, borderRadius: Radius.full,
-    backgroundColor: Colors.gold + '33', borderWidth: 1, borderColor: Colors.gold + '66',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sectionNumTxt: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.bold },
-  sectionTitle:  { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-
-  // Form elements
-  fieldLabel: {
-    fontSize: FontSize.xs, color: Colors.textSecondary,
-    letterSpacing: 1, fontWeight: FontWeight.bold, marginTop: Spacing.sm,
-  },
-  hint: { fontSize: FontSize.xs, color: Colors.textDim, lineHeight: 16, marginTop: 2 },
-  warn: { fontSize: FontSize.xs, color: Colors.gold, marginTop: 4 },
-
-  input: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, color: Colors.textPrimary, fontSize: FontSize.md,
-  },
-  textArea:   { minHeight: 100 },
-  smallInput: { maxWidth: 80 },
-
-  // Chips
-  chipRow: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    gap: Spacing.sm, marginTop: Spacing.xs,
-  },
-  chip: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  chipActive:    { borderColor: Colors.gold, backgroundColor: Colors.gold + '22' },
-  chipTxt:       { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  chipTxtActive: { color: Colors.gold },
-
-  inlineAddRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  inlineAddBtn: { backgroundColor: Colors.gold, borderRadius: Radius.md, paddingHorizontal: Spacing.md, justifyContent: 'center' },
-  inlineAddTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  equipResults: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border, marginTop: 4, overflow: 'hidden',
-  },
-  equipResultRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  equipResultTxt: { color: Colors.textPrimary, fontSize: FontSize.sm, flex: 1 },
-  equipResultAdd: { color: Colors.gold, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-
-  // Spellcasting toggle
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: Spacing.sm, paddingVertical: Spacing.xs,
-  },
-  toggle: {
-    width: 44, height: 24, borderRadius: Radius.full,
-    backgroundColor: Colors.border, justifyContent: 'center', paddingHorizontal: 2,
-  },
-  toggleOn:      { backgroundColor: Colors.green + '88' },
-  toggleThumb: {
-    width: 20, height: 20, borderRadius: Radius.full,
-    backgroundColor: Colors.textDim, alignSelf: 'flex-start',
-  },
-  toggleThumbOn: { backgroundColor: Colors.green, alignSelf: 'flex-end' },
-  toggleLabel:   { fontSize: FontSize.md, color: Colors.textPrimary, flex: 1 },
-
-  spellConfig: { gap: Spacing.sm, marginTop: Spacing.xs },
-
-  // Slot style radio rows
-  styleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    padding: Spacing.sm, borderRadius: Radius.md,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-  },
-  styleRowActive:  { borderColor: Colors.gold, backgroundColor: Colors.gold + '11' },
-  styleRadio: {
-    width: 18, height: 18, borderRadius: Radius.full,
-    borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  styleRadioActive: { borderColor: Colors.gold },
-  styleRadioDot:   { width: 8, height: 8, borderRadius: Radius.full, backgroundColor: Colors.gold },
-  styleLabel:      { fontSize: FontSize.md, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  styleLabelActive:{ color: Colors.gold },
-  styleSub:        { fontSize: FontSize.xs, color: Colors.textDim },
-
-  // Per-level features
-  emptyNote:         { color: Colors.textDim, fontSize: FontSize.sm, fontStyle: 'italic' },
-  featureLevelGroup: { gap: Spacing.xs },
-  featureLevelLabel: {
-    fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textDim,
-    letterSpacing: 2, marginTop: Spacing.sm,
-  },
-  featureItem: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, gap: Spacing.sm,
-  },
-  featureItemBody:  { flex: 1 },
-  featureItemName:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  featureItemDesc:  { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2, lineHeight: 15 },
-  featureDeleteBtn: { paddingLeft: Spacing.xs },
-  featureDeleteTxt: { color: Colors.textDim, fontSize: FontSize.md },
-
-  addFeatureBtn: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.gold + '66',
-    padding: Spacing.sm, alignItems: 'center', marginTop: Spacing.xs,
-  },
-  addFeatureBtnTxt: { color: Colors.gold, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  // ASI grid
-  asiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.xs },
-  asiCell: {
-    width: 40, height: 40, borderRadius: Radius.md,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  asiCellActive:    { borderColor: Colors.gold, backgroundColor: Colors.gold + '22' },
-  asiCellTxt:       { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  asiCellTxtActive: { color: Colors.gold },
-
-  // Footer
-  footer: {
-    flexDirection: 'row', gap: Spacing.sm,
-    padding: Spacing.sm, backgroundColor: Colors.surfaceHigh,
-    borderTopWidth: 1, borderTopColor: Colors.border,
-  },
-  testBtn:     { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, alignItems: 'center' },
-  testBtnTxt:  { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  saveBtn:     { flex: 1, backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
-  btnDisabled: { opacity: 0.4 },
-  saveBtnTxt:  { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-
-  // Add feature modal
-  modalBackdrop: { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: Colors.surfaceHigh,
-    borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
-    borderTopWidth: 1, borderColor: Colors.border,
-    padding: Spacing.lg, gap: Spacing.sm,
-    paddingBottom: Spacing.xxl,
-  },
-  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  modalBtns:  { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
-  modalCancelBtn: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm, alignItems: 'center',
-  },
-  modalCancelTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  modalAddBtn:    { flex: 2, backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center' },
-  modalAddTxt:    { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-});

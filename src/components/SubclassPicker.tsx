@@ -7,7 +7,8 @@
 // reason ASI/feat do, since the pool is the 'all' sentinel), hands the
 // updated entity back via onResolved. Shared by creation and in-play sheet.
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable, TextInput } from './AccessibleControls';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { applySubclassToEntity } from '../engine/leveling';

@@ -13,15 +13,13 @@
 // with. Lair actions and per-skill bonuses are also deferred — see the
 // commit/plan notes for why.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
-import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import { OriginFields } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
-import { Ability, DraftTrait, ResourceGrant, Feature, Entity, RulesetId } from '../../src/engine/types';
+import { Ability, DraftTrait, Entity, RulesetId } from '../../src/engine/types';
 import { MonsterTemplate } from '../../src/content/monsters/types';
 import { Alert } from '../../src/utils/alert';
 import { validateMonster } from '../../src/engine/homebrewValidator';
@@ -32,7 +30,8 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
-import { AbilityScoreGrid, TraitListEditor, buildTraitFeature } from '../../src/components/homebrew/TraitEditor';
+import { TraitListEditor } from '../../src/components/homebrew/TraitEditor';
+import { AbilityScoreGrid } from '../../src/components/homebrew/TraitFieldEditors';
 import { toId, disambiguateId } from '../../src/content/traitCompiler';
 import { compileMonsterFields } from '../../src/content/homebrewCompile';
 import { officialMonsters } from '../../src/content/runtimeRules';
@@ -40,7 +39,8 @@ import { PickOrCustom } from '../../src/components/homebrew/PickOrCustom';
 import { spawnMonster } from '../../src/engine/monsterFactory';
 import { collectAllEffects } from '../../src/engine/pipeline';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { PictureField } from '../../src/components/homebrew/PictureField';

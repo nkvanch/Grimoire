@@ -4,8 +4,8 @@
 // feats) — verifies content shape and that every REAL effect (ability
 // bonuses, tool proficiencies, the Cartomancer cantrip) actually lands on
 // an entity through the real engine, not just that the data typechecks.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
-import { applyGrant } from '../../../engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
+import { applyGrant } from '../../../engine/levelingGrants';
 import { recomputeDerived } from '../../../engine/pipeline';
 import { ALL_FEATS, FEATS_BY_ID } from '../index';
 import { Ability, Feat } from '../../../engine/types';

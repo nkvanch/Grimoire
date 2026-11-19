@@ -4,8 +4,8 @@
 import { buildBreadthPack, buildStormboundPack, buildUnderstudyPack, BREADTH_IDS, STORM_IDS, UNDERSTUDY_IDS } from '../samplePacks';
 import { validateGrimoirePack, validatePackContents, GrimoirePack } from '../../../src/engine/backup';
 import { collectContentDependencies } from '../../../src/engine/contentDependencies';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../src/store/characterStore';
-import { applyGrant } from '../../../src/engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../src/engine/defaults';
+import { applyGrant } from '../../../src/engine/levelingGrants';
 import { equipItem } from '../../../src/engine/inventory';
 import { applyCondition } from '../../../src/engine/conditions';
 import { recomputeDerived, collectAllEffects } from '../../../src/engine/pipeline';

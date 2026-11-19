@@ -6,17 +6,17 @@ import { recomputeDerived } from '../../src/engine/pipeline';
 //   'replacement' — opens extra skills so you never lose a pick
 //   'warn'        — stay on class list; warn inline when you'll lose picks
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
-import { resolveChoice } from '../../src/engine/leveling';
+import { resolveChoice } from '../../src/engine/levelingResolveChoice';
 import { skillOverlapMode } from '../../src/engine/houseRules';
 import { skillProficiencySource } from '../../src/engine/skillCheck';
 import { identityLabelsFor } from '../../src/store/identityLabelsFor';
 import { ChoiceOption, SkillName } from '../../src/engine/types';
-import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 
@@ -31,7 +31,6 @@ const SKILL_LABELS: Record<string, string> = {
 
 export default function SkillsScreen() {
   const router   = useRouter();
-  const safeGoBack = useSafeGoBack('/(tabs)');
   const draft    = useCharacterStore(s => s.draft);
   const setDraft = useCharacterStore(s => s.setDraft);
   const rules    = useCharacterStore(s => s.rules);
@@ -80,7 +79,7 @@ export default function SkillsScreen() {
     if (choice.definition.pool === 'all') {
       return ALL_SKILL_KEYS.map(sk => ({ id: sk, label: SKILL_LABELS[sk], value: sk }));
     }
-    return Array.isArray(choice.definition.pool) ? choice.definition.pool as ChoiceOption[] : [];
+    return Array.isArray(choice.definition.pool) ? choice.definition.pool : [];
   }
 
   function poolFor(choice: typeof pendingSkillChoices[number]):
@@ -179,7 +178,7 @@ export default function SkillsScreen() {
         ...updated,
         choices: updated.choices.map(c =>
           c.id === choice.id
-            ? { ...c, definition: { ...c.definition, pool: pool as ChoiceOption[] } }
+            ? { ...c, definition: { ...c.definition, pool: pool } }
             : c
         ),
       };
@@ -220,9 +219,6 @@ export default function SkillsScreen() {
         style={styles.container}
         contentContainerStyle={styles.content}
       >
-        <Pressable style={styles.backBtn} onPress={safeGoBack}>
-          <Text style={styles.backBtnTxt}>← Back</Text>
-        </Pressable>
         <Text style={styles.heading}>Skill Selection</Text>
         <View style={styles.divider} />
         <Text style={styles.emptyNote}>No additional skill choices for this class.</Text>
@@ -246,9 +242,6 @@ export default function SkillsScreen() {
         style={styles.container}
         contentContainerStyle={styles.content}
       >
-        <Pressable style={styles.backBtn} onPress={safeGoBack}>
-          <Text style={styles.backBtnTxt}>← Back</Text>
-        </Pressable>
         <Text style={styles.heading}>Skill Selection</Text>
         <View style={styles.divider} />
         <Text style={styles.ownedTitle}>Skills already chosen:</Text>
@@ -285,9 +278,6 @@ export default function SkillsScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
     >
-      <Pressable style={styles.backBtn} onPress={safeGoBack}>
-        <Text style={styles.backBtnTxt}>← Back</Text>
-      </Pressable>
       <Text style={styles.heading}>Skill Selection</Text>
       <View style={styles.divider} />
 
@@ -419,8 +409,6 @@ const styles = StyleSheet.create({
   content:   { padding: Spacing.lg },
   footer:    { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.sm },
 
-  backBtn: { marginBottom: Spacing.md },
-  backBtnTxt: { fontSize: FontSize.md, color: Colors.gold, fontWeight: FontWeight.bold },
 
   heading: { fontSize: FontSize.xxl, fontWeight: FontWeight.black, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.md },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.lg },

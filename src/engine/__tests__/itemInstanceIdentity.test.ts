@@ -6,13 +6,13 @@
 // a mutation boundary (never inside recomputeDerived), and every consumer
 // that needs to target ONE SPECIFIC copy matches on `id`, not `itemId`.
 import {
-  equipItem, unequipItem, toggleAttunement, countAttuned, attunementCap,
-  generateItemInstanceId, isStatefulItem,
+  equipItem, toggleAttunement, countAttuned, attunementCap,
+  generateItemInstanceId, isStatefulItem
 } from '../inventory';
 import { hydrateLegacyItemInstanceIds } from '../itemMechanics';
 import { recomputeDerived } from '../pipeline';
 import { generateAllActionCards } from '../actionCards';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { validateEntityDeep } from '../entityValidation';
 import { Entity, Item, ItemInstance } from '../types';
 

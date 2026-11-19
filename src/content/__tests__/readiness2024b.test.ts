@@ -3,12 +3,15 @@
 import { buildSrd51Pack, buildSrd521Pack, serializePack } from '../packs/srdPacks';
 import { packContentProvider, ContentProvider } from '../provider/contentProvider';
 import { createCharacter, spellCandidates, recomputeContentOf } from '../provider/createCharacter';
-import { applyPoolChoiceToEntity, levelUpClass, replacePoolOption, applySubclassToEntity, applySpellChoiceToEntity, swapBackground } from '../../engine/leveling';
+import { levelUpClass, applySubclassToEntity } from '../../engine/leveling';
+import { applySpellChoiceToEntity } from '../../engine/levelingSpells';
+import { applyPoolChoiceToEntity, replacePoolOption } from '../../engine/levelingPoolChoices';
+import { swapBackground } from '../../engine/levelingBackground';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { recomputeDerived } from '../../engine/pipeline';
 import { takeRest } from '../../engine/rest';
-import { DEFAULT_RULES } from '../../store/characterStore';
-import { buildLayer1 } from '../../engine/actionCards';
+import { DEFAULT_RULES } from '../../engine/defaults';
+import { buildLayer1 } from '../../engine/actionCardLayers';
 import { Entity, RulesetId, CharClass, Feature } from '../../engine/types';
 import { PackStore, installOfficialPack, resetOfficialPackService } from '../officialPackService';
 import { clearOfficialPacks } from '../officialPacks';
@@ -31,7 +34,7 @@ function levelTo(e: Entity, p: ContentProvider, cls: CharClass, to: number, subc
     ent = levelUpClass(ent, cls.id, progression, DEFAULT_RULES, cls, p.classes());
     if (subclassId) {
       const pending = ent.choices.find(c => !c.resolved && c.definition.kind === 'subclass');
-      if (pending) { ent = applySubclassToEntity(ent, pending.id, subclassId as never, sub!, DEFAULT_RULES); progression = mergeSubclassIntoProgression(cls.rawProgression!, sub!); }
+      if (pending) { ent = applySubclassToEntity(ent, pending.id, subclassId, sub!, DEFAULT_RULES); progression = mergeSubclassIntoProgression(cls.rawProgression!, sub!); }
     }
   }
   return recomputeDerived(ent, DEFAULT_RULES, recomputeContentOf(p));
@@ -133,7 +136,7 @@ describe('Warlock (2024): invocations, prerequisites, replacement, pact slots', 
     const total = Object.values(pact).reduce((a, s) => a + s.total, 0);
     expect(total).toBe(2);                                    // Warlock 5: two 3rd-level slots
     const spend = (m: Record<string, { total: number; used: number }>) => Object.fromEntries(Object.entries(m).map(([k, s]) => [k, { ...s, used: s.total }]));
-    const spent: Entity = { ...e, spellcasting: { ...sc, ...(sc.pactSlots ? { pactSlots: spend(sc.pactSlots as never) as never } : { slots: spend(sc.slots as never) as never }) } };
+    const spent: Entity = { ...e, spellcasting: { ...sc, ...(sc.pactSlots ? { pactSlots: spend(sc.pactSlots) as never } : { slots: spend(sc.slots) as never }) } };
     const short = takeRest(spent, 'short', DEFAULT_RULES);
     const after = (short.spellcasting!.pactSlots ?? short.spellcasting!.slots) as Record<string, { total: number; used: number }>;
     expect(Object.values(after).reduce((a, s) => a + s.used, 0)).toBe(0);
@@ -295,7 +298,7 @@ describe('spell slots by class level match the SRD 5.2.1 tables', () => {
     let e = make(p24, 'warlock_2024', 'human_2024', 'sage_2024', 1);
     for (let l = 1; l <= 20; l++) {
       if (l > 1) e = levelUpClass(e, cls.id, cls.rawProgression!, DEFAULT_RULES, cls, p24.classes());
-      const t = totals(e.spellcasting?.pactSlots as never); const lvl = t.findIndex(n => n > 0) + 1;
+      const t = totals(e.spellcasting?.pactSlots); const lvl = t.findIndex(n => n > 0) + 1;
       expect([l, t[lvl - 1], lvl]).toEqual([l, PACT[l - 1][0], PACT[l - 1][1]]);
     }
   });

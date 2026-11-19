@@ -74,7 +74,7 @@ export async function runSessionScenario(): Promise<{
     conns.get(label)!.clientClose();
   };
 
-  let seq: Record<string, number> = {};
+  const seq: Record<string, number> = {};
   const op = (label: string, pid: string, body: unknown, opId?: string, forceSeq?: number) => {
     seq[pid] = (seq[pid] ?? 0) + 1;
     send(label, { type: 'op', op: { opId: opId ?? `${pid}-op${seq[pid]}`, seq: forceSeq ?? seq[pid], body } });

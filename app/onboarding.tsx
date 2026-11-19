@@ -13,17 +13,18 @@ import { buildDemoCharacter } from '../src/engine/demoCharacter';
 import { spellRepo } from '../src/content/spellRepo';
 import { spellIdsOnEntity } from '../src/content/spellRepo.types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../src/theme';
+import { reportFailure } from '../src/utils/alert';
 
 const PANELS = [
   {
     emoji: '📖',
     title: 'Welcome to Grimoire',
-    body: 'A table companion for 5th-edition-compatible tabletop games. Character sheets, dice, and campaign sync \u2014 built for playing at a real table.',
+    body: 'A table companion for 5th-edition-compatible tabletop games. Character sheets, dice, and live sessions \u2014 built for playing at a real table.',
   },
   {
     emoji: '📶',
     title: 'Offline-first, always',
-    body: "Everything lives on your device. Campaign sync connects phones directly over the same WiFi \u2014 no account, no internet required, no data leaves the room.",
+    body: "Everything lives on your device. A live session connects phones directly over the same WiFi \u2014 no account, no internet required, no data leaves the room.",
   },
   {
     emoji: '\u2728',
@@ -70,7 +71,7 @@ export default function OnboardingScreen() {
       // commits it to the character list once the SQLite write actually
       // succeeds — navigating to the sheet on a failed save would open a
       // character that was never actually persisted.
-      router.replace(saved ? (`/sheet/${demo.id}` as any) : '/(tabs)');
+      router.replace(saved ? (`/sheet/${demo.id}`) : '/(tabs)');
     } catch (e) {
       console.error('[onboarding] buildDemoCharacter failed:', e);
       setBuildingDemo(false);
@@ -85,7 +86,7 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.screen}>
       {panel < PANELS.length - 1 && (
-        <Pressable style={styles.skipBtn} onPress={handleSkip}>
+        <Pressable style={styles.skipBtn} onPress={() => { void handleSkip().catch(reportFailure('finish setup')); }}>
           <Text style={styles.skipTxt}>Skip</Text>
         </Pressable>
       )}
@@ -110,7 +111,7 @@ export default function OnboardingScreen() {
         <View style={styles.finalBtnRow}>
           <Pressable
             style={[styles.demoBtn, buildingDemo && styles.btnDisabled]}
-            onPress={handleTryDemo}
+            onPress={() => { void handleTryDemo().catch(reportFailure('build the demo character')); }}
             disabled={buildingDemo}
           >
             {buildingDemo
@@ -119,7 +120,7 @@ export default function OnboardingScreen() {
           </Pressable>
           <Pressable
             style={[styles.createBtn, buildingDemo && styles.btnDisabled]}
-            onPress={handleCreateReal}
+            onPress={() => { void handleCreateReal().catch(reportFailure('finish setup')); }}
             disabled={buildingDemo}
           >
             <Text style={styles.createBtnTxt}>Create My Own</Text>

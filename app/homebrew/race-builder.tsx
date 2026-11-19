@@ -7,9 +7,8 @@
 // and full subrace support (each with its own ability bonuses + trait list,
 // consumed by the already-existing subrace picker in creation/race-detail.tsx).
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { Modal } from '../../src/components/AppModal';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
@@ -20,9 +19,7 @@ import {
   Race, Subrace, Feature, Ability, SenseType, Sense,
   MovementSpeeds, ResourceGrant, DraftTrait, Entity, RulesetId, RACE_CHOICE_PREFIX,
 } from '../../src/engine/types';
-import {
-  ChoiceDefinitionListEditor, DraftChoice,
-} from '../../src/components/homebrew/ChoiceDefinitionEditor';
+import { ChoiceDefinitionListEditor, DraftChoice } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
@@ -33,16 +30,18 @@ import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import {
-  ABILITIES, SENSE_TYPES, MOVE_TYPES, MoveType, toId, disambiguateId,
+  SENSE_TYPES, MOVE_TYPES, MoveType, toId, disambiguateId,
   DraftSubrace, newDraftSubrace, buildSubrace,
-  AbilityScoreGrid, TraitListEditor,
+  TraitListEditor
 } from '../../src/components/homebrew/TraitEditor';
+import { AbilityScoreGrid } from '../../src/components/homebrew/TraitFieldEditors';
 import { globalContentDB } from '../../src/content/classes/library';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { raceGeneratedFeatures } from '../../src/content/homebrewCompile';
 import { hydrateLosslessChoices, serializeDraftTraits, serializeLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
@@ -202,13 +201,13 @@ export default function RaceBuilderScreen() {
     setSize(editing.size ?? 'Medium');
     setLanguages((editing.languages ?? ['Common']).join(', '));
     setRulesetId(editing.rulesetId);
-    const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
+    const draft = editing.homebrewDraft;
     if (draft) {
       setSpeed(String(draft.speed ?? '30'));
       setDescription(String(draft.description ?? ''));
       if (draft.abiBonuses) setAbiBonuses(draft.abiBonuses as Record<Ability, string>);
       if (draft.senses) setSenses(draft.senses as Sense[]);
-      if (draft.movement) setMovement(draft.movement as MovementSpeeds);
+      if (draft.movement) setMovement(draft.movement);
       if (draft.traits) setTraits(draft.traits as DraftTrait[]);
       if (draft.subraces) setSubraces(draft.subraces as DraftSubrace[]);
       if (draft.pendingChoices) setPendingChoices(hydrateLosslessChoices(editing.pendingChoices, RACE_CHOICE_PREFIX));
@@ -275,6 +274,7 @@ export default function RaceBuilderScreen() {
     // Seeded with the hand-authored ASI/Speed/Senses/Movement feature ids
     // above so a trait named e.g. "Speed" can't silently collide with one.
     const generatedIds = features.map(f => f.id);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the cast types traitOwners; without it the line below does not compile
     const originalDraft = editing?.homebrewDraft as (Record<string, unknown> & { traitOwners?: any[] }) | undefined;
     const serializedTraits = serializeDraftTraits({
       originalFeatures: editing?.features ?? [], originalResources: editing?.resources,

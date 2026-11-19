@@ -5,11 +5,13 @@
 // reason ASI/feat/subclass/infusion do — each option needs its own outcome,
 // not one shared `grants` array).
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable } from './AccessibleControls';
-import { applyPoolChoiceToEntity } from '../engine/leveling';
+import { applyPoolChoiceToEntity } from '../engine/levelingPoolChoices';
 import { checkPrerequisites, splitSelection, cantripQualifies, lookupSpell } from '../engine/prerequisites';
 import { originFeats } from '../content/runtimeRules';
+import { isAppliedFightingStyle } from '../engine/weaponAttackBonuses';
 import { Entity, ChoiceState, CampaignRules, Feature, ChoiceOption } from '../engine/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
@@ -115,7 +117,8 @@ export function FeaturePoolPicker({
             );
           }
           const isSel   = selected.includes(opt.id);
-          const isReal  = !!feature?.activation;
+          // an option that is used (an activation) or that changes the sheet (an effect, as Defense's +1 AC) is not flavor
+          const isReal  = !!feature?.activation || (feature?.effects?.length ?? 0) > 0 || isAppliedFightingStyle(feature?.name ?? opt.label);
           const unmet   = isSel ? [] : unmetFor(opt.id, selected);
           return (
             <Pressable key={opt.id} style={[styles.row, isSel && styles.rowSelected, unmet.length > 0 && styles.rowLocked]}

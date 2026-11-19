@@ -15,9 +15,9 @@ const weapon = (id: string, properties: string[]): Item => ({
 } as unknown as Item);
 const items = [weapon('t_bow', ['ammunition (range 150/600)', 'two-handed']), weapon('t_sword', ['versatile (1d10)']),
   weapon('t_greatsword', ['heavy', 'two-handed']), weapon('t_dagger', ['finesse', 'light'])];
-const style = (name: string, kind: 'class' | 'feat' | 'subclass' = 'class'): FeatureInstance => ({
+const style = (name: string, kind: 'class' | 'feat' | 'subclass' = 'class'): FeatureInstance => (({
   id: `fs_${name}`, name, description: '', source: { kind, refId: 'x' }, level: 1, effects: [], actions: [], choices: [], passive: true, isActive: true,
-} as unknown as FeatureInstance);
+}));
 const fighter = (features: FeatureInstance[], wielding: string[]): Entity => {
   const e = createCharacter(provider, { id: 'f', name: 'F', classId: 'fighter', raceId: 'human', backgroundId: 'acolyte',
     stats: { str: 16, dex: 14, con: 14, int: 10, wis: 10, cha: 8 }, level: 1 }, DEFAULT_RULES);

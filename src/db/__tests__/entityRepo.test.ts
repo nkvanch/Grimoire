@@ -1,4 +1,4 @@
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 
 describe('entityRepo quarantine boundary', () => {
   let repo: typeof import('../entityRepo');

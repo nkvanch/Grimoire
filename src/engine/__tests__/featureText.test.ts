@@ -16,7 +16,7 @@ const sword: Item = {
 const fighter = (): Entity => {
   const e = createCharacter(provider, { id: 'f', name: 'F', classId: 'fighter', raceId: 'human', backgroundId: 'acolyte',
     stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 8 }, level: 7 }, DEFAULT_RULES);
-  return recomputeDerived({ ...e, inventory: { ...e.inventory, carried: [], equipped: [{ id: 'inst-sword', itemId: 't_sword', quantity: 1, attuned: false, features: [] } as never] } },
+  return recomputeDerived({ ...e, inventory: { ...e.inventory, carried: [], equipped: [{ id: 'inst-sword', itemId: 't_sword', quantity: 1, attuned: false, features: [] }] } },
     DEFAULT_RULES, { items: [sword] });
 };
 

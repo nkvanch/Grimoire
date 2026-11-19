@@ -9,9 +9,10 @@
 // resolves — every id contains 'cantrip' or it doesn't), rather than a new
 // ChoiceDefinition field, so the engine/type layer didn't need to grow.
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable, TextInput } from './AccessibleControls';
-import { applySpellChoiceToEntity } from '../engine/leveling';
+import { applySpellChoiceToEntity } from '../engine/levelingSpells';
 import type { SpellIndexEntry } from '../content/spellRepo.types';
 import { mergeSpellIndex } from '../content/contentResolution';
 import { spellListsForClass, spellSourceLabel } from '../content/spellLists';

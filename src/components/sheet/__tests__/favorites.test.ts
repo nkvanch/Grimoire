@@ -7,8 +7,9 @@
 // the SPELL's id, e.g. 'fire_bolt' — never a Feature.id). Fixed by moving
 // favorite state to Entity.favoriteActionIds, keyed by featureId directly,
 // independent of whatever (if anything) backs the card.
-import { makeEmptyEntity } from '../../../store/characterStore';
-import { actionCardIdentity, toggleFavoriteTag, isFavoriteCard } from '../TabActions';
+import { makeEmptyEntity } from '../../../engine/defaults';
+import { toggleFavoriteTag } from '../TabActions';
+import { actionCardIdentity, isFavoriteCard } from '../actionCardUi';
 import { Feature } from '../../../engine/types';
 
 function feature(id: string): Feature {

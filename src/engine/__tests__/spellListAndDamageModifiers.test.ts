@@ -1,6 +1,6 @@
 // Engine additions: an expanded class spell list, typed spell damage type/die changes, and the worn-gear
 // condition "not in medium or heavy armor". Authored as ordinary stat_modifier effects on a feature.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived, effectConditionActive } from '../pipeline';
 import { extraClassSpellIds, spellDamageDieOverride, spellDamageTypeOverride } from '../spellModifiers';
 import { candidateSpellsForChoice } from '../../content/spellChoiceFilter';

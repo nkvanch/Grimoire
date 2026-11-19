@@ -1,12 +1,8 @@
 // ============================================================================
 // FILE: src/content/spellRepo.ts
-// Default implementation — thin synchronous wrapper around the existing
-// static spell arrays (src/content/spells/index.ts). Metro's platform-
-// extension resolution picks spellRepo.native.ts instead of this file on
-// iOS/Android builds (see that file for the real SQLite-backed
-// implementation); this file is what `expo start --web` actually bundles,
-// so web behavior — including full data always resident, no lazy loading —
-// is unchanged from before this migration.
+// The spell repo on every platform: a thin synchronous wrapper around the static spell arrays
+// (src/content/spells/index.ts, which Metro swaps for an empty module in the app), served through the
+// installed packs by withOfficialSpells.
 // ============================================================================
 import { Spell } from '../engine/types';
 import { ALL_SPELLS } from './spells/index';

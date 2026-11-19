@@ -7,17 +7,14 @@
 // can't do (it only edits races the player already owns/authored — see
 // race-builder.tsx's editId lookup, which searches homebrewRaces only).
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Ability, DraftTrait, Entity, RulesetId, RACE_CHOICE_PREFIX } from '../../src/engine/types';
-import {
-  ChoiceDefinitionListEditor, DraftChoice,
-} from '../../src/components/homebrew/ChoiceDefinitionEditor';
+import { ChoiceDefinitionListEditor, DraftChoice } from '../../src/components/homebrew/ChoiceDefinitionEditor';
 import { definitionToDraftChoice } from '../../src/content/choiceDefinitionCompiler';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore';
@@ -28,17 +25,17 @@ import { useSafeGoBack } from '../../src/hooks/useSafeGoBack';
 import { useEdited } from '../../src/hooks/useDiscardGuard';
 import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
-import {
-  newDraftSubrace, buildSubrace, AbilityScoreGrid, TraitListEditor,
-} from '../../src/components/homebrew/TraitEditor';
+import { newDraftSubrace, buildSubrace, TraitListEditor } from '../../src/components/homebrew/TraitEditor';
+import { AbilityScoreGrid } from '../../src/components/homebrew/TraitFieldEditors';
 import { simulate } from '../../src/engine/simulate';
-import { applyGrant } from '../../src/engine/leveling';
+import { applyGrant } from '../../src/engine/levelingGrants';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { compileSubraceFields } from '../../src/content/homebrewCompile';
-import { hydrateLosslessChoices, serializeDraftTraits, serializeLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
+import { hydrateLosslessChoices } from '../../src/engine/homebrewNestedSerializers';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { PictureField } from '../../src/components/homebrew/PictureField';
 import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
@@ -100,7 +97,7 @@ export default function SubraceBuilderScreen() {
     setPictures(picturesOf(editing));
     setOrigin(editing.origin);
     setRulesetId(editing.rulesetId);
-    const draft = editing.homebrewDraft as Record<string, unknown> | undefined;
+    const draft = editing.homebrewDraft;
     if (draft) {
       if (draft.abiBonuses) setAbiBonuses(draft.abiBonuses as Record<Ability, string>);
       if (draft.traits) setTraits(draft.traits as DraftTrait[]);

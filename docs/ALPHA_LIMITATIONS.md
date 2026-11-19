@@ -15,10 +15,8 @@ The app tracks the number, the rest is yours to apply. These are marked "flavor-
 
 ## 2. Known gaps (real, but tolerable for an Alpha)
 
-- **Two-device live play was tested only from one phone.** The host side was verified on a real device with a scripted player over the LAN (join, snapshot, session end message, rehost and rejoin). A second phone running the player app, including automatic reconnect after a drop, was not exercised.
-- **No authentication on the LAN session.** Anyone on the same Wi-Fi who knows or guesses the room code (it is derived from the host's IP address) can join, and a joined client can push character data that the host accepts. Use it on a network you trust.
-- **Players see the whole party.** The host sends every character stored on the DM's device to each joining player, and players' sheets (including their own notes) are relayed to the other players. Keep unrelated characters off the DM's device during a session.
-- **The turn banner shows the acting creature's real name**, including a monster's name, during combat.
+- **Live play was tested with one phone and a computer playing the other roles.** Two real phones have not been tried together yet.
+- **A live session has no password beyond its room code.** Anyone on the same Wi-Fi who has the code can ask to join. Use it on a network you trust.
 - **SRD 5.2.1 (5.5e) content gaps.** There are no 5.2.1 monsters (a 5.5e table uses the 5e SRD 5.1 stat blocks), and five spells lack their embedded stat-block or option tables in the app text: Animate Objects, Find Steed, Giant Insect, Summon Dragon, Elementalism.
 - **Quick "Start Encounter" needs at least one character in the campaign.** The prepared-encounter route (Encounter Library, then Start) works with monsters only.
 - **Hosting needs the same Wi-Fi.** There is no internet relay.

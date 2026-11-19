@@ -4,8 +4,9 @@
 // functions (leveling.ts), the shared eligibility computation
 // (choiceEligibility.ts) both TabFeatures.tsx and the creation flow read
 // from, and validateEntity's new Issue codes.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { queueChoice, applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity, withExpertiseChoiceGrantStripped, effectiveRequiredCount } from '../leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { applyExpertiseChoiceToEntity, applyToolChoiceToEntity, applyLanguageChoiceToEntity, withExpertiseChoiceGrantStripped, effectiveRequiredCount } from '../levelingProficiencyChoices';
+import { queueChoice } from '../levelingGrants';
 import { eligibleExpertiseOptions, eligibleToolOptions, eligibleLanguageOptions } from '../choiceEligibility';
 import { validateEntity } from '../validation';
 import { recomputeDerived } from '../pipeline';

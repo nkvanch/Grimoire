@@ -1,14 +1,15 @@
 // app/creation/review.tsx
 // Step 9: Summary review before saving.
 // Shows the final computed character and lets the player confirm or go back.
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
 import { useHomebrewStore } from '../../src/store/homebrewStore';
 import { recomputeDerived } from '../../src/engine/pipeline';
-import { recalculateAllHP } from '../../src/engine/leveling';
+import { recalculateAllHP } from '../../src/engine/levelingHp';
 import { getProgressionForClass } from '../../src/content/classes/progressions';
 import { spellRepo } from '../../src/content/spellRepo';
 import { spellIdsOnEntity } from '../../src/content/spellRepo.types';
@@ -68,7 +69,7 @@ export default function ReviewScreen() {
         ['str','dex','con','int','wis','cha'].includes(effect.target)
       ) {
         const ab = effect.target as Ability;
-        raceBonuses[ab] = (raceBonuses[ab] ?? 0) + (effect.value as number);
+        raceBonuses[ab] = (raceBonuses[ab] ?? 0) + (effect.value);
       }
     }
   }
@@ -108,13 +109,18 @@ export default function ReviewScreen() {
     // (hence missing from the Spells tab until an app restart re-derived it).
     // Load every spell the draft references before the cards are generated,
     // exactly like loadCharacters does at boot.
-    await spellRepo.ensureLoaded(spellIdsOnEntity(draft));
-    let finalDraft = recomputeDerived(draft, rules, cardContent);
-    finalDraft     = recalculateAllHP(finalDraft, rules, hpAbility);
-    // 3. Run recomputeDerived one more time so derived.ac etc. use the corrected stats.
-    finalDraft     = recomputeDerived(finalDraft, rules, cardContent);
-    setDraft(finalDraft);
-    const saved = await saveDraft();
+    let saved = false;
+    try {
+      await spellRepo.ensureLoaded(spellIdsOnEntity(draft));
+      let finalDraft = recomputeDerived(draft, rules, cardContent);
+      finalDraft     = recalculateAllHP(finalDraft, rules, hpAbility);
+      // 3. Run recomputeDerived one more time so derived.ac etc. use the corrected stats.
+      finalDraft     = recomputeDerived(finalDraft, rules, cardContent);
+      setDraft(finalDraft);
+      saved = await saveDraft();
+    } catch (e) {
+      console.error('[review] save failed:', e);
+    }
     setSaving(false);
     if (saved) {
       router.replace('/(tabs)/');
@@ -211,7 +217,7 @@ export default function ReviewScreen() {
     </ScrollView>
     <SafeBottomView>
       <View style={styles.footer}>
-        <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
+        <Pressable style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={() => { void handleSave(); }} disabled={saving}>
           <Text style={styles.saveBtnText}>{saving ? 'Saving…' : '⚔️  Save Character'}</Text>
         </Pressable>
 

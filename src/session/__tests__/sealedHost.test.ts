@@ -19,6 +19,7 @@ async function settled<T>(net: InMemoryNetwork, p: Promise<T>): Promise<T> {
   let done = false; let value: T | undefined; let error: unknown;
   p.then(v => { done = true; value = v; }, e => { done = true; error = e; });
   for (let i = 0; i < 60 && !done; i++) { await net.settle(); await new Promise(r => setTimeout(r, 0)); }
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrows exactly what the promise rejected with
   if (error) throw error;
   if (!done) throw new Error('did not settle');
   return value as T;

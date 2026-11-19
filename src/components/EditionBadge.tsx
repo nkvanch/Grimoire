@@ -4,6 +4,8 @@
 // 5e (2014) content; homebrew with no tag works in every edition and shows nothing.
 import { View, Text, StyleSheet } from 'react-native';
 import type { RulesetId } from '../engine/types';
+import { rulesetLabel } from '../content/rulesets';
+import { useCharacterStore } from '../store/characterStore';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 
 const SHORT: Record<string, string> = {
@@ -29,6 +31,18 @@ export function EditionBadge({ item, official = true }: { item: { rulesetId?: Ru
   );
 }
 
+/** On a creation detail screen: says when official content is from another edition than the character being built. */
+export function OtherEditionNote({ item }: { item: { rulesetId?: RulesetId } }) {
+  const characterRuleset = useCharacterStore(s => s.draft?.rulesetId);
+  const itemRuleset = item.rulesetId ?? ('dnd5e-2014' as RulesetId);
+  if (!characterRuleset || characterRuleset === itemRuleset) return null;
+  return (
+    <Text style={styles.note} testID="other-edition-note">
+      This is {rulesetLabel(itemRuleset)} content and this character uses {rulesetLabel(characterRuleset)} rules. You can still pick it, but bonuses written for one edition can stack with the other's. Check with your DM.
+    </Text>
+  );
+}
+
 const styles = StyleSheet.create({
   badge: {
     backgroundColor: Colors.surfaceHigh, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border,
@@ -37,4 +51,5 @@ const styles = StyleSheet.create({
   badge2024: { backgroundColor: Colors.gold + '22', borderColor: Colors.gold + '88' },
   txt: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.bold },
   txt2024: { color: Colors.gold },
+  note: { fontSize: FontSize.sm, color: Colors.gold, marginTop: Spacing.sm },
 });

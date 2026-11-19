@@ -61,7 +61,7 @@ export function lockFromJson(json: unknown): { lock: DependencyLock } | { error:
     if (json[key] === undefined) return {};
     if (!isObj(json[key])) return `${key} must be an object`;
     const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(json[key] as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(json[key])) {
       if (typeof v !== 'string') return `"${k}" must be ${what}`;
       out[k] = v;
     }

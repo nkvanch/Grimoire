@@ -1,6 +1,8 @@
 // Contract ARCH-003 (the rules engine is pure) and ARCH-033 (keep the core portable): the engine never reaches into the store,
 // the database, sync, file I/O, the screens, the live session, or the React Native and Expo platform. A file that needs a value
 // from one of those takes it as a parameter. Content (src/content) is a separate rule, ARCH-006.
+// "Pure" here means no I/O and no platform: it does not mean deterministic. The engine reads the clock (Date.now) for timestamps
+// and uses Math.random for dice and for new ids (engine/ids.ts), so a test that needs a fixed time or roll mocks those two.
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dnd5e from '../ruleset/dnd5e';
@@ -23,6 +25,35 @@ describe('the rules engine is pure (ARCH-003)', () => {
         .map((line, i) => ({ line: line.trim(), at: `${path.relative(ENGINE, file)}:${i + 1}` }))
         .filter(({ line }) => FORBIDDEN.test(line))
         .map(({ at, line }) => `${at}  ${line}`));
+    expect(offending).toEqual([]);
+  });
+
+  // The engine may import src/content, so the rule has to hold for what content pulls in too. This follows every runtime import
+  // from the engine, through every platform variant of a file (x.ts, x.native.ts, ...), and names the chain that breaks the rule.
+  it('nothing the engine imports reaches them either, through any platform variant', () => {
+    const SRC = path.resolve(ENGINE, '..');
+    const IMPORT = /(?:^|\n)\s*(?:import|export)\s+(type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const variants = (from: string, spec: string) => {
+      const base = path.resolve(path.dirname(from), spec);
+      return ['', '/index'].flatMap(i => ['', '.native', '.ios', '.android', '.web'].flatMap(p => ['.ts', '.tsx'].map(x => base + i + p + x)))
+        .concat(base).filter(c => fs.existsSync(c) && fs.statSync(c).isFile());
+    };
+    const via = new Map<string, string | null>(engineFiles(ENGINE).map(f => [f, null]));
+    const queue = [...via.keys()];
+    const offending: string[] = [];
+    const name = (f: string) => path.relative(SRC, f).split(path.sep).join('/');
+    const chain = (f: string) => { const out: string[] = []; for (let x: string | null | undefined = f; x; x = via.get(x)) out.unshift(name(x)); return out.join(' -> '); };
+    for (let f = queue.shift(); f; f = queue.shift()) {
+      for (const m of fs.readFileSync(f, 'utf8').matchAll(IMPORT)) {
+        if (m[1]) continue;   // `import type` is erased
+        const spec = m[2] ?? m[3];
+        if (!spec.startsWith('.')) { if (/^(react-native|expo|zustand)/.test(spec)) offending.push(`${chain(f)} => ${spec}`); continue; }
+        for (const r of variants(f, spec)) {
+          if (/^(store|db|sync|io|components|session|platform)\/|^\.\.\/app\//.test(name(r))) offending.push(`${chain(f)} => ${name(r)}`);
+          else if (!via.has(r)) { via.set(r, f); queue.push(r); }
+        }
+      }
+    }
     expect(offending).toEqual([]);
   });
 

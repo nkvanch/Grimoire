@@ -1,8 +1,8 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { addAdditionalEquipment, additionalEquipment, removeAdditionalEquipment, reopenEquipmentChoice } from '../../content/items/equipmentDisplay';
 import { ALL_CHAR_CLASSES_CATALOG, filterClassesForExposure } from '../../content/classes';
 import { applyDmOverride, cancelDmOverride } from '../dmOverride';
-import { applyHP } from '../leveling';
+import { applyHP } from '../levelingHp';
 import { explainValue } from '../audit';
 import { recomputeDerived } from '../pipeline';
 import { generateAllActionCards } from '../actionCards';

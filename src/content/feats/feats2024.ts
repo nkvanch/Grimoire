@@ -7,8 +7,8 @@
 //
 // Modeled: the ability score increases (the feat picker collects the choice), Truesight (a sense), Boon of Fate's use (a pool),
 // the activated Boon of the Night Spirit and Boon of Dimensional Travel (cards), and the Defense AC bonus (a situational effect).
-// Text only, because the engine has no hook for them: Archery's +2 to ranged attack rolls, Great Weapon Fighting, Two-Weapon
-// Fighting, Grappler's and the Epic Boons' combat riders. The Epic Boons raise a score up to 30; the app applies the +1 and
+// Text only, because the engine has no hook for them: Grappler's and the Epic Boons' combat riders. (The fighting styles are
+// applied to weapon attacks by name: pipeline.ts hasFightingStyle.) The Epic Boons raise a score up to 30; the app applies the +1 and
 // leaves the cap to the table.
 // ============================================================================
 import { Ability, Effect, Feat, FeatCategory, RulesetId } from '../../engine/types';
@@ -51,7 +51,7 @@ export const GENERAL_FEATS_2024: Feat[] = [
 ];
 
 export const FIGHTING_STYLE_FEATS_2024: Feat[] = [
-  feat('archery_2024', 'Archery', 'fighting_style', 'Fighting Style Feature', 'You gain a +2 bonus to attack rolls you make with Ranged weapons. (Add the +2 to your ranged attack rolls yourself; the sheet has no attack-roll bonus hook.)'),
+  feat('archery_2024', 'Archery', 'fighting_style', 'Fighting Style Feature', 'You gain a +2 bonus to attack rolls you make with Ranged weapons.'),
   feat('defense_2024', 'Defense', 'fighting_style', 'Fighting Style Feature', 'While you\'re wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.', { effects: [defenseAc] }),
   feat('great_weapon_fighting_2024', 'Great Weapon Fighting', 'fighting_style', 'Fighting Style Feature',
     'When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.'),

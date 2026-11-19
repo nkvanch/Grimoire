@@ -2,7 +2,7 @@ import { requiredPacksFor, mergeRequiredPacks, packShortfalls, requiredPacksForR
 import { buildSrd51Pack, buildSrd521Pack, serializePack } from '../packs/srdPacks';
 import { PackStore, installOfficialPack, installedOfficialPacks, resetOfficialPackService } from '../officialPackService';
 import { clearOfficialPacks } from '../officialPacks';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../../engine/defaults';
 import { Entity, RulesetId } from '../../engine/types';
 
 const store: PackStore = { save: async () => {}, load: async () => [], remove: async () => {} };
@@ -15,7 +15,7 @@ function character(over: Partial<Entity['identity']> & { ruleset?: string; spell
   const e = makeEmptyEntity('c');
   return {
     ...e, kind: 'character', rulesetId: over.ruleset as RulesetId | undefined,
-    identity: { ...e.identity, classId: 'fighter', level: 3, raceId: 'human', backgroundId: 'acolyte', ...over } as Entity['identity'],
+    identity: { ...e.identity, classId: 'fighter', level: 3, raceId: 'human', backgroundId: 'acolyte', ...over },
     spellcasting: over.spells ? { ...(e.spellcasting as object), ability: 'int', cantrips: [], known: over.spells, prepared: [], slots: {}, concentrating: null } as never : e.spellcasting,
     inventory: { ...e.inventory, carried: (over.items ?? []).map((itemId, n) => ({ id: `i${n}`, itemId, quantity: 1, attuned: false, features: [] })) },
   };

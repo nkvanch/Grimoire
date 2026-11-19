@@ -12,7 +12,8 @@
 // or app/dm/encounter.tsx — those paths are unchanged, per this closure's
 // own scope (Codex already verified them).
 import { Entity, CampaignRules } from './types';
-import { applyDamage, applyWildShapeDamage } from './combat';
+import { applyWildShapeDamage } from './combatWildShape';
+import { applyDamage } from './combatDamage';
 
 export function dmDamageMutation(
   entity: Entity, rules: CampaignRules, amount: number, damageType?: string, isNonmagicalAttack?: boolean,

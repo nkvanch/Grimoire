@@ -1,4 +1,4 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { isStartingEquipmentItem, reopenEquipmentChoice, skipEquipmentChoice, skipRemainingEquipment } from '../../content/items/equipmentDisplay';
 import { applyDmOverride, cancelDmOverride } from '../dmOverride';
 import { effectiveAbilityScores, recomputeDerived } from '../pipeline';

@@ -1,7 +1,7 @@
 // src/engine/__tests__/packDiagnostics.test.ts
 import { diagnosePack, HomebrewContentSlice, bannedContentIds, contentUsedBy, removedPackItemRefs, stillReferencedRefs } from '../packDiagnostics';
 import { InstalledPack } from '../../db/packRegistryRepo';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import { Entity } from '../types';
 
 function emptyHomebrew(): HomebrewContentSlice {

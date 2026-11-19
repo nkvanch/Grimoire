@@ -6,9 +6,9 @@ import { create } from 'zustand';
 import { Entity, CampaignRules } from '../engine/types';
 import { CombatState, InitiativeEntry, startEncounter, endTurn, endEncounter, addToEncounter, rollAllInitiative, sortInitiative, reanchorTurnIndex } from '../engine/combat';
 import { saveCombatState, clearCombatState, loadCombatState } from '../db/combatRepo';
-import { DEFAULT_RULES, useCharacterStore } from './characterStore';
-import { syncManager } from '../sync/syncManager';
-import { deepDiff, deepMerge } from '../sync/diff';
+import { useCharacterStore } from './characterStore';
+import { DEFAULT_RULES } from '../engine/defaults';
+import { deepDiff, deepMerge } from '../engine/diff';
 
 /**
  * advanceTurn's duration/concentration tick and action-economy reset used
@@ -47,24 +47,6 @@ const EMPTY_COMBAT: CombatState = {
   order:       [],
   encounterId: '',
 };
-
-/** Pushes "whose turn is it" to every connected player device — a no-op on
- *  a player's own device (syncManager.broadcastCombatTurn is DM-only) and
- *  a no-op offline (no server running). Player devices previously had zero
- *  visibility into DM-run combat at all — see sync/protocol.ts's
- *  CombatTurnState doc comment for the full context. Called after every
- *  action that can change whether combat is active or who's currently
- *  acting; NOT called from setOrder/setInitiative, which are manual
- *  DM corrections typically made before combat starts. */
-function broadcastTurn(combat: CombatState, entities: Entity[]): void {
-  const current = combat.active ? entities.find(e => e.id === combat.order[combat.turnIndex]?.entityId) : undefined;
-  syncManager.broadcastCombatTurn({
-    active:          combat.active,
-    round:           combat.round,
-    currentEntityId: current?.id ?? null,
-    currentName:     current?.identity.name ?? null,
-  });
-}
 
 type CombatStore = {
   combat:   CombatState;
@@ -176,7 +158,6 @@ export const useCombatStore = create<CombatStore>((set, get) => {
     const combat = startEncounter(entities, encounterId, sourcePreparedEncounterId, roll);
     set({ combat, entities });
     persist(combat, entities, 'startCombat');
-    broadcastTurn(combat, entities);
   },
 
   advanceTurn: (rules = DEFAULT_RULES) => {
@@ -186,7 +167,6 @@ export const useCombatStore = create<CombatStore>((set, get) => {
     set({ combat: result.combat, entities: result.entities });
     syncTickedEntitiesToCharacterStore(entities, result.entities);
     persist(result.combat, result.entities, 'advanceTurn');
-    broadcastTurn(result.combat, result.entities);
   },
 
   endCombat: () => {
@@ -200,7 +180,6 @@ export const useCombatStore = create<CombatStore>((set, get) => {
         set({ lastPersistError: "Couldn't clear saved combat state — it may reappear on next launch." });
       }
     );
-    broadcastTurn(nextCombat, []);
   },
 
   updateEntity: (id, updater) => {
@@ -227,7 +206,6 @@ export const useCombatStore = create<CombatStore>((set, get) => {
     const nextEntities = [...entities, ...newEntities];
     set({ combat: nextCombat, entities: nextEntities });
     persist(nextCombat, nextEntities, 'addEntities');
-    broadcastTurn(nextCombat, nextEntities);
   },
 
   removeFromEncounter: (id) => {
@@ -252,12 +230,8 @@ export const useCombatStore = create<CombatStore>((set, get) => {
     // Closure fix: this used to only persist while combat was active,
     // leaving a pre-combat roster removal (setup mode) unsaved — the
     // removed monster/party member would silently reappear on restart.
-    // Now always persists; broadcastTurn stays active-only (there's no
-    // "current actor" to announce outside a running encounter).
+    // Now always persists.
     persist(nextCombat, nextEntities, 'removeFromEncounter');
-    if (combat.active) {
-      broadcastTurn(nextCombat, nextEntities);
-    }
   },
 
   addToRoster: (entity) => {

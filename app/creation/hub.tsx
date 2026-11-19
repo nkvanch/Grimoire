@@ -1,7 +1,8 @@
 // app/creation/hub.tsx
 // Creation hub with "Next →" sequential button and fixed scores completion check.
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
 import { useCharacterStore } from '../../src/store/characterStore';
@@ -10,7 +11,7 @@ import { getHouseRule, featsEnabled } from '../../src/engine/houseRules';
 import { Entity } from '../../src/engine/types';
 import { weaponMasteryCapacity, masteredWeaponIds, eligibleMasteryWeapons } from '../../src/engine/weaponMastery';
 import { subclassEntriesForClassMerged } from '../../src/content/subclasses/subclassBrowse';
-import { skillProgressFor, spellProgressFor } from '../../src/content/creationProgress';
+import { skillProgressFor, spellProgressFor, featureChoiceProgress, usesSpellsStep } from '../../src/content/creationProgress';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 
@@ -115,6 +116,12 @@ const LANGUAGE_SECTION: Section = {
   key: 'language', label: 'Languages', route: '/creation/repeated-choice?kind=language',
   done: d => d.choices.filter(c => c.definition.kind === 'language' && !c.resolved).length === 0,
 };
+// The feature picks a class, subclass or species asks for (Fighting Style, Hunter's Prey, Metamagic...): before this step a
+// character made above 1st level could not make them while being created.
+const FEATURES_SECTION: Section = {
+  key: 'features', label: 'Feature Picks', route: '/creation/feature-choices',
+  done: d => { const p = featureChoiceProgress(d); return !p || p.done === p.total; },
+};
 
 export default function HubScreen() {
   const router = useRouter();
@@ -131,9 +138,10 @@ export default function HubScreen() {
 
   // The optional Feats step only appears when the table allows a 1st-level feat.
   const featsAllowed = getHouseRule(rules, 'featAtCreation') && featsEnabled(rules);
-  const baseSections = featsAllowed
-    ? ORDERED_SECTIONS
-    : ORDERED_SECTIONS.filter(s => s.key !== 'feats');
+  // and the Spells step only for a character that picks spells (the class is chosen first, so this is known when it matters)
+  const baseSections = ORDERED_SECTIONS
+    .filter(s => featsAllowed || s.key !== 'feats')
+    .filter(s => s.key !== 'spells' || !draft.identity.classId || usesSpellsStep(draft));
 
   // Conditionally include Subclass section, spliced right after Class — a
   // class whose subclass unlocks at level 1 (Cleric, Sorcerer, Warlock) or
@@ -180,6 +188,7 @@ export default function HubScreen() {
   if (toolChoices.length > 0) sections = [...sections, TOOL_SECTION];
   const languageChoices = draft.choices.filter(c => c.definition.kind === 'language');
   if (languageChoices.length > 0) sections = [...sections, LANGUAGE_SECTION];
+  if (featureChoiceProgress(draft)) sections = [...sections, FEATURES_SECTION];
 
   // CREATION-EDIT-AFFORDANCE-1: shows what's currently selected for the
   // "named content" sections (race/class/subclass/background) instead of
@@ -302,7 +311,7 @@ export default function HubScreen() {
             <Pressable
               key={key}
               style={[styles.primaryBtn, done && styles.primaryBtnDone]}
-              onPress={() => router.push(sec.route as any)}
+              onPress={() => router.push(sec.route)}
             >
               <Text style={[styles.primaryBtnText, done && styles.primaryBtnTextDone]}>
                 {labelOf(sec)}
@@ -330,9 +339,10 @@ export default function HubScreen() {
             sec.key === 'expertise' ? choiceKindSubtitle(draft, 'expertise') :
             sec.key === 'tool'      ? choiceKindSubtitle(draft, 'tool') :
             sec.key === 'language'  ? choiceKindSubtitle(draft, 'language') :
+            sec.key === 'features'  ? (() => { const p = featureChoiceProgress(draft); return p && p.done !== p.total ? `${p.done}/${p.total}` : null; })() :
             (done ? progressSubtitle(sec, draft) : null);
           return (
-            <Pressable key={sec.key} style={styles.progressRow} onPress={() => router.push(sec.route as any)}>
+            <Pressable key={sec.key} style={styles.progressRow} onPress={() => router.push(sec.route)}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.progressLabel}>{labelOf(sec)}</Text>
                 {subtitle && <Text style={styles.progressSubtitle}>{subtitle}</Text>}
@@ -355,7 +365,7 @@ export default function HubScreen() {
         <View style={styles.footer}>
           {/* Next sequential button */}
           {nextSection && !allDone && (
-            <Pressable style={styles.nextBtn} onPress={() => router.push(nextSection.route as any)}>
+            <Pressable style={styles.nextBtn} onPress={() => router.push(nextSection.route)}>
               <Text style={styles.nextBtnText}>Next: {labelOf(nextSection)} →</Text>
             </Pressable>
           )}

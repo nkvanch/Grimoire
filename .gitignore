@@ -64,5 +64,17 @@ outreach/to-send/
 # the private build copies its non-SRD packs here (scripts/build-apk-local.ps1); never committed
 /assets/packs/private/
 
-# Editor state
-.obsidian/
+# Device UI dumps and screenshots taken while debugging (adb uiautomator), and one-off edit scripts
+/*.xml
+/*.png
+/scripts/_*
+
+# Another creator's homebrew PDFs (local reference only) and screen recordings
+/docs/homebrew/Zell/
+*.mp4
+
+# Obsidian: personal window state and downloaded plugins
+/.obsidian/workspace.json
+/.obsidian/plugins/
+# written by scripts/extract-srd-items.py next to items.json, with the same content
+/third_party/wotc/srd/5.1/extracted/items.raw.json

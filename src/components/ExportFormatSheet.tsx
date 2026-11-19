@@ -5,14 +5,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Pressable } from './AccessibleControls';
 import { Modal } from './AppModal';
-import { Platform } from 'react-native';
-import { ExportFormat, ExportAction } from '../io/exportShare';
+import { ExportFormat, ExportAction, PDF_EXPORT_AVAILABLE } from '../io/exportShare';
 import { ExportKind, exportFormatsFor } from '../io/exportFormats';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
-
-// expo-print has no web implementation — offering PDF there would just throw
-// at share-time with no useful error, so it's disabled rather than shown.
-const PDF_AVAILABLE_HERE = Platform.OS !== 'web';
 
 interface Props {
   visible: boolean;
@@ -46,7 +41,7 @@ export function ExportFormatSheet({ visible, kind, title, onSelect, onClose }: P
           </View>
 
           {exportFormatsFor(kind).map(f => {
-            const disabled = f.id === 'pdf' && !PDF_AVAILABLE_HERE;
+            const disabled = f.id === 'pdf' && !PDF_EXPORT_AVAILABLE;
             return (
               <Pressable
                 key={f.id}

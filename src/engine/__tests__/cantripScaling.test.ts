@@ -1,6 +1,6 @@
 // A cantrip's card follows the character level: Fire Bolt 1d10, 2d10 at 5th, 3d10 at 11th, 4d10 at 17th.
-import { makeEmptyEntity } from '../../store/characterStore';
-import { buildLayer2ForSpell } from '../actionCards';
+import { makeEmptyEntity } from '../defaults';
+import { buildLayer2ForSpell } from '../actionCardLayers';
 import { cantripTierAt, deriveCantripScaling } from '../cantripScaling';
 import type { Entity, Spell } from '../types';
 import srd51 from '../../../assets/packs/grimoire.srd.5.1.json';
@@ -65,7 +65,7 @@ describe('cantrip scaling', () => {
 });
 
 describe("the spell builder's upgrade rows", () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   const { tiersFromDraft, draftFromTiers } = require('../cantripScaling');
   const row = (level: string, dice = '', count = '') => ({ level, dice, count });
   it('turn rows at any level into tiers, sorted', () => {

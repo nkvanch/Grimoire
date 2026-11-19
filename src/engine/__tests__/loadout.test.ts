@@ -6,7 +6,7 @@
 // diff (untouched items stay untouched), missing-item tolerance, and the
 // prepared-spell-list intersection against currently-known spells.
 import { captureLoadout, applyLoadout, deleteLoadout } from '../loadout';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { Entity, Item, ItemInstance } from '../types';
 
 function withInventory(equipped: ItemInstance[], carried: ItemInstance[]): Entity {

@@ -59,6 +59,6 @@ export function pinningCatalog(packs: readonly InstalledPack[], homebrew: Homebr
       if (type === 'spell' || type === 'feat') return versioned(type, id, ruleset);
       return byKind.get(type)?.get(id);
     },
-    packs: () => ordered.map(p => ({ id: p.manifest.id, version: p.manifest.version, ruleset: p.manifest.ruleset as string | undefined })),
+    packs: () => ordered.map(p => ({ id: p.manifest.id, version: p.manifest.version, ruleset: p.manifest.ruleset })),
   };
 }

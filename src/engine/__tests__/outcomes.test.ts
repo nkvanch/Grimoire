@@ -1,5 +1,5 @@
 // Outcome effects wait for the table to confirm what happened (the creator audit's hit-contingent refund finding).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { generateActionCard } from '../actionCards';
 import { applyActionCardUse } from '../actionUse';

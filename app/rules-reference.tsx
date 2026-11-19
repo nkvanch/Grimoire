@@ -2,7 +2,8 @@
 // Rules Reference: the SRD 5.2.1 glossary, gameplay toolbox and equipment rules from the installed content pack. Search, three
 // sections, tap an entry to read it. Reference text only. Without the pack installed there is nothing to show, so the screen says so.
 import { useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FlatList } from '../src/components/Lists';
 import { Pressable, TextInput } from '../src/components/AccessibleControls';
 import { useSafeGoBack } from '../src/hooks/useSafeGoBack';
 import { useOfficialContentVersion } from '../src/hooks/useOfficialContentVersion';

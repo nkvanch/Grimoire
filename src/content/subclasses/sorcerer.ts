@@ -10,7 +10,7 @@
 // the other 8 here — included per the standing "author everything in the
 // folder" scope decision, but its non-official origin is called out
 // ============================================================================
-import { ClassProgression, } from '../../engine/types';
+import { ClassProgression } from '../../engine/types';
 
 export type SubclassProgression = ClassProgression & { name: string };
 

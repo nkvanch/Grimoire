@@ -1,10 +1,8 @@
 import { ALL_PROGRESSIONS } from './index';
 import {
-  ClassProgression, CharClass, LevelEntry, ChoiceDefinition, Grant, Ability,
+  ClassProgression, CharClass, LevelEntry, ChoiceDefinition, Grant
 } from '../../engine/types';
-import {
-  FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, WARLOCK_SLOTS,
-} from './spellSlotTables';
+import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, WARLOCK_SLOTS } from './spellSlotTables';
 import { buildTraitFeature } from '../traitCompiler';
 
 /** Alias of the canonical map in ./index. */

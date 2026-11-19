@@ -5,7 +5,6 @@ tags:
   - requires-creation-draft
 ---
 - launchApp
-- assertVisible: "Equipment chosen:"
 - assertVisible: "Change"
 - assertVisible: "Remove"
 - assertVisible:

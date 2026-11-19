@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
-import { downloadTextFile, pickTextFileInBrowser } from './browserFiles';
+import { pickTextFileInBrowser } from './browserFiles';
 import * as FileSystem from 'expo-file-system/legacy';
 import { CustomRuleProfile, Entity } from '../engine/types';
 import { migrateEntity } from '../engine/multiclass';

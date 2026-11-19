@@ -18,11 +18,9 @@ import { subclassEntriesForClassMerged } from '../../src/content/subclasses/subc
 import { loadInstalledPacks, InstalledPack } from '../../src/db/packRegistryRepo';
 import { GameRulesetPicker } from '../../src/components/homebrew/GameRulesetPicker';
 import { LiveScreen, Section, Card, Btn, Chip, Field, Row, Badge, Muted, Body } from '../../src/components/live/LiveUi';
-import { Alert } from '../../src/utils/alert';
+import { Alert, reportFailure } from '../../src/utils/alert';
+import { newId } from '../../src/engine/ids';
 
-function uid(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-}
 
 type CampaignSummary = { campaignId: string; name: string; campaignRevision: number };
 type Form = null | 'encounter' | 'effect' | 'template' | 'note' | 'plan' | 'import';
@@ -55,7 +53,7 @@ export default function PrepareScreen() {
     if (id) setCurrent(await runtime.prep.load(id));
   }, [runtime]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh().catch(reportFailure('load the campaigns')); }, [refresh]);
 
   async function edit(mut: (p: CampaignPrep) => CampaignPrep) {
     if (!current) return;
@@ -71,7 +69,7 @@ export default function PrepareScreen() {
   async function createCampaign() {
     const name = newName.trim();
     if (!name) return;
-    const prep = await runtime.prep.create(uid('camp'), name);
+    const prep = await runtime.prep.create(newId('camp'), name);
     setNewName('');
     await refresh(prep.campaignId);
   }
@@ -86,7 +84,7 @@ export default function PrepareScreen() {
               <Body bold>{c.name}</Body>
               <Muted>Preparation revision {c.campaignRevision}</Muted>
               <Row>
-                <Btn small kind="ghost" label="Open" onPress={() => { void refresh(c.campaignId); }} testID={`prep-open-${c.name}`} />
+                <Btn small kind="ghost" label="Open" onPress={() => { void refresh(c.campaignId).catch(reportFailure('load the campaigns')); }} testID={`prep-open-${c.name}`} />
                 <Btn small kind="danger" label="Delete" onPress={() => Alert.alert(`Delete "${c.name}"?`, 'This removes its preparation from this device.', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: () => { void runtime.prep.remove(c.campaignId).then(() => refresh()); } },
@@ -97,7 +95,7 @@ export default function PrepareScreen() {
         </Section>
         <Section title="New campaign">
           <Field label="Campaign name" value={newName} onChangeText={setNewName} placeholder="Automation Campaign" testID="prep-new-name" />
-          <Btn label="Create campaign" onPress={() => { void createCampaign(); }} disabled={!newName.trim()} testID="prep-create" />
+          <Btn label="Create campaign" onPress={() => { void createCampaign().catch(reportFailure('create the campaign')); }} disabled={!newName.trim()} testID="prep-create" />
         </Section>
       </LiveScreen>
     );
@@ -106,7 +104,7 @@ export default function PrepareScreen() {
   const p = current;
   return (
     <LiveScreen title={p.name} subtitle={`Preparation revision ${p.campaignRevision} · offline-safe`} backTo="/live/prepare">
-      <Btn label="← All campaigns" kind="ghost" onPress={() => { setCurrent(null); setForm(null); void refresh(); }} testID="prep-all" />
+      <Btn label="← All campaigns" kind="ghost" onPress={() => { setCurrent(null); setForm(null); void refresh().catch(reportFailure('load the campaigns')); }} testID="prep-all" />
 
       <Section title={`Encounters (${p.encounters.length})`} hint="Only the public projection (names and coarse state) is sent when you start one. Notes and hidden combatants stay here.">
         {p.encounters.map(e => (
@@ -120,10 +118,10 @@ export default function PrepareScreen() {
           <Btn small kind="ghost" label="＋ Encounter" onPress={() => setForm(form === 'encounter' ? null : 'encounter')} testID="prep-add-encounter" />
           {planned.length > 0 && <Btn small kind="ghost" label="Import from Encounter Planner" onPress={() => setForm(form === 'import' ? null : 'import')} testID="prep-import-planner" />}
         </Row>
-        {form === 'encounter' && <EncounterForm onSave={(v) => { void edit(x => addEncounter(x, { id: uid('enc'), ...v })); }} />}
+        {form === 'encounter' && <EncounterForm onSave={(v) => { void edit(x => addEncounter(x, { id: newId('enc'), ...v })); }} />}
         {form === 'import' && planned.map(pe => (
           <Btn key={pe.id} small kind="ghost" label={`Import "${pe.name || 'Untitled'}"`} onPress={() => {
-            void edit(x => importPlannerEncounter(x, pe, uid('enc'), id => resolveMonsterById(id, homebrewMonsters)?.name ?? id));
+            void edit(x => importPlannerEncounter(x, pe, newId('enc'), id => resolveMonsterById(id, homebrewMonsters)?.name ?? id));
           }} />
         ))}
       </Section>
@@ -137,7 +135,7 @@ export default function PrepareScreen() {
           </Card>
         ))}
         <Btn small kind="ghost" label="＋ Effect" onPress={() => setForm(form === 'effect' ? null : 'effect')} testID="prep-add-effect" />
-        {form === 'effect' && <EffectForm onSave={(v) => { void edit(x => addEffect(x, { id: uid('fx'), ...v })); }} />}
+        {form === 'effect' && <EffectForm onSave={(v) => { void edit(x => addEffect(x, { id: newId('fx'), ...v })); }} />}
       </Section>
 
       <Section title={`Change templates (${p.templates.length})`} hint="Reusable requests. A live request is created only when you send one to a player, and the player can accept, modify or reject it.">
@@ -149,7 +147,7 @@ export default function PrepareScreen() {
           </Card>
         ))}
         <Btn small kind="ghost" label="＋ Change template" onPress={() => setForm(form === 'template' ? null : 'template')} testID="prep-add-template" />
-        {form === 'template' && <TemplateForm onSave={(label, changes) => { void edit(x => addTemplate(x, { id: uid('tpl'), label, changes })); }} />}
+        {form === 'template' && <TemplateForm onSave={(label, changes) => { void edit(x => addTemplate(x, { id: newId('tpl'), label, changes })); }} />}
       </Section>
 
       <Section title={`DM-only notes (${p.notes.length})`} hint="Never sent to the Host or any player.">
@@ -160,7 +158,7 @@ export default function PrepareScreen() {
           </Card>
         ))}
         <Btn small kind="ghost" label="＋ Note" onPress={() => setForm(form === 'note' ? null : 'note')} testID="prep-add-note" />
-        {form === 'note' && <NoteForm onSave={(text) => { void edit(x => addNote(x, { id: uid('note'), text })); }} />}
+        {form === 'note' && <NoteForm onSave={(text) => { void edit(x => addNote(x, { id: newId('note'), text })); }} />}
       </Section>
 
       <Section title={`Session plans (${p.plans.length})`} hint="Group the prepared pieces you expect to use in one session.">
@@ -176,7 +174,7 @@ export default function PrepareScreen() {
           </Card>
         ))}
         <Btn small kind="ghost" label="＋ Session plan" onPress={() => setForm(form === 'plan' ? null : 'plan')} testID="prep-add-plan" />
-        {form === 'plan' && <NoteForm label="Plan name" onSave={(name) => { void edit(x => addPlan(x, { id: uid('plan'), name })); }} />}
+        {form === 'plan' && <NoteForm label="Plan name" onSave={(name) => { void edit(x => addPlan(x, { id: newId('plan'), name })); }} />}
       </Section>
 
       <Section title="Content Policy" hint="Published to the room the moment you link this campaign — a joining Player sees it before committing to anything (Join Session's confirmation screen).">

@@ -42,7 +42,7 @@ describe('exporting a class that uses a Spell List', () => {
 
   it('the list travels with the class as a dependency', () => {
     expect(collectContentDependencies('class', cls)).toContainEqual({ type: 'spellList', id: 'mine' });
-    expect(collectContentDependencies('class', { ...cls, spellListSource: { kind: 'class', classId: 'wizard' } } as CharClass))
+    expect(collectContentDependencies('class', { ...cls, spellListSource: { kind: 'class', classId: 'wizard' } }))
       .toContainEqual({ type: 'class', id: 'wizard' });
   });
 

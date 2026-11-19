@@ -4,10 +4,11 @@
 // then hands the updated entity back via onResolved. Used by the creation
 // level-up screen and the in-play (sheet) level-up modal so the two never drift.
 import { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable, TextInput } from './AccessibleControls';
 import { Modal } from './AppModal';
-import { applyAsiToEntity, applyFeatToEntity } from '../engine/leveling';
+import { applyAsiToEntity, applyFeatToEntity } from '../engine/levelingAsiFeats';
 import { applyStatModifiers, collectAllEffects } from '../engine/pipeline';
 import { evaluatePrerequisite } from '../engine/featPrereq';
 import {
@@ -23,10 +24,7 @@ import { useHomebrewStore, homebrewWinsById } from '../store/homebrewStore';
 import { Entity, ChoiceState, CampaignRules, Ability, SkillName, Feat, matchesRuleset } from '../engine/types';
 import { FeatPreviewModal } from './FeatPreviewModal';
 import { NonSrdBadge, isNonSrd } from './NonSrdBadge';
-import {
-  FilterSection, FilterChipRow, MultiSelectChipRow, OfficialHomebrewChipRow,
-  ActiveFilterChips,
-} from './FilterChipRow';
+import { FilterSection, FilterChipRow, MultiSelectChipRow, OfficialHomebrewChipRow, ActiveFilterChips } from './FilterChipRow';
 import { SortControl } from './SortControl';
 import { usePendingSelectionStore } from '../store/pendingSelectionStore';
 import { useBrowseStateStore } from '../store/browseStateStore';

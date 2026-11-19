@@ -1,5 +1,6 @@
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { applyPoolChoiceToEntity, queueChoice, replacePoolOption, replaceableOptions } from '../../engine/leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
+import { applyPoolChoiceToEntity, replacePoolOption, replaceableOptions } from '../../engine/levelingPoolChoices';
+import { queueChoice } from '../../engine/levelingGrants';
 import { newDraftTrait } from '../traitCompiler';
 import {
   featurePoolDraftToDefinition, definitionToFeaturePoolDraft, validateFeaturePoolDraft, newFeaturePoolDraft, type FeaturePoolDraft,

@@ -8,7 +8,7 @@ import type { DesktopBridge, DesktopTcpEvent } from '../desktop';
 
 jest.mock('react-native-tcp-socket', () => ({ __esModule: true, default: require('../tcpSocket.web').default }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const { TcpBridge } = require('../../../desktop/tcpBridge') as { TcpBridge: new (emit: (e: DesktopTcpEvent) => void) => any };
 
 function installBridge() {

@@ -48,6 +48,6 @@ export function suspendForDamage(e: Entity, damageType: string | undefined): Ent
 export function pruneSuspensions(e: Entity): Entity {
   const live = (e.suspensions ?? []).filter(s => s.until > turn(e));
   if (live.length === (e.suspensions ?? []).length) return e;
-  if (live.length === 0) { const { suspensions: _s, ...rest } = e; return rest as Entity; }
+  if (live.length === 0) { const { suspensions: _s, ...rest } = e; return rest; }
   return { ...e, suspensions: live };
 }

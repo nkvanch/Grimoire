@@ -7,11 +7,10 @@
 // choice appears -> resolve through the SAME apply*ChoiceToEntity functions
 // official content already uses -> grant lands, with no branching on
 // official vs homebrew origin anywhere in this path.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import {
-  applyFeatToEntity, removeFeature, swapBackground,
-  applyToolChoiceToEntity, applyLanguageChoiceToEntity, applyExpertiseChoiceToEntity,
-} from '../leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { applyToolChoiceToEntity, applyLanguageChoiceToEntity, applyExpertiseChoiceToEntity } from '../levelingProficiencyChoices';
+import { swapBackground } from '../levelingBackground';
+import { applyFeatToEntity, removeFeature } from '../levelingAsiFeats';
 import type { Entity, Feature, ChoiceDefinition, Background } from '../types';
 import { BACKGROUND_CHOICE_PREFIX } from '../types';
 

@@ -1,11 +1,8 @@
 // ============================================================================
 // FILE: src/content/itemRepo.ts
-// Default implementation — thin synchronous wrapper around the existing
-// static item arrays (src/content/items/index.ts). Metro's platform-
-// extension resolution picks itemRepo.native.ts instead of this file on
-// iOS/Android builds (see that file for the real SQLite-backed
-// implementation); this file is what `expo start --web` actually bundles.
-// Mirrors spellRepo.ts's design exactly.
+// The item repo on every platform: a thin synchronous wrapper around the static item arrays
+// (src/content/items/index.ts, which Metro swaps for an empty module in the app), served through the
+// installed packs by withOfficialItems. Mirrors spellRepo.ts's design exactly.
 // ============================================================================
 import { Item } from '../engine/types';
 import { ALL_ITEMS } from './items/index';

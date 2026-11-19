@@ -3,11 +3,12 @@
 // Campaign Settings (table house rules) are accessible here as a card —
 // they live in Character Basics, not as a step in the creation flow.
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useRouter } from 'expo-router';
-import { useCharacterStore, makeEmptyEntity } from '../../src/store/characterStore';
-import { RulesetId } from '../../src/engine/types';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity } from '../../src/engine/defaults';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { RulesSourcePicker, RulesChoice, rulesChoiceFromDraft } from '../../src/components/RulesSourcePicker';
@@ -73,7 +74,7 @@ export default function NameScreen() {
       // comment for why a blanket migration isn't done.
       // The player's Rules choice (campaign / custom / official preset) decides the ruleset and the
       // rule-profile overlay; the default is the same 2014 baseline as before.
-      rulesetId: rulesChoice.rulesetId as RulesetId,
+      rulesetId: rulesChoice.rulesetId,
       customRuleProfileId: rulesChoice.profileId,
     };
 
@@ -145,7 +146,7 @@ export default function NameScreen() {
 
         {/* Rules source: campaign setting / custom / official 5e & 5.5e. Drives the ruleset and what content is suggested first. */}
         <RulesSourcePicker value={rulesChoice} onChange={setRulesChoice} />
-        <MissingRulesetContentBanner ruleset={rulesChoice.rulesetId as RulesetId | undefined} />
+        <MissingRulesetContentBanner ruleset={rulesChoice.rulesetId} />
 
         {/* Campaign Settings — lives here in Character Basics, not in the creation flow */}
         <Pressable style={styles.campaignSettingsCard} onPress={() => router.push('/creation/rules')}>

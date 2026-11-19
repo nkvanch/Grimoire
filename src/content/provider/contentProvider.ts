@@ -127,7 +127,7 @@ export function packContentProvider(packs: readonly InstalledPack[], rulesetId?:
   // Spells keep every version: the 5.1 pack's shared record and the 5.2.1 pack's 2024 record share an id, so they are
   // grouped by id and resolved per ruleset instead of the later one replacing the earlier.
   const spellVersions = new Map<string, Spell[]>();
-  for (const p of ordered) for (const s of ((p.homebrew?.spells ?? []) as unknown as Spell[])) {
+  for (const p of ordered) for (const s of (p.homebrew?.spells ?? [])) {
     spellVersions.set(s.id, [...(spellVersions.get(s.id) ?? []), s]);
   }
   const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
@@ -155,10 +155,10 @@ export function packContentProvider(packs: readonly InstalledPack[], rulesetId?:
     return classes.length > 0 ? { ...base, classes } : base;
   });
   // Items are shared across rulesets (a Longsword is a Longsword): every installed pack's, merged by id.
-  const items = mergeById(ordered.map(p => ((p.homebrew?.items ?? []) as unknown as Item[])));
+  const items = mergeById(ordered.map(p => (p.homebrew?.items ?? [])));
   const itemById = index(items);
   // Conditions keep every edition's record (same ids, told apart by ruleset); a record with no ruleset of its own belongs to no one edition.
-  const conditionRecords = ordered.flatMap(p => ((p.homebrew?.conditions ?? []) as unknown as Condition[]).filter(c => matchesRuleset(c.rulesetId, rulesetId)));
+  const conditionRecords = ordered.flatMap(p => (p.homebrew?.conditions ?? []).filter(c => matchesRuleset(c.rulesetId, rulesetId)));
 
   return {
     source: ordered.map(p => `pack:${p.manifest.id}@${p.manifest.version}`).join('+'),
@@ -175,7 +175,7 @@ export function packContentProvider(packs: readonly InstalledPack[], rulesetId?:
     spellIndexSpells: () => spellIndex,
     items: () => items,
     conditionRecords: () => conditionRecords,
-    monsters: () => mergeById(ordered.map(p => ((p.homebrew?.monsters ?? []) as unknown as MonsterTemplate[]))),
+    monsters: () => mergeById(ordered.map(p => (p.homebrew?.monsters ?? []))),
     ruleRecords: key => mergeById(ordered.map(p => ((((p as { rules?: Record<string, { records?: unknown[] }> }).rules ?? {})[key]?.records ?? []) as { id: string }[]))),
     getCondition: (id, target) => conditionForRuleset(conditionRecords, id, target ?? rulesetId),
     // An id the packs do not have falls back to its other edition (a 5e `longsword` reference on a 5.5e character, or the reverse).

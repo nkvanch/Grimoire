@@ -1,5 +1,5 @@
 // The DM's hidden check against passive scores.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { hiddenCheck, hiddenCheckSummary, passiveOf } from '../hiddenCheck';
 import type { Entity } from '../types';
@@ -30,7 +30,7 @@ describe('hidden check', () => {
   it('leaves out the dead and anything that is not a character', () => {
     const dead = pc('Dax', 20);
     const gone: Entity = { ...dead, resources: { ...dead.resources, deathSaves: { successes: 0, failures: 3, stable: false } } };
-    const monster: Entity = { ...pc('Orc', 20), kind: 'monster' as never };
+    const monster: Entity = { ...pc('Orc', 20), kind: 'monster' };
     expect(hiddenCheck([...party, gone, monster], 'perception', 10).map(r => r.name)).not.toContain('Dax');
     expect(hiddenCheck([...party, gone, monster], 'perception', 10).map(r => r.name)).not.toContain('Orc');
   });

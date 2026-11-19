@@ -10,12 +10,11 @@
 // compiler) can use it without pulling UI code into the content layer. This
 // file re-exports that logic alongside the React components that edit it.
 import { useState, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
-import { DraftTrait, TraitEffectKind, Ability } from '../../engine/types';
+import { DraftTrait, TraitEffectKind } from '../../engine/types';
 import {
   ABILITIES, SENSE_TYPES, MOVE_TYPES, SKILLS, ACTION_TYPES, RECHARGE_TYPES,
   COMMON_TOOLS, COMMON_DAMAGE_TYPES, SPEED_ZEROING_CONDITIONS,
@@ -32,8 +31,11 @@ import { useHomebrewStore } from '../../store/homebrewStore';
 import { SafeBottomView } from '../SafeBottomView';
 import { TraitAdvancedEditor } from './TraitAdvancedEditor';
 import type { ResourceChoice } from '../../content/classes/knownResources';
-import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
+import { Colors, Spacing } from '../../theme';
 import { NAME_INPUT } from '../nameInput';
+import { newId } from '../../engine/ids';
+import { styles } from './traitEditorStyles';
+import { RechargeHint, SpendsFromEditor, SaveDcEditor, UsesScalingEditor, ActionTypePicker, RaiseResourceEditor } from './TraitFieldEditors';
 
 export {
   ABILITIES, SENSE_TYPES, MOVE_TYPES, SKILLS, ACTION_TYPES, RECHARGE_TYPES,
@@ -41,216 +43,6 @@ export {
   toId, disambiguateId, newDraftTrait, buildTraitFeature, newDraftSubrace, buildSubrace, EFFECT_KIND_LABELS,
 };
 export type { MoveType, DraftSubrace };
-
-// ── Reusable: ability score grid ──────────────────────────────────────────────
-
-export function AbilityScoreGrid({ values, onChange }: {
-  values: Record<Ability, string>;
-  onChange: (a: Ability, v: string) => void;
-}) {
-  return (
-    <View style={styles.abiGrid}>
-      {ABILITIES.map(a => (
-        <View key={a} style={styles.abiBox}>
-          <Text style={styles.abiLabel}>{a.toUpperCase()}</Text>
-          <TextInput
-            style={styles.abiInput}
-            value={values[a]}
-            onChangeText={v => onChange(a, v)}
-            keyboardType="numbers-and-punctuation"
-            placeholder="0"
-            placeholderTextColor={Colors.textDim}
-            textAlign="center"
-          />
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ── Trait editor modal — the "droppable window" ───────────────────────────────
-
-/**
- * "Forces a saving throw" for a limited-use ability. The DC scales with the character by default (8 + proficiency +
- * an ability modifier, the way class features do); it can instead follow their spell save DC, or be a fixed number.
- */
-function SaveDcEditor({ trait, set }: { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void }) {
-  const on = !!trait.saveEnabled;
-  const mode = trait.saveDcMode ?? 'ability';
-  return (
-    <View style={{ gap: Spacing.xs }}>
-      <Pressable style={styles.toggleRow} onPress={() => set({ saveEnabled: !on })}>
-        <View style={[styles.checkbox, on && styles.checkboxChecked]} />
-        <Text style={styles.toggleTxt}>Targets make a saving throw against this</Text>
-      </Pressable>
-      {on && (
-        <>
-          <Text style={styles.inlineLabel}>They save with</Text>
-          <View style={styles.chipWrap}>
-            {ABILITIES.map(a => (
-              <Pressable key={a} style={[styles.chip, (trait.saveAbility ?? 'wis') === a && styles.chipActive]} onPress={() => set({ saveAbility: a })}>
-                <Text style={[styles.chipTxt, (trait.saveAbility ?? 'wis') === a && styles.chipTxtActive]}>{a.toUpperCase()}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.inlineLabel}>Save DC</Text>
-          <View style={styles.chipWrap}>
-            {([['ability', '8 + proficiency + ability'], ['spell', 'Spell save DC'], ['fixed', 'Fixed number']] as const).map(([k, label]) => (
-              <Pressable key={k} style={[styles.chip, mode === k && styles.chipActive]} onPress={() => set({ saveDcMode: k })}>
-                <Text style={[styles.chipTxt, mode === k && styles.chipTxtActive]}>{label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {mode === 'ability' && (
-            <View style={styles.chipWrap}>
-              {ABILITIES.map(a => (
-                <Pressable key={a} style={[styles.chip, (trait.saveDcAbility ?? 'cha') === a && styles.chipActive]} onPress={() => set({ saveDcAbility: a })}>
-                  <Text style={[styles.chipTxt, (trait.saveDcAbility ?? 'cha') === a && styles.chipTxtActive]}>{a.toUpperCase()}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-          {mode === 'fixed' && (
-            <View style={styles.rowInline}>
-              <Text style={styles.inlineLabel}>DC:</Text>
-              <TextInput style={[styles.input, styles.smallInput]} value={trait.saveDcFixed ?? ''} onChangeText={v => set({ saveDcFixed: v })} keyboardType="number-pad" />
-            </View>
-          )}
-          <Text style={styles.effectNote}>
-            {mode === 'ability' ? 'Grows with the character: their proficiency bonus and that ability modifier are added automatically.'
-              : mode === 'spell' ? "Uses the character's own spell save DC." : 'Never changes with level.'}
-          </Text>
-        </>
-      )}
-    </View>
-  );
-}
-
-/** One line under the recharge chips saying what the app will and won't do for the chosen trigger. */
-function RechargeHint({ recharge }: { recharge: 'short_rest' | 'long_rest' | 'dawn' | 'monthly' | 'yearly' | 'other' }) {
-  if (recharge === 'dawn') return <Text style={styles.chipTxt}>Restored by the sheet's ☀ Dawn button, not by a rest.</Text>;
-  if (recharge === 'monthly' || recharge === 'yearly') return <Text style={styles.chipTxt}>The app keeps no calendar: reset it by hand with + on the sheet when the time comes.</Text>;
-  if (recharge === 'other') return <Text style={styles.chipTxt}>Not restored automatically: tap + on the sheet when it recharges.</Text>;
-  return null;
-}
-
-/** Action, bonus action, reaction (or free text) for a card. */
-function ActionTypePicker({ trait, set }: { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void }) {
-  return (
-    <>
-      <Text style={styles.inlineLabel}>Action type</Text>
-      <View style={styles.chipWrap}>
-        {ACTION_TYPES.map(a => (
-          <Pressable key={a.key} style={[styles.chip, trait.actionType === a.key && styles.chipActive]} onPress={() => set({ actionType: a.key })}>
-            <Text style={[styles.chipTxt, trait.actionType === a.key && styles.chipTxtActive]}>{a.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {trait.actionType === 'other' && (
-        <TextInput style={styles.input} value={trait.actionTypeOther} onChangeText={v => set({ actionTypeOther: v })}
-          placeholder="e.g. Reflexive, Special" placeholderTextColor={Colors.textDim} />
-      )}
-    </>
-  );
-}
-
-/** What a pool of this trait's own maximum follows: fixed, the proficiency bonus, an ability modifier, or level times a number. */
-function UsesScalingEditor({ trait, set }: { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void }) {
-  const mode = trait.usesScaling ?? 'none';
-  const options = [['none', 'Fixed'], ['proficiency', 'Proficiency bonus'], ['ability', 'Ability modifier'], ['level', 'Level × number']] as const;
-  return (
-    <View style={{ gap: Spacing.xs }}>
-      <Text style={styles.inlineLabel}>Maximum uses</Text>
-      <View style={styles.chipWrap}>
-        {options.map(([k, label]) => (
-          <Pressable key={k} style={[styles.chip, mode === k && styles.chipActive]} onPress={() => set({ usesScaling: k })}>
-            <Text style={[styles.chipTxt, mode === k && styles.chipTxtActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {mode === 'ability' && (
-        <View style={styles.chipWrap}>
-          {ABILITIES.map(a => (
-            <Pressable key={a} style={[styles.chip, (trait.usesScalingAbility ?? 'cha') === a && styles.chipActive]} onPress={() => set({ usesScalingAbility: a })}>
-              <Text style={[styles.chipTxt, (trait.usesScalingAbility ?? 'cha') === a && styles.chipTxtActive]}>{a.toUpperCase()}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-      {mode === 'level' && (
-        <View style={styles.rowInline}>
-          <Text style={styles.inlineLabel}>Per level:</Text>
-          <TextInput style={[styles.input, styles.smallInput]} value={trait.usesPerLevel ?? '1'} onChangeText={v => set({ usesPerLevel: v })} keyboardType="number-pad" />
-        </View>
-      )}
-      <Text style={styles.effectNote}>
-        {mode === 'none' ? 'The number above, always. To make a pool grow in steps (4 dice, then 5 at 7th level), add a later feature that raises it.'
-          : mode === 'proficiency' ? 'Equals the character\u2019s proficiency bonus, and grows with it. The number above is only the starting value.'
-          : mode === 'ability' ? 'Equals that ability modifier (at least 1). The number above is only the starting value.'
-          : 'Equals the character\u2019s level times this number. The number above is only the starting value.'}
-      </Text>
-    </View>
-  );
-}
-
-/** Spend from a resource that already exists (a class's Ki, Rage ... or another feature's pool in this build) instead of a pool of its own. */
-function SpendsFromEditor({ trait, set, choices }: { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void; choices: ResourceChoice[] }) {
-  if (choices.length === 0) return null;
-  const current = (trait.spendsResourceId ?? '').trim();
-  return (
-    <View style={{ gap: Spacing.xs }}>
-      <Text style={styles.inlineLabel}>Spends from</Text>
-      <View style={styles.chipWrap}>
-        <Pressable style={[styles.chip, !current && styles.chipActive]} onPress={() => set({ spendsResourceId: '' })}>
-          <Text style={[styles.chipTxt, !current && styles.chipTxtActive]}>Nothing existing</Text>
-        </Pressable>
-        {choices.map(c => (
-          <Pressable key={c.id} style={[styles.chip, current === c.id && styles.chipActive]} onPress={() => set({ spendsResourceId: c.id })}>
-            <Text style={[styles.chipTxt, current === c.id && styles.chipTxtActive]}>{c.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {!!current && (
-        <View style={styles.rowInline}>
-          <Text style={styles.inlineLabel}>Spends per use:</Text>
-          <TextInput style={[styles.input, styles.smallInput]} value={trait.spendsQuantity ?? '1'} onChangeText={v => set({ spendsQuantity: v })} keyboardType="number-pad" />
-        </View>
-      )}
-      {!!current && <ActionTypePicker trait={trait} set={set} />}
-      {!!current && <Text style={styles.effectNote}>Uses that resource's own pool and recharge, so there is nothing new to track. Any uses and recharge set on this trait are ignored.</Text>}
-    </View>
-  );
-}
-
-/** Raise an existing resource's maximum at this feature's level (class and subclass features). */
-function RaiseResourceEditor({ trait, set, choices }: { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void; choices: ResourceChoice[] }) {
-  if (choices.length === 0) return null;
-  const current = (trait.raiseResourceId ?? '').trim();
-  return (
-    <View style={styles.effectPanel}>
-      <Text style={styles.inlineLabel}>Raises a resource at this level</Text>
-      <View style={styles.chipWrap}>
-        <Pressable style={[styles.chip, !current && styles.chipActive]} onPress={() => set({ raiseResourceId: '' })}>
-          <Text style={[styles.chipTxt, !current && styles.chipTxtActive]}>None</Text>
-        </Pressable>
-        {choices.map(c => (
-          <Pressable key={c.id} style={[styles.chip, current === c.id && styles.chipActive]} onPress={() => set({ raiseResourceId: c.id })}>
-            <Text style={[styles.chipTxt, current === c.id && styles.chipTxtActive]}>{c.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {!!current && (
-        <View style={styles.rowInline}>
-          <Text style={styles.inlineLabel}>New maximum:</Text>
-          <TextInput style={[styles.input, styles.smallInput]} value={trait.raiseResourceTo ?? ''} onChangeText={v => set({ raiseResourceTo: v })} keyboardType="number-pad" />
-        </View>
-      )}
-      <Text style={styles.effectNote}>
-        The pool's maximum becomes this number once the character reaches this feature's level (for example Superiority Dice 4, then 5 at 7th level, then 6 at 15th). Spent uses stay spent.
-      </Text>
-    </View>
-  );
-}
 
 export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, excludeKinds, resourceChoices, allowRaise }: {
   trait: DraftTrait | null;
@@ -833,7 +625,7 @@ export function TraitEditorModal({ trait, visible, onChange, onDone, onDelete, e
                               ct.includes('bonus') ? 'bonus_action' : ct.includes('reaction') ? 'reaction' : 'action';
                             set({
                               spellGrants: [...trait.spellGrants, {
-                                localId: `sg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+                                localId: newId('sg'),
                                 spellId: s.id, spellName: s.name, actionType,
                                 unlockLevel: '3', mode: 'resource', recharge: 'long_rest', rechargeOther: '',
                                 uses: '1', minSlotLevel: String(s.level),
@@ -1088,80 +880,3 @@ export function TraitListEditor({ traits, onChange, excludeKinds }: {
     </View>
   );
 }
-
-export const styles = StyleSheet.create({
-  fieldLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, letterSpacing: 1, fontWeight: FontWeight.bold },
-  input: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm, color: Colors.textPrimary, fontSize: FontSize.md },
-  smallInput: { width: 80 },
-  textArea: { minHeight: 100 },
-  abiGrid: { flexDirection: 'row', gap: Spacing.xs },
-  abiBox:  { flex: 1, alignItems: 'center', gap: 4 },
-  abiLabel:{ fontSize: FontSize.xs, color: Colors.textSecondary },
-  abiInput:{ backgroundColor: Colors.surface, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: Spacing.xs, color: Colors.textPrimary, width: '100%', textAlign: 'center' },
-  chip:      { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
-  chipActive:{ borderColor: Colors.gold, backgroundColor: Colors.gold + '22' },
-  chipTxt:   { fontSize: FontSize.xs, color: Colors.textSecondary },
-  chipTxtActive: { color: Colors.gold, fontWeight: FontWeight.bold },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  effectGroupBlock: { marginTop: Spacing.xs, gap: 4 },
-  effectGroupLabel: { fontSize: 10, color: Colors.textDim, letterSpacing: 1, fontWeight: FontWeight.bold, textTransform: 'uppercase' },
-  searchResults: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.border, marginTop: 4, overflow: 'hidden',
-  },
-  searchResultRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  searchResultTxt: { color: Colors.textPrimary, fontSize: FontSize.sm, flex: 1 },
-  searchResultAdd: { color: Colors.gold, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  selectedSpellRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.gold + '11', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gold + '66',
-    padding: Spacing.sm,
-  },
-  selectedSpellTxt: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: FontWeight.bold },
-  selectedSpellChange: { color: Colors.gold, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  spellGrantCard: {
-    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, gap: 6,
-  },
-  spellGrantName: { flex: 1, color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  senseInputRow: { flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' },
-  senseAddBtn: { backgroundColor: Colors.gold, borderRadius: Radius.md, paddingHorizontal: Spacing.md, justifyContent: 'center' },
-  senseAddTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-
-  traitCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm,
-  },
-  traitCardName: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  traitCardMeta: { fontSize: FontSize.xs, color: Colors.textDim, marginTop: 2 },
-  traitCardCaret: { fontSize: FontSize.lg, color: Colors.textDim },
-
-  backdrop: { flex: 1, backgroundColor: '#000000bb', justifyContent: 'flex-end' },
-  traitModalSheet: {
-    backgroundColor: Colors.surfaceHigh,
-    borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
-    padding: Spacing.lg, maxHeight: '85%',
-  },
-  traitModalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gold, marginBottom: Spacing.md, textAlign: 'center' },
-  effectPanel: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.sm, gap: Spacing.sm, marginTop: Spacing.xs,
-  },
-  effectNote: { fontSize: FontSize.xs, color: Colors.textDim, lineHeight: 16, fontStyle: 'italic' },
-  rowInline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  inlineLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.bold },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: Colors.border },
-  checkboxChecked: { backgroundColor: Colors.gold, borderColor: Colors.gold },
-  toggleTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1 },
-
-  traitModalBtnRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
-  traitDeleteBtn: { flex: 1, backgroundColor: Colors.red + '22', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.red + '66', padding: Spacing.sm, alignItems: 'center' },
-  traitDeleteTxt: { color: Colors.red, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  traitDoneBtn: { flex: 2, backgroundColor: Colors.gold, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center' },
-  traitDoneTxt: { color: Colors.bg, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-});

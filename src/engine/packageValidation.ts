@@ -194,7 +194,7 @@ export function validatePackageForImport(
   for (const c of flattenPackageContents(pack.homebrew)) packLookup.set(`${c.type}:${c.item.id}`, c.item);
   const { unresolved } = buildDependencyClosure(selectedRefs, ref => {
     const inPack = packLookup.get(`${ref.type}:${ref.id}`);
-    if (inPack) return inPack as HomebrewContent & { rulesetId?: string };
+    if (inPack) return inPack;
     return localLookup(ref);
   });
   // Only report a missing dependency for types that are ALWAYS homebrew-

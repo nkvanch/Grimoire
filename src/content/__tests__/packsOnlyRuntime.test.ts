@@ -32,9 +32,9 @@ import { spellRepo } from '../spellRepo';
 import { itemRepo } from '../itemRepo';
 import { getSubclassesForClass } from '../subclasses';
 import { useHomebrewStore } from '../../store/homebrewStore';
-import { applyPoolChoiceToEntity } from '../../engine/leveling';
+import { applyPoolChoiceToEntity } from '../../engine/levelingPoolChoices';
 import { buildDemoCharacter } from '../../engine/demoCharacter';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../../engine/defaults';
 import { Entity, RulesetId } from '../../engine/types';
 
 const R2024 = 'dnd5e-2024' as RulesetId;

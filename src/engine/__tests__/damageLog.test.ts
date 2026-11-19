@@ -1,7 +1,9 @@
 // The damage log: what landed, stamped with the creature's own turn counter, and "damage taken since your last turn".
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyDamage, startTurn, applyWildShapeDamage } from '../combat';
+import { startTurn } from '../combat';
+import { applyWildShapeDamage } from '../combatWildShape';
+import { applyDamage } from '../combatDamage';
 import { damageTakenSince, logDamage } from '../damageLog';
 import { takeRest } from '../rest';
 import type { Entity } from '../types';
@@ -55,7 +57,7 @@ describe('damage log', () => {
   });
   it('Wild Shape: damage the form took is logged once, and the overflow that reverts it is logged once', () => {
     let e = base();
-    e = { ...e, wildShapeState: { active: true, formId: 'wolf', beastHp: 5, beastHpMax: 11, expiresAt: { unit: 'hours', remaining: 1 } as never } } as Entity;
+    e = { ...e, wildShapeState: { active: true, formId: 'wolf', beastHp: 5, beastHpMax: 11, expiresAt: { unit: 'hours', remaining: 1 } as never } };
     const out = applyWildShapeDamage(e, 9, DEFAULT_RULES);
     expect(damageTakenSince(out, 0)).toBe(9);
   });

@@ -11,7 +11,7 @@ import type { Entity, BeastForm, ActivationOption } from './types';
 import { WILD_SHAPE_2014_CLASS_ID } from './ruleset/dnd5e';
 import { beastForms } from '../content/runtimeRules';
 import { getClassLevels } from './multiclass';
-import { collectAllEffects } from './pipeline';
+import { collectAllEffects } from './collectEffects';
 
 export type WildShapeLimits = {
   druidLevel: number;

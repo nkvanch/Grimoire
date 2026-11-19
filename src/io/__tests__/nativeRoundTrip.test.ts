@@ -24,13 +24,13 @@ run('characters saved by the native app', () => {
 
     it(`${file}: opened and saved with no change imports as the same character`, () => {
       const before = parsePortableCharacter(original).entity;
-      const after = parsePortableCharacter(fs.readFileSync(path.join(DIR!, 'unchanged', file), 'utf8')).entity;
+      const after = parsePortableCharacter(fs.readFileSync(path.join(DIR, 'unchanged', file), 'utf8')).entity;
       expect(after).toEqual(before);
     });
 
     it(`${file}: the one change the native engine made arrives intact and nothing else moved`, () => {
       const before = parsePortableCharacter(original).entity;
-      const after = parsePortableCharacter(fs.readFileSync(path.join(DIR!, 'changed', file), 'utf8')).entity;
+      const after = parsePortableCharacter(fs.readFileSync(path.join(DIR, 'changed', file), 'utf8')).entity;
       const slotsBefore = slotsOf(before as never);
       const expected = JSON.parse(JSON.stringify(before));
       const first = slotsBefore['1'];
@@ -88,7 +88,7 @@ run('characters with unknown members saved by the native app (DATA-007)', () => 
       const text = fs.readFileSync(path.join(UNKNOWN_DIR, file), 'utf8');
       const native = JSON.parse(text) as { entity: unknown };
       const imported = parsePortableCharacter(text).entity;
-      const clean = parsePortableCharacter(fs.readFileSync(path.join(DIR!, 'unknown-fields-clean', file), 'utf8')).entity;
+      const clean = parsePortableCharacter(fs.readFileSync(path.join(DIR, 'unknown-fields-clean', file), 'utf8')).entity;
 
       // unknown members change nothing: without them the import equals the import of the clean character. An owned item the file
       // carries without an id is given a fresh one on every import, so those ids are compared by position, not by value.

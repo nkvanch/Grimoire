@@ -1,5 +1,5 @@
 // 2024 conditions: Incapacitated and the conditions that include it end Concentration and give Disadvantage on Initiative.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { applyCondition } from '../conditions';
 import { CONDITIONS_2024 } from '../../content/conditions/conditions2024';
@@ -26,7 +26,7 @@ describe('2024 conditions', () => {
     expect(e.derived.advantageStates.some(a => a.target === 'initiative' && a.state === 'disadvantage')).toBe(true);
   });
   it('a 2014 character keeps Concentration and has no initiative penalty', () => {
-    const e = apply(concentrating('dnd5e-2014'), 'incapacitated', ALL_CONDITIONS as never);
+    const e = apply(concentrating('dnd5e-2014'), 'incapacitated', ALL_CONDITIONS);
     expect(e.spellcasting!.concentrating).toBe('bless');
     expect(e.derived.advantageStates.some(a => a.target === 'initiative')).toBe(false);
   });

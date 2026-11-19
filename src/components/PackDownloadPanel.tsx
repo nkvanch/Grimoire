@@ -9,6 +9,7 @@ import { downloadText, parseCatalog, catalogStatus, checkPackUrl, CatalogStatus 
 import { installedOfficialPacks } from '../content/officialPackService';
 import { getMeta, setMeta } from '../db/appMetaRepo';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
+import { reportFailure } from '../utils/alert';
 
 const CATALOG_KEY = 'pack_catalog_url';
 
@@ -57,7 +58,7 @@ export function PackDownloadPanel({ onDownloaded, disabled }: { onDownloaded: (t
         autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="pack-download-url" />
       {urlProblem && <Text style={styles.problem}>{urlProblem}</Text>}
       <Pressable style={[styles.btn, (!url.trim() || !!urlProblem || !!busy || disabled) && styles.off]} disabled={!url.trim() || !!urlProblem || !!busy || disabled}
-        onPress={() => { void downloadOne(url); }} testID="pack-download-go">
+        onPress={() => { void downloadOne(url).catch(reportFailure('download the pack')); }} testID="pack-download-go">
         {busy === url ? <ActivityIndicator color={Colors.bg} /> : <Text style={styles.btnTxt}>Download</Text>}
       </Pressable>
 
@@ -67,7 +68,7 @@ export function PackDownloadPanel({ onDownloaded, disabled }: { onDownloaded: (t
         autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="pack-catalog-url" />
       {catalogProblem && <Text style={styles.problem}>{catalogProblem}</Text>}
       <Pressable style={[styles.btnAlt, (!catalogUrl.trim() || !!catalogProblem || !!busy || disabled) && styles.off]} disabled={!catalogUrl.trim() || !!catalogProblem || !!busy || disabled}
-        onPress={() => { void checkCatalog(); }} testID="pack-catalog-check">
+        onPress={() => { void checkCatalog().catch(reportFailure('check the pack catalog')); }} testID="pack-catalog-check">
         {busy === 'catalog' ? <ActivityIndicator color={Colors.gold} /> : <Text style={styles.btnAltTxt}>Check for packs and updates</Text>}
       </Pressable>
       {message && <Text style={styles.problem} testID="pack-download-message">{message}</Text>}
@@ -78,7 +79,7 @@ export function PackDownloadPanel({ onDownloaded, disabled }: { onDownloaded: (t
             <Text style={styles.meta}>{e.status === 'new' ? 'Not installed' : e.status === 'update' ? 'Update available' : 'Up to date'} · {Math.round(e.size / 1024)} KB</Text>
           </View>
           {e.status !== 'installed' && (
-            <Pressable style={[styles.get, !!busy && styles.off]} disabled={!!busy || disabled} onPress={() => { void downloadOne(e.url, e.sha256); }} testID={`pack-get-${e.id}`}>
+            <Pressable style={[styles.get, !!busy && styles.off]} disabled={!!busy || disabled} onPress={() => { void downloadOne(e.url, e.sha256).catch(reportFailure('download the pack')); }} testID={`pack-get-${e.id}`}>
               <Text style={styles.getTxt}>{e.status === 'update' ? 'Update' : 'Get'}</Text>
             </Pressable>
           )}

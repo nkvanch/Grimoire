@@ -5,9 +5,9 @@
 // direction) and the later AddCustomFeatureModal (grant direction) — tests
 // exercise both, since the function is meant to be symmetric.
 import { buildFeatureGrantRows } from '../featureGrantRows';
-import { removeFeature } from '../../../engine/leveling';
+import { removeFeature } from '../../../engine/levelingAsiFeats';
 import { recomputeDerived } from '../../../engine/pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity, FeatureInstance } from '../../../engine/types';
 
 function baseEntity(features: FeatureInstance[] = []): Entity {

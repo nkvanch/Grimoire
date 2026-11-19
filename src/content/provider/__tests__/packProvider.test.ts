@@ -4,7 +4,7 @@ import { buildSrd51Pack, buildSrd521Pack } from '../../packs/srdPacks';
 import { packContentProvider, orderPacks, PackProviderError, InstalledPack } from '../contentProvider';
 import { staticContentProvider } from '../staticProvider';
 import { createCharacter, pickSpells, spellCandidates, MissingContentError } from '../createCharacter';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 import type { RulesetId } from '../../../engine/types';
 
 const R2024 = 'dnd5e-2024' as RulesetId;
@@ -49,7 +49,7 @@ describe('pack content provider', () => {
     const over = file(srd);
     over.manifest = { ...over.manifest, id: 'user.override', dependencies: [{ id: 'grimoire.srd.5.2.1' }] };
     over.homebrew!.classes = [{ ...over.homebrew!.classes![0], name: 'Overridden' }];
-    over.homebrew = { classes: over.homebrew!.classes } as never;
+    over.homebrew = { classes: over.homebrew!.classes };
     const p = packContentProvider([over, srd, base], R2024);
     expect(p.getClass(srd.homebrew!.classes![0].id)?.name).toBe('Overridden');
     expect(p.classes()).toHaveLength(12);

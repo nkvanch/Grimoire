@@ -7,8 +7,8 @@
 // the ACTUAL exported function that file's onDamage callback calls forwards
 // the flag correctly, not just that applyWildShapeDamage itself supports it
 // (that's already covered by combat.test.ts's own native-defense suite).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { startWildShape } from '../combat';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { startWildShape } from '../combatWildShape';
 import { dmDamageMutation } from '../dmCharacterDamage';
 import { Entity } from '../types';
 

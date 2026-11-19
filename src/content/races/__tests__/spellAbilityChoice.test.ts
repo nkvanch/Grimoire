@@ -1,9 +1,11 @@
 // The 2024 rules let the player choose Intelligence, Wisdom or Charisma as the spellcasting ability of the Elf, Gnome and Tiefling
 // lineage spells and of Magic Initiate. The choice is a real pending pick and the spells use the ability chosen.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { recomputeDerived } from '../../../engine/pipeline';
-import { applyGrant, queueChoice, applyPoolChoiceToEntity } from '../../../engine/leveling';
-import { resolveSpellCastingContexts } from '../../../engine/actionCards';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { queueChoice } from '../../../engine/levelingGrants';
+import { applyGrant } from '../../../engine/levelingGrants';
+import { resolveSpellCastingContexts } from '../../../engine/spellCastingContext';
 import { grantedSpellAbility } from '../../../engine/grantedSpellAbility';
 import { Entity, Race, Feat } from '../../../engine/types';
 import { raceElf2024, raceGnome2024, raceTiefling2024 } from '../races2024';

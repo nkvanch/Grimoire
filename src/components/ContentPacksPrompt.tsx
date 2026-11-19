@@ -3,13 +3,15 @@
 // Used on first launch, from the Packages list and from the banner that tells a 5.5e character creator the 2024 content
 // is not installed. Nothing is installed until the player taps; skipping changes nothing.
 import { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable } from './AccessibleControls';
 import { Modal } from './AppModal';
 import { BUNDLED_PACKS, installBundledPacks } from '../content/bundledPacks';
 import { installedOfficialPacks } from '../content/officialPackService';
 import { sqlitePackStore } from '../content/officialPackStore';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
+import { reportFailure } from '../utils/alert';
 
 export function ContentPacksPrompt({ visible, onClose, preselect = [] }: {
   visible: boolean; onClose: (installed: boolean) => void; preselect?: readonly string[];
@@ -51,10 +53,10 @@ export function ContentPacksPrompt({ visible, onClose, preselect = [] }: {
           {problems.map((p, i) => <Text key={i} style={styles.problem}>{p}</Text>)}
           {busy ? <ActivityIndicator color={Colors.gold} /> : (
             <View style={styles.col}>
-              <Pressable style={styles.primary} onPress={() => { void install(BUNDLED_PACKS.map(p => p.id)); }} testID="content-packs-both">
+              <Pressable style={styles.primary} onPress={() => { void install(BUNDLED_PACKS.map(p => p.id)).catch(reportFailure('install the content packs')); }} testID="content-packs-both">
                 <Text style={styles.primaryTxt}>Install both (recommended)</Text>
               </Pressable>
-              <Pressable style={[styles.secondary, chosen.length === 0 && { opacity: 0.45 }]} disabled={chosen.length === 0} onPress={() => { void install(chosen); }} testID="content-packs-chosen">
+              <Pressable style={[styles.secondary, chosen.length === 0 && { opacity: 0.45 }]} disabled={chosen.length === 0} onPress={() => { void install(chosen).catch(reportFailure('install the content packs')); }} testID="content-packs-chosen">
                 <Text style={styles.secondaryTxt}>Install selected{chosen.length > 0 ? ` (${chosen.length})` : ''}</Text>
               </Pressable>
               <Pressable style={styles.skip} onPress={() => onClose(false)} testID="content-packs-skip"><Text style={styles.skipTxt}>Skip for now</Text></Pressable>

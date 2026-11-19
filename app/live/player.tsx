@@ -6,7 +6,7 @@ import { useSessionRuntime, getSessionRuntime } from '../../src/session/runtime'
 import { describeChanges, describeRewardKind, describeSessionLogKind, formatContentId } from '../../src/session/roles';
 import { describeEffectComponent, parseSignedInt } from '../../src/session/prepEdit';
 import { ChangeRequest, CharacterChange, PublicPersona } from '../../src/session/types';
-import { LiveScreen, Section, Card, Btn, Field, Row, Badge, Muted, Body, NotCapable, Chip } from '../../src/components/live/LiveUi';
+import { LiveScreen, Section, Card, Btn, Field, Row, Badge, Muted, Body, NotCapable } from '../../src/components/live/LiveUi';
 import { Alert } from '../../src/utils/alert';
 
 function parsePositiveInt(s: string): number | null {

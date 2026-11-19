@@ -3,7 +3,8 @@
 import { rulesetLabel } from '../../src/content/rulesets';
 import { suggestFirst } from '../../src/content/rulesetSuggestion';
 import { useCharacterStore as useCreationDraftStore } from '../../src/store/characterStore';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FlatList } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -14,6 +15,7 @@ import { usePendingSelectionStore } from '../../src/store/pendingSelectionStore'
 import { NonSrdBadge, isNonSrd } from '../../src/components/NonSrdBadge';
 import { MissingRulesetContentBanner } from '../../src/components/MissingRulesetContentBanner';
 import { useOfficialContentVersion } from '../../src/hooks/useOfficialContentVersion';
+import { useEditionFilter, EditionFilterSections } from '../../src/components/EditionFilter';
 import { EditionBadge } from '../../src/components/EditionBadge';
 import { FilterChipRow, MultiSelectChipRow, FilterSection, OfficialHomebrewChipRow, ActiveFilterChips } from '../../src/components/FilterChipRow';
 import { SortControl } from '../../src/components/SortControl';
@@ -67,7 +69,7 @@ export default function ClassScreen() {
   // Ruleset — real field, sparsely populated app-wide (no official class
   // currently sets it) — the shared FilterChipRow auto-hides at <=1 option,
   // so this is a no-op today and lights up once ruleset-tagged classes exist.
-  const [rulesetFilter, setRulesetFilter] = useState<string | null>((savedFilters.rulesetFilter as string) ?? null);
+  const edition = useEditionFilter(savedFilters);   // Game / Version, starting on the character's own rules
   const [officialFilter, setOfficialFilter] = useState<'all' | 'official' | 'homebrew'>((savedFilters.officialFilter as 'all' | 'official' | 'homebrew') ?? 'all');
   // FILTER-METADATA-1: real, now-populated fields on official CharClass
   // entries (src/content/classes/index.ts) — Saving-Throw/Armor/Weapon
@@ -83,12 +85,12 @@ export default function ClassScreen() {
     setBrowseState(SCREEN_KEY, {
       search, sort,
       filters: {
-        casterFilter, hitDieFilter, rulesetFilter, officialFilter,
+        casterFilter, hitDieFilter, ...edition.toSave, officialFilter,
         saveFilter: Array.from(saveFilter), armorFilter: Array.from(armorFilter), weaponFilter: Array.from(weaponFilter),
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sort, casterFilter, hitDieFilter, rulesetFilter, officialFilter, saveFilter, armorFilter, weaponFilter]);
+  }, [search, sort, casterFilter, hitDieFilter, edition.choice, officialFilter, saveFilter, armorFilter, weaponFilter]);
 
   // NESTED-HOMEBREW-1 / SAVE-AND-ADD-1: navigate straight to a homebrew
   // class's own detail screen once its builder saves and returns here —
@@ -109,9 +111,7 @@ export default function ClassScreen() {
   const sortOptions = classSortOptions(c => homebrewClasses.some(hc => hc.id === c.id));
 
   const availableHitDice = Array.from(new Set(globalContentDB.classes.map(c => c.hitDie))).sort((a, b) => a - b);
-  const availableRulesets = Array.from(new Set(globalContentDB.classes.map(c => c.rulesetId).filter((r): r is NonNullable<typeof r> => !!r)))
-    .map(String).sort().map(r => ({ id: r, label: r }));
-  const availableSaves = (Array.from(new Set(globalContentDB.classes.flatMap(c => c.savingThrows ?? []))) as Ability[])
+  const availableSaves = (Array.from(new Set(globalContentDB.classes.flatMap(c => c.savingThrows ?? []))))
     .map(a => ({ id: a, label: ABILITY_LABELS[a] }));
   const availableArmor = Array.from(new Set(globalContentDB.classes.flatMap(c => c.armorProfs ?? [])))
     .map(a => ({ id: a, label: ARMOR_LABELS[a] ?? a }));
@@ -124,25 +124,26 @@ export default function ClassScreen() {
     c.name.toLowerCase().includes(search.toLowerCase()) &&
     (!casterFilter || (CASTER_TYPE[c.id] ?? 'Martial') === casterFilter) &&
     (!hitDieFilter || c.hitDie === hitDieFilter) &&
-    (!rulesetFilter || c.rulesetId === rulesetFilter) &&
+    edition.matches(c, true) &&
     (saveFilter.size === 0 || Array.from(saveFilter).some(a => c.savingThrows?.includes(a))) &&
     (armorFilter.size === 0 || Array.from(armorFilter).some(a => c.armorProfs?.includes(a))) &&
     (weaponFilter.size === 0 || Array.from(weaponFilter).some(w => c.weaponProfs?.includes(w)))
   ), sortOptions, sort), suggestedRuleset);
   const filteredHomebrewClasses = officialFilter === 'official' ? [] : homebrewClasses.filter(c =>
+    edition.matches(c, false) &&
     c.name.toLowerCase().includes(search.toLowerCase())
   );
   const activeFilterChips = [
     ...(casterFilter ? [{ key: 'caster', label: casterFilter, onClear: () => setCasterFilter(null) }] : []),
     ...(hitDieFilter ? [{ key: 'hd', label: `d${hitDieFilter}`, onClear: () => setHitDieFilter(null) }] : []),
-    ...(rulesetFilter ? [{ key: 'ruleset', label: rulesetFilter, onClear: () => setRulesetFilter(null) }] : []),
+    ...edition.chips,
     ...(officialFilter !== 'all' ? [{ key: 'official', label: officialFilter === 'official' ? 'Official' : 'Homebrew', onClear: () => setOfficialFilter('all') }] : []),
     ...Array.from(saveFilter).map(a => ({ key: `save_${a}`, label: `${ABILITY_LABELS[a]} save`, onClear: () => setSaveFilter(prev => { const n = new Set(prev); n.delete(a); return n; }) })),
     ...Array.from(armorFilter).map(a => ({ key: `armor_${a}`, label: `${ARMOR_LABELS[a] ?? a} armor`, onClear: () => setArmorFilter(prev => { const n = new Set(prev); n.delete(a); return n; }) })),
     ...Array.from(weaponFilter).map(w => ({ key: `weapon_${w}`, label: `${WEAPON_LABELS[w] ?? w} weapons`, onClear: () => setWeaponFilter(prev => { const n = new Set(prev); n.delete(w); return n; }) })),
   ];
   function clearAllFilters() {
-    setCasterFilter(null); setHitDieFilter(null); setRulesetFilter(null); setOfficialFilter('all');
+    setCasterFilter(null); setHitDieFilter(null); edition.clear(); setOfficialFilter('all');
     setSaveFilter(new Set()); setArmorFilter(new Set()); setWeaponFilter(new Set());
   }
 
@@ -187,9 +188,7 @@ export default function ClassScreen() {
               onChange={v => setHitDieFilter(v === null ? null : Number(v))}
             />
           </FilterSection>
-          <FilterSection label="Ruleset">
-            <FilterChipRow options={availableRulesets} value={rulesetFilter} onChange={setRulesetFilter} />
-          </FilterSection>
+          <EditionFilterSections edition={edition} official={globalContentDB.classes} homebrew={homebrewClasses} />
           <FilterSection label="Saving Throw Proficiency">
             <MultiSelectChipRow options={availableSaves} values={saveFilter} onChange={setSaveFilter} />
           </FilterSection>
@@ -313,7 +312,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: FontSize.xl, fontWeight: FontWeight.black,
     color: Colors.textPrimary, textAlign: 'center',
-    paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md,
   },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
   search: {

@@ -1,7 +1,7 @@
 // Bonuses that apply in a Wild Shape form, and lifting the medium armor Dex cap.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { startWildShape } from '../combat';
+import { startWildShape } from '../combatWildShape';
 import { ALL_BEAST_FORMS } from '../../content/beastforms';
 import type { Entity, Feature, Effect } from '../types';
 

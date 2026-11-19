@@ -172,7 +172,7 @@ export function getSpellSlotsForClassLevel(
   if (!table) return null;
   const row = table.find(r => r.level === level);
   if (!row) return null;
-  return row.slots as [number,number,number,number,number,number,number,number,number];
+  return row.slots;
 }
 
 // ── Multiclass spellcasting ─────────────────────────────────────────────────

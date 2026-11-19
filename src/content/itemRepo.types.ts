@@ -1,8 +1,6 @@
 // ============================================================================
 // FILE: src/content/itemRepo.types.ts
-// Shared types for itemRepo.ts (web/default) and itemRepo.native.ts
-// (SQLite-backed). Mirrors spellRepo.types.ts's design exactly — see that
-// file's header for the full rationale.
+// Types for itemRepo.ts. Mirrors spellRepo.types.ts's design exactly.
 // ============================================================================
 import { Item, ItemInstance, RulesetId } from '../engine/types';
 
@@ -23,9 +21,8 @@ export type ItemIndexEntry = {
    * Whether any feature on this item has a 'damage' abilityEffect, and that
    * feature's activation range — the weapon-classification fallback
    * TabInventory.tsx's isWeapon()/isRangedWeapon() use for items whose name
-   * and properties don't otherwise identify them as a weapon. Derived at
-   * generation time (see scripts/generate-content-db.mjs's
-   * findDamageFeature) so Tier 1 doesn't need the full features array just
+   * and properties don't otherwise identify them as a weapon. Derived by
+   * toItemIndexEntry below so Tier 1 doesn't need the full features array just
    * for this one check.
    */
   hasDamageEffect: boolean;

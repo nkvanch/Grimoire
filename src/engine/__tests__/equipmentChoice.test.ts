@@ -1,6 +1,7 @@
 // src/engine/__tests__/equipmentChoice.test.ts
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
-import { queueChoice, resolveEquipmentChoice } from '../leveling';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
+import { resolveEquipmentChoice } from '../levelingResolveChoice';
+import { queueChoice } from '../levelingGrants';
 import { itemMatchesConstraint } from '../../content/items/itemBrowse';
 import type { ChoiceDefinition } from '../types';
 import type { ItemIndexEntry } from '../../content/itemRepo.types';

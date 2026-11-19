@@ -31,14 +31,14 @@ it('starts as built: 37 from Constitution 12, nothing moved', () => {
 });
 
 it('an item that sets Constitution (Amulet of Health, 19) raises the maximum by 3 x 7, and taking it off brings it back', () => {
-  const worn = r(wear(sorcerer(), conItem('amulet', [setCon(19)])));
+  const worn = r(wear(sorcerer(), conItem('test_amulet', [setCon(19)])));
   expect(hp(worn)).toMatchObject({ maximum: 58, current: 58 });
   const off = r({ ...worn, inventory: { ...worn.inventory, equipped: [] } });
   expect(hp(off)).toMatchObject({ maximum: 37, current: 37 });
 });
 
 it('damage taken is kept, and a loss never takes current hit points below 0', () => {
-  const worn = r(wear(sorcerer(), conItem('amulet', [setCon(19)])));
+  const worn = r(wear(sorcerer(), conItem('test_amulet', [setCon(19)])));
   const hurt = { ...worn, resources: { ...worn.resources, hp: { ...hp(worn), current: 40 } } };   // 18 damage
   const off = r({ ...hurt, inventory: { ...hurt.inventory, equipped: [] } });
   expect(hp(off)).toMatchObject({ maximum: 37, current: 19 });
@@ -89,13 +89,13 @@ it('a character saved before this rule starts from its present modifier and noth
 
 it('a monster is left alone (its level stands for its CR, not its hit dice)', () => {
   const m = { ...sorcerer(), kind: 'monster' as const };
-  expect(hp(r(wear(m, conItem('amulet', [setCon(19)])))).maximum).toBe(37);
+  expect(hp(r(wear(m, conItem('test_amulet', [setCon(19)])))).maximum).toBe(37);
   void ({} as Feature);
 });
 
 it('a character saved before this rule while wearing an Amulet of Health gets the hit points it never had, on the first load', () => {
   const s = sorcerer();
   const { conModApplied: _drop, ...old } = hp(s);                     // as the old rules left it: 37, the amulet never counted
-  const wearing = wear({ ...s, resources: { ...s.resources, hp: old } }, conItem('amulet', [setCon(19)]));
+  const wearing = wear({ ...s, resources: { ...s.resources, hp: old } }, conItem('test_amulet', [setCon(19)]));
   expect(hp(r(wearing))).toMatchObject({ maximum: 58, current: 58, conModApplied: 4 });
 });

@@ -1,4 +1,4 @@
-// src/sync/diff.ts
+// src/engine/diff.ts
 // Recursive diff/merge for entity sync — replaces the old "always send and
 // apply the full entity" model, which caused two real problems Nick reported:
 //   1. Every minor change (e.g. -1 HP) sent the ENTIRE character over the

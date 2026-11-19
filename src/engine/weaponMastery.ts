@@ -10,7 +10,8 @@
 // mastered and what their property does.
 // ============================================================================
 import { Entity } from './types';
-import { collectAllEffects, foldKnownBonuses } from './pipeline';
+import { foldKnownBonuses } from './derivedStats';
+import { collectAllEffects } from './collectEffects';
 import {
   WEAPON_MASTERY_TABLE, WeaponMasteryEntry, MasteryEligibility, MasteryProperty, isEligibleForMastery, masteryEntryFor,
 } from '../content/weaponMastery';

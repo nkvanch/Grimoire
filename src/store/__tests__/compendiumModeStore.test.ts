@@ -59,8 +59,10 @@ describe('Per-mode search state is preserved (K)', () => {
     const fs = require('fs') as typeof import('fs');
     const path = require('path') as typeof import('path');
     const read = (p: string) => fs.readFileSync(path.resolve(__dirname, '../../..', p), 'utf8');
+    // the Official view is the screen file plus the files it was split into
+    const readCompendium = () => [read('app/(tabs)/compendium.tsx'), ...fs.readdirSync(path.join(path.resolve(__dirname, '../../..'), 'src/components/compendium/official')).map(f => read('src/components/compendium/official/' + f))].join('\n');
     expect(read('src/components/compendium/HomebrewLibraryView.tsx')).toContain("'compendium.homebrew'");
     expect(read('src/components/compendium/InstalledPackagesView.tsx')).toContain("'compendium.packages'");
-    expect(read('app/(tabs)/compendium.tsx')).toContain("const SCREEN_KEY = 'compendium'");
+    expect(readCompendium()).toContain("const SCREEN_KEY = 'compendium'");
   });
 });

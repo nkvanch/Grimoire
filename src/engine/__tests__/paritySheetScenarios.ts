@@ -1,10 +1,11 @@
 // The character sheet's own changes: equipping and attuning, the bag, coin, conditions and death saves. Prepared characters for the
 // native-parity fixtures, and the one function that applies an operation the way the sheet does. Pure data (no I/O).
 import type { Entity, Item, ItemInstance, Feature, DurationTracker } from '../types';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { equipItem, unequipItem, toggleAttunement } from '../inventory';
 import { applyCondition, removeCondition, reduceExhaustion, tickDurations, setFlag } from '../conditions';
-import { recordDeathSave, startWildShape, endWildShape, applyWildShapeDamage } from '../combat';
+import { startWildShape, endWildShape, applyWildShapeDamage } from '../combatWildShape';
+import { recordDeathSave } from '../combatDamage';
 import { recomputeDerived } from '../pipeline';
 import { isStatefulItem, generateItemInstanceId } from '../itemMechanics';
 import { lookupConditionFor } from '../../content/conditions/lookup';
@@ -72,7 +73,7 @@ export function buildSheetCases(base: Entity): SheetCase[] {
     (e.inventory as unknown as Json).equipped = equipped;
     (e.inventory as unknown as Json).carried = carried;
   };
-  const res = (e: Entity & Json): Json => e.resources as unknown as Json;
+  const res = (e: Entity & Json): Json => e.resources;
   const hp = (e: Entity & Json): Json => res(e).hp as Json;
   const addFeature = (e: Entity & Json, f: Json) => { e.features = [...e.features, f as never]; };
 

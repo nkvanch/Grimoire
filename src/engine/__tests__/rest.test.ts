@@ -3,7 +3,7 @@
 // added during multiclassing and is easy to get backwards (recharging the
 // wrong pool, or recharging both when only one should refresh), so it gets
 // dedicated coverage rather than relying on manual device testing.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import {
   takeRest, spendHitDie, discardHitDie, spendHitDieManual, currentHitDieSize,
   hitDiceRecoveryNeedsAllocation, hitDiceRecoveryBudget, expendedHitDicePools,

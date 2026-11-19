@@ -4,9 +4,8 @@
 // campaign/DM overrides. Other explicit base/resource editors remain direct.
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { Entity, CampaignRules, Ability } from '../../engine/types';

@@ -15,9 +15,8 @@
 // screen, compile once on save" shape TraitListEditor already established
 // for DraftTrait/Feature.
 import { useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import {
@@ -31,7 +30,7 @@ import { TOOL_CATEGORY_LABELS } from '../../content/tools';
 import { LANGUAGE_CATEGORY_LABELS } from '../../content/languages';
 import { SafeBottomView } from '../SafeBottomView';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
-import { styles as traitStyles } from './TraitEditor';
+import { styles as traitStyles } from './traitEditorStyles';
 
 export type { DraftChoice, AuthorableChoiceKind, PoolMode };
 export { newDraftChoice };

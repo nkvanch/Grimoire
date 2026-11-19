@@ -1,5 +1,5 @@
 // Auras that benefit allies: offered from party sheets, applied once the player marks themselves inside, numbers from the source.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
 import { aurasOffered, setInAura, isInAura, refreshReceivedAuras } from '../auras';
 import { suspendFeature } from '../suspension';

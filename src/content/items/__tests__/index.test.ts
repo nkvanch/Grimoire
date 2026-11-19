@@ -6,7 +6,7 @@
 import { FULL_ITEM_LIBRARY, itemGlamouredStuddedLeatherArmor, itemBroochOfShielding } from '../index';
 import { equipItem } from '../../../engine/inventory';
 import { itemRequiresAttunement } from '../../../engine/inventory';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity, ItemInstance } from '../../../engine/types';
 
 const NEW_ITEM_IDS = [

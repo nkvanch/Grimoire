@@ -9,6 +9,7 @@ import { Ability, DraftTrait, DraftRider } from '../../engine/types';
 import { hasAdvancedFields } from '../../content/traitCompiler';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 import { NAME_INPUT } from '../nameInput';
+import { newId } from '../../engine/ids';
 
 type Props = { trait: DraftTrait; set: (patch: Partial<DraftTrait>) => void };
 
@@ -40,7 +41,7 @@ function Toggle({ label, value, onPress }: { label: string; value: boolean; onPr
 }
 
 const newRider = (): DraftRider => ({
-  localId: `rd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`,
+  localId: newId('rd'),
   name: '', on: 'weapon_attack', dice: '', damageType: '', note: '', limit: 'once_per_turn', requires: '', clears: '', usesPool: false,
 });
 
@@ -165,8 +166,8 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
                 <>
                   <Text style={styles.label}>Plus the source's modifier</Text>
                   <Chips
-                    options={[{ key: '' as Ability | '', label: 'None' }, ...ABILITIES.map(a => ({ key: a as Ability | '', label: a.toUpperCase() }))]}
-                    value={(trait.auraAddAbility ?? '') as Ability | ''} onPick={k => set({ auraAddAbility: k })}
+                    options={[{ key: '', label: 'None' }, ...ABILITIES.map(a => ({ key: a, label: a.toUpperCase() }))]}
+                    value={(trait.auraAddAbility ?? '')} onPick={k => set({ auraAddAbility: k })}
                   />
                 </>
               )}
@@ -181,7 +182,7 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
           <Toggle label="AC and speed bonuses also apply in a Wild Shape form" value={!!trait.appliesInBeastForm} onPress={() => set({ appliesInBeastForm: !trait.appliesInBeastForm })} />
           <Text style={styles.section}>A MOVEMENT SPEED FOR A WHILE</Text>
           <Chips
-            options={[{ key: '' as 'fly' | 'swim' | 'climb' | 'walk' | '', label: 'None' }, { key: 'fly', label: 'Fly' }, { key: 'swim', label: 'Swim' }, { key: 'climb', label: 'Climb' }, { key: 'walk', label: 'Walking +' }]}
+            options={[{ key: '', label: 'None' }, { key: 'fly', label: 'Fly' }, { key: 'swim', label: 'Swim' }, { key: 'climb', label: 'Climb' }, { key: 'walk', label: 'Walking +' }]}
             value={trait.grantSpeedType ?? ''} onPick={k => set({ grantSpeedType: k })}
           />
           {!!trait.grantSpeedType && (
@@ -217,12 +218,12 @@ export function TraitAdvancedEditor({ trait, set }: Props) {
           <Text style={styles.label}>Instead of</Text>
           <Chips
             options={ABILITIES.map(a => ({ key: a, label: a.toUpperCase() }))}
-            value={(trait.substituteFrom || undefined) as Ability | undefined} onPick={k => set({ substituteFrom: k })}
+            value={(trait.substituteFrom || undefined)} onPick={k => set({ substituteFrom: k })}
           />
           <Text style={styles.label}>Use</Text>
           <Chips
             options={ABILITIES.map(a => ({ key: a, label: a.toUpperCase() }))}
-            value={(trait.substituteTo || undefined) as Ability | undefined} onPick={k => set({ substituteTo: k })}
+            value={(trait.substituteTo || undefined)} onPick={k => set({ substituteTo: k })}
           />
           <Text style={styles.label}>For</Text>
           <View style={styles.chipWrap}>

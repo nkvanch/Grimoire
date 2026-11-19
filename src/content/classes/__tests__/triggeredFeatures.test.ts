@@ -5,8 +5,8 @@
 // the first real batch, and proves getTriggeredFeatures actually surfaces
 // them once granted onto an entity (not just present in the raw content).
 import { ALL_CLASS_PROGRESSIONS } from '../index';
-import { getTriggeredFeatures } from '../../../engine/actionCards';
-import { makeEmptyEntity } from '../../../store/characterStore';
+import { getTriggeredFeatures } from '../../../engine/actionCardAvailability';
+import { makeEmptyEntity } from '../../../engine/defaults';
 import { Feature, Grant } from '../../../engine/types';
 
 const EXPECTED_TRIGGERED_IDS = [

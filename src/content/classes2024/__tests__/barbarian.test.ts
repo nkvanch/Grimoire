@@ -1,8 +1,8 @@
 import { newChar, toLevel, bindSubclass, sub, cls } from '../testKit';
 import { recomputeDerived } from '../../../engine/pipeline';
-import { DEFAULT_RULES } from '../../../store/characterStore';
+import { DEFAULT_RULES } from '../../../engine/defaults';
 import { weaponMasteryCapacity, weaponMasteryRules, setWeaponMasteryPicks, masteredWeaponIds } from '../../../engine/weaponMastery';
-import { applyDamage } from '../../../engine/combat';
+import { applyDamage } from '../../../engine/combatDamage';
 
 describe('Barbarian (2024)', () => {
   it('is a 2024 class with d12, Strength/Constitution saves, and a Rage pool of 2', () => {

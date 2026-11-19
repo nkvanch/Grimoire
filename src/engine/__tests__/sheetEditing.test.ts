@@ -64,7 +64,7 @@ describe('customising an owned item', () => {
   } as unknown as Item;
 
   it('an item that needs attunement by its id alone still needs it as a copy', () => {
-    const amulet = { ...belt, id: 'amulet_of_health', name: 'Amulet of Health' } as Item;
+    const amulet = { ...belt, id: 'amulet_of_health', name: 'Amulet of Health' };
     expect(itemRequiresAttunement(amulet)).toBe(true);
     expect(itemRequiresAttunement(customizedItem(amulet, itemEditsOf(amulet), 'amulet_mine'))).toBe(true);
     expect(itemRequiresAttunement(customizedItem(belt, itemEditsOf(belt), 'belt_mine'))).toBe(false);   // nor gains it
@@ -94,7 +94,7 @@ describe('customising an owned item', () => {
     const gauntlets = { ...belt, id: 'gauntlets', name: 'Gauntlets', features: [] } as unknown as Item;
     const plusTwo = customizedItem(gauntlets, { ...itemEditsOf(gauntlets), abilities: { str: { operation: 'add', value: 2 } } }, 'gauntlets_mine');
     let e = moveOwnedItem(wearing(dwarf(), belt), 'inst-1', belt, mine);
-    e = { ...e, inventory: { ...e.inventory, equipped: [...e.inventory.equipped, { id: 'inst-2', itemId: 'gauntlets_mine', quantity: 1, attuned: true, features: plusTwo.features } as never] } };
+    e = { ...e, inventory: { ...e.inventory, equipped: [...e.inventory.equipped, { id: 'inst-2', itemId: 'gauntlets_mine', quantity: 1, attuned: true, features: plusTwo.features }] } };
     expect(effectiveAbilityScores(e).str).toBe(22);                                   // 15 + 2 = 17, the belt makes it 22, not 24
     expect(effectiveAbilityScores({ ...e, stats: { ...e.stats, str: 23 } }).str).toBe(25);   // 23 + 2 is already higher: the belt does nothing
   });
@@ -129,10 +129,10 @@ describe('the ability breakdown', () => {
       wear(dwarf(), plain('gauntlets', [add(2)]), plain('belt', [set(22, true)])),    // 17, the floor makes it 22
       wear({ ...dwarf(), stats: { ...dwarf().stats, str: 24 } }, plain('belt', [set(22, true)])),   // already higher: 24
     ]) {
-      const trail = explainValue(e, 'str')!;
+      const trail = explainValue(e, 'str');
       expect(trail.total).toBe(effectiveAbilityScores(e).str);
     }
-    const trail = explainValue(wear(dwarf(), plain('gauntlets', [add(2)]), plain('belt', [set(21)])), 'str')!;
+    const trail = explainValue(wear(dwarf(), plain('gauntlets', [add(2)]), plain('belt', [set(21)])), 'str');
     expect(trail.total).toBe(21);
     expect(trail.entries.map(x => x.label)).toEqual(['Base score', 'gauntlets (+2, does not count: the score is set)', 'belt sets it to 21']);
   });

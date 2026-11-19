@@ -1,6 +1,6 @@
 import { exhaustionEffectText, exhaustionSpeedPenalty, usesCumulativeExhaustion } from '../exhaustion';
 import { recomputeDerived } from '../pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { Entity, RulesetId } from '../types';
 
 function entity(ruleset: string | undefined, exhaustion: number): Entity {

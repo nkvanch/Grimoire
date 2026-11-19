@@ -1,14 +1,13 @@
 // src/components/GlobalDiceRoller.tsx
 // Floating dice button + modal. Import and add to any screen that needs it.
 import { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from './Lists';
 import { Pressable, TextInput } from './AccessibleControls';
 import { Modal } from './AppModal';
 import { useDiceLogStore } from '../store/diceLogStore';
 import { ManualRollInput } from './ManualRollInput';
-import { rollWithAdvantage, rollWithDisadvantage } from '../engine/dice';
+import { rollWithAdvantage, rollWithDisadvantage, readableExpression } from '../engine/dice';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,7 +36,7 @@ export function GlobalDiceRoller({ bottom = 88, right = 16 }: Props) {
   const lastSeenId = useRef<string | null>(history[0]?.id ?? null);
   useEffect(() => {
     const top = history[0]?.id ?? null;
-    if (top && top !== lastSeenId.current && !open) {
+    if (top && top !== lastSeenId.current && !open && top !== useDiceLogStore.getState().quietId) {
       setOpen(true);
     }
     lastSeenId.current = top;
@@ -146,7 +145,7 @@ export function GlobalDiceRoller({ bottom = 88, right = 16 }: Props) {
                 <Text style={styles.resultBreakdown}>
                   [{latest.rolls.join(', ')}]{latest.modifier !== 0 ? ` + ${latest.modifier}` : ''}
                 </Text>
-                <Text style={styles.resultExpr}>{latest.expression}</Text>
+                <Text style={styles.resultExpr}>{readableExpression(latest.expression)}</Text>
               </View>
             )}
 
@@ -159,7 +158,7 @@ export function GlobalDiceRoller({ bottom = 88, right = 16 }: Props) {
                 {historyOpen && <ScrollView style={styles.historyList} nestedScrollEnabled>
                   {history.slice(1).map(r => (
                     <View key={r.id} style={styles.historyRow}>
-                      <Text style={styles.historyExpr}>{r.label ?? r.expression}</Text>
+                      <Text style={styles.historyExpr}>{r.label ?? readableExpression(r.expression)}</Text>
                       <Text style={styles.historyTotal}>{r.total}</Text>
                     </View>
                   ))}

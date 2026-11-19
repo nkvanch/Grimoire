@@ -20,7 +20,8 @@
 //                  toward a required-equipment counter.
 import { itemsForRuleset } from '../content/itemEditions';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { FlatList } from './Lists';
 import { Pressable, TextInput } from './AccessibleControls';
 import { Modal } from './AppModal';
 import { ItemFilterConstraint } from '../engine/types';

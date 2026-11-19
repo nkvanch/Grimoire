@@ -1,8 +1,8 @@
 // The Test button used to omit resistances (and other non-numeric effects): a homebrew trait granting psychic
 // resistance worked on the sheet but the creator's Test showed nothing for it (Understudy / Steady Nerves).
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { recomputeDerived } from '../pipeline';
-import { applyGrant } from '../leveling';
+import { applyGrant } from '../levelingGrants';
 import { simulate } from '../simulate';
 import { diffEffectSets } from '../effectDiff';
 import { buildFeatSummaryRows } from '../../components/FeatPreviewModal';
@@ -10,10 +10,10 @@ import { buildFeatureGrantRows } from '../../components/sheet/featureGrantRows';
 import { buildUnderstudyPack } from '../../../demo/sample-packs/samplePacks';
 import type { Entity, Feature, Effect } from '../types';
 
-const eff = (o: Partial<Effect> & Pick<Effect, 'type' | 'target' | 'operation'>): Effect => ({ value: null, condition: null, ...o } as Effect);
+const eff = (o: Partial<Effect> & Pick<Effect, 'type' | 'target' | 'operation'>): Effect => ({ value: null, condition: null, ...o });
 const feat = (id: string, effects: Effect[]): Feature => ({
   id, name: id, description: '', source: { kind: 'feat', refId: id }, level: null, effects, actions: [], choices: [], passive: true,
-} as Feature);
+});
 const scratch = (): Entity => recomputeDerived({ ...makeEmptyEntity('t'), identity: { ...makeEmptyEntity('t').identity, level: 1 } }, DEFAULT_RULES);
 const grant = (f: Feature) => simulate(scratch(), e => applyGrant(e, { kind: 'feature', value: f }, 1), DEFAULT_RULES);
 

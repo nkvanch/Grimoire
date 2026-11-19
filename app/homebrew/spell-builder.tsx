@@ -3,12 +3,10 @@
 // for level/school/casting time/range/duration, real V/S/M component
 // checkboxes instead of comma-separated text, and spell-type tagging.
 import { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ScrollView } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
-import { OriginFields, cleanOrigin } from '../../src/components/homebrew/OriginFields';
+import { OriginFields } from '../../src/components/homebrew/OriginFields';
 import type { ContentOrigin } from '../../src/engine/types';
 import { useLocalSearchParams } from 'expo-router';
 import { Entity, Spell, RulesetId } from '../../src/engine/types';
@@ -24,16 +22,17 @@ import { useLeaveGuard } from '../../src/hooks/useLeaveGuard';
 import { SafeBottomView } from '../../src/components/SafeBottomView';
 import { PickOrCustom } from '../../src/components/homebrew/PickOrCustom';
 import { simulate } from '../../src/engine/simulate';
-import { castConcentrationSpell } from '../../src/engine/combat';
+import { castConcentrationSpell } from '../../src/engine/concentration';
 import { buildFeatSummaryRows } from '../../src/components/FeatPreviewModal';
 import { HomebrewTestModal, Row } from '../../src/components/homebrew/HomebrewTestModal';
-import { useCharacterStore, makeEmptyEntity, DEFAULT_RULES } from '../../src/store/characterStore';
+import { useCharacterStore } from '../../src/store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../src/engine/defaults';
 import { disambiguateId } from '../../src/content/traitCompiler';
 import { FULL_SPELL_LIBRARY } from '../../src/content/spells/index';
 import { mergeHomebrewDefinition } from '../../src/engine/homebrewRoundTrip';
 import { compileSpellFields } from '../../src/content/homebrewCompile';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../src/theme';
-import { tiersFromDraft, draftFromTiers, CantripTierDraft } from '../../src/engine/cantripScaling';
+import { draftFromTiers, CantripTierDraft } from '../../src/engine/cantripScaling';
 import { PictureField } from '../../src/components/homebrew/PictureField';
 import { picturesOf, withPictures, type RecordPictures } from '../../src/content/recordPictures';
 import { NAME_INPUT } from '../../src/components/nameInput';

@@ -2,7 +2,8 @@
 // The versions a character is pinned to (contract LIFE-004, the desktop sheet's version notices and "Review…"): what differs from what is
 // installed, told and never applied, and the person's own choice to move the character onto the installed versions. Moving is one step,
 // undone like any other.
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import type { VersionNotes } from '../../store/pinningService';

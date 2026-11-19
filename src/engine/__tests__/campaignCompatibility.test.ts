@@ -1,5 +1,5 @@
 import { checkCampaignCompatibility, CampaignPolicy } from '../campaignCompatibility';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import { Entity, asRulesetId } from '../types';
 import { InstalledPack } from '../../db/packRegistryRepo';
 

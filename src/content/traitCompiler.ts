@@ -8,9 +8,10 @@
 // (TraitEditorModal, TraitListEditor, AbilityScoreGrid) live in
 // src/components/homebrew/TraitEditor.tsx, which imports and re-exports
 // everything from this file.
+import { newId } from '../engine/ids';
 import {
   Ability, SkillName, SenseType, Feature, FeatureSource, Effect, ResourceGrant,
-  DraftTrait, Race, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation, AbilityEffect, Rider, ResourceUpgrade,
+  DraftTrait, Subrace, StatBonusTarget, TraitEffectKind, FeatureActivation, AbilityEffect, Rider, ResourceUpgrade
 } from '../engine/types';
 
 export const ABILITIES: Ability[] = ['str','dex','con','int','wis','cha'];
@@ -179,7 +180,7 @@ export function toId(name: string): string {
 
 export function newDraftTrait(name: string): DraftTrait {
   return {
-    localId: `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    localId: newId('t'),
     name, description: '', effectKind: 'none',
     abilityTarget: 'str', abilityAmount: '1',
     unarmoredBase: '10', unarmoredAbilities: ['dex'], unarmoredCaps: {},
@@ -552,7 +553,7 @@ export function hasAdvancedFields(t: DraftTrait): boolean {
 
 function auraEffectsFor(t: DraftTrait): Effect[] {
   const amount = parseInt(t.auraAmount ?? '', 10);
-  const addAbilityModifier = t.auraAddAbility ? { addAbilityModifier: t.auraAddAbility as Ability } : {};
+  const addAbilityModifier = t.auraAddAbility ? { addAbilityModifier: t.auraAddAbility } : {};
   const flat = Number.isFinite(amount) ? amount : 0;
   const stat = (target: string): Effect => ({ type: 'stat_modifier', target, operation: 'add', value: flat, condition: null, ...addAbilityModifier });
   switch (t.auraStat ?? 'ac') {
@@ -579,7 +580,7 @@ function layerAdvanced(r: BuiltTrait, t: DraftTrait): BuiltTrait {
   if (Number.isFinite(range) && range >= 2 && range <= 19) effects.push({ type: 'stat_modifier', target: 'crit_range', operation: 'set', value: range, condition: null });
   if (t.substituteFrom && t.substituteTo && t.substituteFrom !== t.substituteTo && t.substituteFor?.length) {
     effects.push({ type: 'ability_substitute', target: '', operation: 'set', value: null, condition: null,
-      substituteFrom: t.substituteFrom as Ability, substituteTo: t.substituteTo as Ability, substituteFor: [...t.substituteFor] });
+      substituteFrom: t.substituteFrom, substituteTo: t.substituteTo, substituteFor: [...t.substituteFor] });
   }
   const infusion = parseInt(t.infusionBonus ?? '', 10);
   if (Number.isFinite(infusion) && infusion > 0) effects.push({ type: 'stat_modifier', target: 'infusion_capacity', operation: 'add', value: infusion, condition: null });
@@ -685,7 +686,7 @@ export type DraftSubrace = {
 
 export function newDraftSubrace(name: string): DraftSubrace {
   return {
-    localId: `sr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    localId: newId('sr'),
     name, abiBonuses: { str: '', dex: '', con: '', int: '', wis: '', cha: '' },
     traits: [],
   };

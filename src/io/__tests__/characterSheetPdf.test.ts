@@ -27,13 +27,13 @@ function wizard(): Entity {
     ...made,
     inventory: { ...made.inventory, carried: carried as never, currency: { ...made.inventory.currency, gp: 15 } },
     notes: 'Owes the ferryman a favour.',
-  } as Entity, DEFAULT_RULES);
+  }, DEFAULT_RULES);
   // set after the numbers are worked out: the sheet prints the spell lists as the character holds them
-  return { ...derived, spellcasting: { ...derived.spellcasting!, cantrips: ['firebolt', 'light'], known: ['magic_missile', 'shield', 'detect_magic', 'fireball', 'not_in_any_pack'], prepared: ['magic_missile', 'fireball'] } } as Entity;
+  return { ...derived, spellcasting: { ...derived.spellcasting!, cantrips: ['firebolt', 'light'], known: ['magic_missile', 'shield', 'detect_magic', 'fireball', 'not_in_any_pack'], prepared: ['magic_missile', 'fireball'] } };
 }
 
 describe('the sheet model', () => {
-  const m = buildSheetModel(wizard(), resolveName as never, lookup);
+  const m = buildSheetModel(wizard(), resolveName, lookup);
 
   it('has six abilities with effective scores, eighteen skills, and what the app derived', () => {
     expect(m.abilities.map(a => a.key)).toEqual(['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']);
@@ -68,7 +68,7 @@ describe('the fonts a sheet carries', () => {
   it('each look embeds the fonts its stylesheet names first, built from the files in assets/fonts/sheet', () => {
     const expected: Record<string, string[]> = { illuminated: ['Cormorant Garamond', 'EB Garamond'], astrolabe: ['Outfit', 'JetBrains Mono'], ledger: ['Inter', 'Space Grotesk'] };
     for (const { id } of SHEET_THEMES) {
-      const html = buildCharacterSheetHtml(make('fighter', 1, 'Brakka'), resolveName as never, { theme: id });
+      const html = buildCharacterSheetHtml(make('fighter', 1, 'Brakka'), resolveName, { theme: id });
       for (const family of expected[id]) expect(html).toContain(`@font-face{font-family:'${family}'`);
     }
     // the generated module is in step with the font file it was built from
@@ -79,7 +79,7 @@ describe('the fonts a sheet carries', () => {
 
 describe('the sheet HTML', () => {
   it.each(SHEET_THEMES.map(t => t.id))('prints both pages in the %s look', theme => {
-    const html = buildCharacterSheetHtml(wizard(), resolveName as never, { theme, lookup });
+    const html = buildCharacterSheetHtml(wizard(), resolveName, { theme, lookup });
     expect(html).toContain(`class="t-${theme}"`);
     expect(html).toContain('class="p1"');
     expect(html).toContain('class="p2"');
@@ -91,7 +91,7 @@ describe('the sheet HTML', () => {
   });
 
   it('escapes what the person typed', () => {
-    const html = buildCharacterSheetHtml(wizard(), resolveName as never);
+    const html = buildCharacterSheetHtml(wizard(), resolveName);
     expect(html).toContain('irela &lt;Voss&gt; &amp; Co');
     expect(html).not.toContain('<Voss>');
   });
@@ -110,7 +110,7 @@ describe('the sheet HTML', () => {
       spellcasting: { ...w.spellcasting!, slots: { ...w.spellcasting!.slots, '1': { total: bad, used: 0 } } },
     } as unknown as Entity;
     for (const { id } of SHEET_THEMES) {
-      const html = buildCharacterSheetHtml(hostile, resolveName as never, { theme: id, lookup });
+      const html = buildCharacterSheetHtml(hostile, resolveName, { theme: id, lookup });
       expect(html).not.toContain('<img');
       expect(html).not.toContain('onerror=alert(1)>');
     }
@@ -118,7 +118,7 @@ describe('the sheet HTML', () => {
 
   it('uses the default look for a look it does not know, and prints a character with no spells', () => {
     expect(isSheetTheme('neon')).toBe(false);
-    const html = buildCharacterSheetHtml(make('fighter', 3, 'Brakka'), resolveName as never, { theme: 'neon' as never });
+    const html = buildCharacterSheetHtml(make('fighter', 3, 'Brakka'), resolveName, { theme: 'neon' as never });
     expect(html).toContain(`class="t-${DEFAULT_SHEET_THEME}"`);
     expect(html).toContain('Gear and Notes');
     expect(html).not.toContain('Spellcasting');
@@ -127,7 +127,7 @@ describe('the sheet HTML', () => {
   it('cuts page 1 to what fits and says where the rest is', () => {
     const base = make('fighter', 3, 'Brakka');
     const many = { ...base, features: Array.from({ length: 9 }, (_, i) => ({ ...base.features[0], id: `f${i}`, name: `Feature ${i}`, description: 'word '.repeat(60), passive: true })) } as Entity;
-    const html = buildCharacterSheetHtml(many, resolveName as never);
+    const html = buildCharacterSheetHtml(many, resolveName);
     const page1 = html.slice(html.indexOf('class="p1"'), html.indexOf('class="p2"'));
     expect(page1).toContain('Feature 4');
     expect(page1).not.toContain('Feature 5');

@@ -11,7 +11,7 @@ import { useHomebrewStore } from '../../../store/homebrewStore';
 import { officialContentDB } from '../../officialCatalog';
 import { isOfficialRef } from '../../officialRefs';
 import { currentContentExposure } from '../../contentExposure';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { acquireClass, levelUpClass, applySubclassToEntity } from '../../../engine/leveling';
 import { getProgressionForClass, mergeSubclassIntoProgression } from '../../classes/progressions';
 import { RulesetId } from '../../../engine/types';
@@ -40,7 +40,7 @@ describe('creation screens on installed packs', () => {
         if (!base) { differing.push(`${rec.id} (not in the catalog)`); continue; }
         // the public pack carries an SRD race's SRD subraces only; the catalog nests the non-SRD ones too
         const expected = kind === 'races' && (base as { subraces?: { srd?: boolean }[] }).subraces
-          ? { ...(base as object), subraces: (base as { subraces: { srd?: boolean }[] }).subraces.filter(x => x.srd !== false) } : base;
+          ? { ...(base), subraces: (base as { subraces: { srd?: boolean }[] }).subraces.filter(x => x.srd !== false) } : base;
         if (strip(expected) !== strip(rec)) differing.push(rec.id);
       }
       expect([kind, differing]).toEqual([kind, []]);

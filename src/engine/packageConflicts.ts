@@ -20,7 +20,7 @@
 //                  "Class A must reference F2, not old F" failure mode the
 //                  spec calls out.
 import {
-  Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, DraftTrait, Issue, SpellList,
+  Feature, Effect, Grant, KnownSpellsGrant, Subrace, HomebrewSubclass, CharClass, Issue, SpellList
 } from './types';
 import { ContentCacheType, HomebrewContent } from './contentRecords';
 import { GrimoirePack, GrimoirePackHomebrew } from './backup';
@@ -207,10 +207,10 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
       const feat = item as unknown as { feature?: Feature };
       if (!feat.feature) return item;
       const [rewritten] = rewriteFeatures([feat.feature], remap)!;
-      return { ...item, feature: rewritten } as HomebrewContent;
+      return { ...item, feature: rewritten };
     }
     case 'feature':
-      return (rewriteFeatures([item as unknown as Feature], remap)!)[0] as unknown as HomebrewContent;
+      return (rewriteFeatures([item as unknown as Feature], remap)!)[0];
     case 'class': {
       const cls = item as CharClass;
       return {
@@ -221,7 +221,7 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
               ? { kind: 'list' as const, listId: remapId(remap, 'spellList', cls.spellListSource.listId) }
               : { kind: 'class' as const, classId: remapId(remap, 'class', cls.spellListSource.classId) })
           : undefined,
-        levelFeatures: (cls.levelFeatures as (DraftTrait & { level: number })[] | undefined)?.map(trait => {
+        levelFeatures: (cls.levelFeatures)?.map(trait => {
           if (trait.effectKind !== 'spell_grant') return trait;
           return {
             ...trait,
@@ -233,7 +233,7 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
           ...cls.rawProgression,
           entries: cls.rawProgression.entries.map(entry => ({ ...entry, grants: entry.grants.map(g => rewriteGrant(g, remap)) })),
         } : cls.rawProgression,
-      } as HomebrewContent;
+      };
     }
     case 'subclass': {
       const sc = item as HomebrewSubclass;
@@ -241,13 +241,13 @@ export function rewriteContentReferences(type: ContentCacheType, item: HomebrewC
         ...sc,
         classId: remapId(remap, 'class', sc.classId),
         entries: sc.entries.map(entry => ({ ...entry, grants: entry.grants.map(g => rewriteGrant(g, remap)) })),
-      } as HomebrewContent;
+      };
     }
     case 'spell':
       return item;
     case 'spellList': {
       const sl = item as SpellList;
-      return { ...sl, spellIds: sl.spellIds.map(id => remapId(remap, 'spell', id)) } as HomebrewContent;
+      return { ...sl, spellIds: sl.spellIds.map(id => remapId(remap, 'spell', id)) };
     }
   }
 }

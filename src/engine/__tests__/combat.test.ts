@@ -4,23 +4,30 @@
 // during development (the stabilize-vs-revive conflation, the damage-
 // routing gap, the Rage set_flag gap). Tests here would have caught those
 // regressions automatically instead of relying on manual device testing.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import {
-  applyDamage, applyHealing, recordDeathSave,
-  startWildShape, endWildShape, applyWildShapeDamage,
-  concentrationCheck, castConcentrationSpell, dropConcentration,
-  parseConcentrationDuration, tickConcentrationDuration, startEncounter,
+
+
+
+  startEncounter,
   startTurn, markActionSlotUsed, toggleActionEconomy, endTurn, addToEncounter,
-  applyAbilityEffects, playerEndTurn,
-  rollInitiativeValue, rollAllInitiative,
-  rollConcentrationSave, resolveConcentrationOutcome,
-  parseRechargeThreshold, rollRecharge, extractRechargeTag,
-  extractRechargeTagFromName, resolveFeatureRechargeTag, findRechargeableFeatures,
-  sortInitiative, reanchorTurnIndex,
-  CombatState, InitiativeEntry,
+  playerEndTurn,
+  rollInitiativeValue, rollAllInitiative, reanchorTurnIndex,
+  CombatState, InitiativeEntry
 } from '../combat';
+import {
+  parseRechargeThreshold, rollRecharge, extractRechargeTag,
+  extractRechargeTagFromName, resolveFeatureRechargeTag
+} from '../combatRecharge';
+import { applyAbilityEffects } from '../combatAbilityEffects';
+import { startWildShape, endWildShape, applyWildShapeDamage } from '../combatWildShape';
+import { applyDamage, applyHealing, recordDeathSave } from '../combatDamage';
+import {
+  concentrationCheck, castConcentrationSpell, dropConcentration,
+  parseConcentrationDuration, tickConcentrationDuration, rollConcentrationSave, resolveConcentrationOutcome
+} from '../concentration';
 import { applyCondition } from '../conditions';
-import { isFeatureAvailable } from '../actionCards';
+import { isFeatureAvailable } from '../actionCardAvailability';
 import { recomputeDerived } from '../pipeline';
 import { setRandomSource } from '../dice';
 import { Entity, SpellSlots, FeatureInstance, Spell, AbilityEffect, FeatureActivation } from '../types';
@@ -838,7 +845,7 @@ describe('Wild Shape', () => {
       '%s is immune to poison DAMAGE — zero form/temp/base HP loss, immunity gone after reverting, and it reliably reapplies on a second transform',
       formId => {
         const e = testEntity(50);
-        let shaped = startWildShape(e, formId, DEFAULT_RULES);
+        const shaped = startWildShape(e, formId, DEFAULT_RULES);
         const beastHpBefore = shaped.wildShapeState!.beastHp;
         let result = applyWildShapeDamage(shaped, 500, DEFAULT_RULES, 'poison');
         expect(result).toBe(shaped); // no-op, matching Fire Elemental's own fire-immunity assertion above
@@ -854,7 +861,7 @@ describe('Wild Shape', () => {
         expect(hitAfterRevert.resources.hp.current).toBe(40);
 
         // Repeated transform/revert cycle — no leakage either direction.
-        let reshaped = startWildShape(hitAfterRevert, formId, DEFAULT_RULES);
+        const reshaped = startWildShape(hitAfterRevert, formId, DEFAULT_RULES);
         const beastHpBefore2 = reshaped.wildShapeState!.beastHp;
         result = applyWildShapeDamage(reshaped, 500, DEFAULT_RULES, 'poison');
         expect(result).toBe(reshaped); // immunity reliably reapplies on the second transformation

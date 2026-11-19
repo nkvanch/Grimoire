@@ -1,7 +1,9 @@
 // Human (2024) Versatile: an Origin feat of the player's choice, granted for real, with the picks the feat asks for.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { recomputeDerived } from '../../../engine/pipeline';
-import { applyGrant, queueChoice, applyPoolChoiceToEntity } from '../../../engine/leveling';
+import { applyPoolChoiceToEntity } from '../../../engine/levelingPoolChoices';
+import { queueChoice } from '../../../engine/levelingGrants';
+import { applyGrant } from '../../../engine/levelingGrants';
 import { Entity } from '../../../engine/types';
 import { raceHuman2024 } from '../index';
 import { ORIGIN_FEATS_2024 } from '../../feats/origin2024';

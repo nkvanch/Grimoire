@@ -2,9 +2,8 @@
 // FILE: src/session/types.ts
 // Host / DM / Player live-session layer: shared types.
 //
-// This layer is deliberately independent of src/sync/* (the legacy campaign
-// sync, where the campaign creator's phone is Host AND DM). See
-// artifacts/host-dm-rework/design.md.
+// This layer replaced the old campaign sync (where the campaign creator's
+// phone was Host AND DM). See artifacts/host-dm-rework/design.md.
 // ============================================================================
 
 // ── Roles ────────────────────────────────────────────────────────────────────

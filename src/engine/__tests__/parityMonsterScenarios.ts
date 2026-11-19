@@ -5,7 +5,7 @@ import { compileMonsterFields, type MonsterDraft } from '../../content/homebrewC
 import type { MonsterTemplate } from '../../content/monsters/types';
 import { validateMonster } from '../homebrewValidator';
 import { spawnMonster } from '../monsterFactory';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { trait } from './parityHomebrewScenarios';
 
 export type MonsterCase = { name: string; id: string; draft: MonsterDraft };
@@ -59,5 +59,5 @@ export function runMonsterCase(c: MonsterCase) {
 export function spawnedEntity(template: MonsterTemplate): Omit<Entity, 'id'> {
   const { id: _id, actionCards: _cards, ...entity } = spawnMonster(template, DEFAULT_RULES) as Entity & { actionCards?: unknown };
   void _id; void _cards;
-  return entity as never;
+  return entity;
 }

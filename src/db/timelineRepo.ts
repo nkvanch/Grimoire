@@ -4,7 +4,6 @@
 // mirrors contentCacheRepo.ts's append-only history pattern: insert only,
 // never delete, never overwrite, newest-first query.
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
 
 /**

@@ -14,13 +14,18 @@ import { DEFAULT_RULES } from '../../defaults';
 import { canonicalJson } from '../../contentPackManifest';
 import { sha256Hex } from '../../sha256';
 import { modifier, proficiencyBonus, recomputeDerived } from '../../pipeline';
-import {
-  applyDamage, applyHealing, applyTempHP, applyWildShapeDamage, recordDeathSave, startWildShape, endWildShape, playerEndTurn,
-} from '../../combat';
+import { playerEndTurn } from '../../combat';
+import { applyWildShapeDamage, startWildShape, endWildShape } from '../../combatWildShape';
+import { applyTempHP } from '../../combatDamage';
+import { applyDamage, applyHealing, recordDeathSave } from '../../combatDamage';
 import { takeRest, takeDawn } from '../../rest';
-import { levelUp, calculateLevelUpHpGain, resolveChoice, applyAsiToEntity, swapBackground } from '../../leveling';
+import { levelUp } from '../../leveling';
+import { resolveChoice } from '../../levelingResolveChoice';
+import { swapBackground } from '../../levelingBackground';
+import { applyAsiToEntity } from '../../levelingAsiFeats';
+import { calculateLevelUpHpGain } from '../../levelingHp';
 import { commitSpellPayment, restoreSpellSlot } from '../../spellPayment';
-import { isSpellPreparationLegal, resolveSpellCastingContexts } from '../../actionCards';
+import { isSpellPreparationLegal, resolveSpellCastingContexts } from '../../spellCastingContext';
 import { equipItem, unequipItem, toggleAttunement } from '../../inventory';
 import { applyCondition, removeCondition } from '../../conditions';
 import { setWeaponMasteryPicks } from '../../weaponMastery';
@@ -51,10 +56,10 @@ const stable = (v: unknown): unknown => Array.isArray(v) ? v.map(stable)
 /** What an operation did, in a fixed form. */
 class Trace {
   private text = '';
-  add(label: string, value: unknown) { this.text += `${label}=${typeof value === 'string' ? value : canonicalJson(stable(value) as never)}|`; return this; }
+  add(label: string, value: unknown) { this.text += `${label}=${typeof value === 'string' ? value : canonicalJson(stable(value))}|`; return this; }
   /** That the operation really acted: a probe of an operation that did nothing verifies nothing. */
   changed(label: string, before: unknown, after: unknown) {
-    if (canonicalJson(stable(before) as never) === canonicalJson(stable(after) as never)) throw new Error(`${label}: the operation did nothing`);
+    if (canonicalJson(stable(before)) === canonicalJson(stable(after))) throw new Error(`${label}: the operation did nothing`);
     return this.add(label, after);
   }
   finish(): string {
@@ -158,7 +163,7 @@ const PROBES: Record<string, (revision: number) => string> = {
     const w = make(P2014, 'wizard', 3);
     const spent = commitSpellPayment(w, { kind: 'normal', tier: '2' } as never);
     const back = { ...spent, spellcasting: restoreSpellSlot(spent.spellcasting!, { kind: 'normal', tier: '2' } as never) };
-    return new Trace().changed('spent', w.spellcasting!.slots, spent.spellcasting!.slots).changed('restored', spent.spellcasting!.slots, back.spellcasting!.slots).finish();
+    return new Trace().changed('spent', w.spellcasting!.slots, spent.spellcasting!.slots).changed('restored', spent.spellcasting!.slots, back.spellcasting.slots).finish();
   },
   'dnd5e.spell_access': () => {
     // each class's own preparation rule decides whether a spell it gives may be cast: prepared or not, and a cantrip never needs preparing

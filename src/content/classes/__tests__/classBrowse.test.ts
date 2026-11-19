@@ -12,7 +12,7 @@ describe('classDisplayName', () => {
   // the real name from the class registry instead of guessing from the id.
   const exampleClass: CharClass = {
     id: 'example_class', name: 'Example Class', hitDie: 10, features: [],
-  } as CharClass;
+  };
 
   it('resolves a class id to its real display name, not a naive capitalization of the id', () => {
     expect(classDisplayName('example_class', [exampleClass])).toBe('Example Class');
@@ -20,7 +20,7 @@ describe('classDisplayName', () => {
   });
 
   it('falls back to the raw id when the class truly cannot be found', () => {
-    expect(classDisplayName('nonexistent_class', ALL_CHAR_CLASSES as CharClass[])).toBe('nonexistent_class');
+    expect(classDisplayName('nonexistent_class', ALL_CHAR_CLASSES)).toBe('nonexistent_class');
   });
 
   it('resolves every official class id to its real display name', () => {

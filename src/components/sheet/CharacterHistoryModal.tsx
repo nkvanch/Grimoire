@@ -7,7 +7,8 @@
 // content version (undo/redo already covers "step back a few actions" —
 // see the plan's own reasoning), so this is deliberately look-only.
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { loadTimeline, TimelineEntry, TimelineCategory } from '../../db/timelineRepo';
@@ -41,7 +42,7 @@ type HistoryGroup = { sessionId: string; title: string; subtitle: string | null;
  * before item 14 existed) can never claim an entry. The currently-active
  * session (startedAt set, endedAt not) has an open-ended range — anything
  * at or after its start, up to the next-newer session's start (there can
- * be only one active session at a time — see engine/session.ts). Sessions
+ * be only one active session at a time — see engine/sessionLog.ts). Sessions
  * are checked newest-first so a later session's start correctly cuts off
  * an earlier one's open (or stale) range.
  */

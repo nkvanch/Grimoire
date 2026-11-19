@@ -16,8 +16,10 @@
 // resolving their first pending choice is a reasonable, honest bit of
 // onboarding in itself, not a gap to paper over.
 import { Entity, CampaignRules } from './types';
-import { makeEmptyEntity } from './defaults';
-import { applyGrant, levelUp, resolveChoice } from './leveling';
+import { makeEmptyEntity, withDefaultRuleset } from './defaults';
+import { levelUp } from './leveling';
+import { resolveChoice } from './levelingResolveChoice';
+import { applyGrant } from './levelingGrants';
 import { recomputeDerived } from './pipeline';
 import { getOfficialContentProvider } from '../content/officialSource';
 
@@ -43,7 +45,7 @@ export function buildDemoCharacter(rules: CampaignRules): Entity {
   const fighterProgression = provider?.getClass('fighter')?.rawProgression;
   if (!raceHuman || !bgSoldier || !fighterProgression) throw new Error('The sample character needs the SRD 5.1 content pack to be installed.');
   const id = `${DEMO_CHARACTER_ID_PREFIX}${Date.now().toString(36)}`;
-  let entity = makeEmptyEntity(id, 'character');
+  let entity = withDefaultRuleset(makeEmptyEntity(id, 'character'));   // a 2014 Fighter from the SRD 5.1 pack
 
   // ── Identity + ability scores (standard array, a reasonable Fighter spread) ──
   entity = {
@@ -99,7 +101,7 @@ export function buildDemoCharacter(rules: CampaignRules): Entity {
   //    picks the first `count` options, a sensible default. Everything else
   //    (subclass, fighting style, and anything without a concrete pool)
   //    stays a genuine pending choice for the player to explore/resolve.
-  let unresolved = entity.choices.filter(c => !c.resolved);
+  const unresolved = entity.choices.filter(c => !c.resolved);
   for (const choice of unresolved) {
     const def = choice.definition;
     if ((def.kind !== 'skill' && def.kind !== 'equipment') || !Array.isArray(def.pool)) continue;

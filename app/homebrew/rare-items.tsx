@@ -6,7 +6,8 @@
 // anything tagged with a magic-item rarity in its properties, the same
 // convention item-builder.tsx already writes rarity into.
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, FlatList, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView, FlatList } from '../../src/components/Lists';
 import { Pressable, TextInput } from '../../src/components/AccessibleControls';
 import { RecordIcon } from '../../src/components/RecordPicture';
 import { useRouter } from 'expo-router';
@@ -109,7 +110,7 @@ export default function RareItemsScreen() {
           <Text style={styles.backTxt}>{'<- Back'}</Text>
         </Pressable>
         <Text style={styles.title}>Rare Items</Text>
-        <Pressable style={styles.newBtn} onPress={() => router.push('/homebrew/item-builder' as any)}>
+        <Pressable style={styles.newBtn} onPress={() => router.push('/homebrew/item-builder')}>
           <Text style={styles.newBtnTxt}>+ New</Text>
         </Pressable>
       </View>
@@ -153,7 +154,7 @@ export default function RareItemsScreen() {
               rarity={item.rarity}
               homebrewItem={homebrewById.get(item.entry.id) ?? null}
               onEdit={homebrewById.has(item.entry.id)
-                ? () => router.push({ pathname: '/homebrew/item-builder', params: { editId: item.entry.id } } as any)
+                ? () => router.push({ pathname: '/homebrew/item-builder', params: { editId: item.entry.id } })
                 : null}
             />
           )}

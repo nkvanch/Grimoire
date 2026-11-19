@@ -10,11 +10,11 @@ jest.mock('../../../utils/alert', () => ({
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { acquireClass } from '../../../engine/leveling';
 import { recomputeDerived } from '../../../engine/pipeline';
 import { grantEntitlement } from '../../../engine/entitlements';
-import { castConcentrationSpell } from '../../../engine/combat';
+import { castConcentrationSpell } from '../../../engine/concentration';
 import { ALL_CHAR_CLASSES } from '../../../content/classes';
 import { spellRepo } from '../../../content/spellRepo';
 import { TabSpells } from '../TabSpells';
@@ -85,7 +85,7 @@ describe('TabSpells — manual End Concentration', () => {
   };
   it('shows an End button, asks first, and only ends after confirming', async () => {
     await spellRepo.ensureLoaded(['detect_magic']);
-    const e = castConcentrationSpell(wizardWith(['detect_magic']), bless as never, rules);
+    const e = castConcentrationSpell(wizardWith(['detect_magic']), bless, rules);
     const t = mount(e);
     t.press('End concentration');
     expect(t.calls.end).toEqual([]);                       // nothing yet — it asked first
@@ -96,7 +96,7 @@ describe('TabSpells — manual End Concentration', () => {
   });
 
   it('choosing "Keep Concentrating" ends nothing', async () => {
-    const e = castConcentrationSpell(wizardWith([]), bless as never, rules);
+    const e = castConcentrationSpell(wizardWith([]), bless, rules);
     const t = mount(e);
     t.press('End concentration');
     act(() => { mockAlerts[0].buttons.find(b => b.text === 'Keep Concentrating')!.onPress?.(); });

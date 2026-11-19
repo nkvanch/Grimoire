@@ -5,7 +5,7 @@
 // ('rounds') and longRest() ('until_rest').
 import { applyCondition, tickDurations } from '../conditions';
 import { takeRest } from '../rest';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 
 describe('applyCondition — duration', () => {
   it('defaults to null (permanent) when no duration is passed — unchanged existing behavior', () => {

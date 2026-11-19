@@ -7,7 +7,8 @@
 // file. No package name or version has to be invented to send one entry, and
 // the required content is shown but is not something the user selects.
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useHomebrewStore } from '../../store/homebrewStore';

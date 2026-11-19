@@ -8,7 +8,7 @@
 // printed pre-racial/item/feat-bonus numbers for ability scores, saves, and
 // skills.
 import { buildCharacterMarkdown, ResolveName } from '../exportText';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { recomputeDerived } from '../../engine/pipeline';
 import { Entity, FeatureInstance } from '../../engine/types';
 

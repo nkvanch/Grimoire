@@ -4,9 +4,10 @@ jest.mock('../spellRepo', () => jest.requireActual('../spellRepo.ts'));
 import { FULL_SPELL_LIBRARY } from '../spells/index';
 import { candidateSpellsForChoice, spellMatchesChoice } from '../spellChoiceFilter';
 import { newChar, toLevel, bindSubclass } from '../classes2024/testKit';
-import { applyPoolChoiceToEntity, applySpellChoiceToEntity, replaceSpellChoiceSelection } from '../../engine/leveling';
-import { removeFeature } from '../../engine/leveling';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { applySpellChoiceToEntity, replaceSpellChoiceSelection } from '../../engine/levelingSpells';
+import { applyPoolChoiceToEntity } from '../../engine/levelingPoolChoices';
+import { removeFeature } from '../../engine/levelingAsiFeats';
+import { DEFAULT_RULES } from '../../engine/defaults';
 import { Entity } from '../../engine/types';
 
 const all = FULL_SPELL_LIBRARY as any[];

@@ -7,7 +7,7 @@
 // fields takeRest() (src/engine/rest.ts) is documented to change.
 import { buildRestSummaryRows, buildRestMutation } from '../RestPreviewModal';
 import { simulate } from '../../../engine/simulate';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../../engine/defaults';
 import { Entity } from '../../../engine/types';
 
 function baseEntity(): Entity {

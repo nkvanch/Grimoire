@@ -1,5 +1,5 @@
 // Real-engine tests: accepted DM changes and live-session effects act on a genuine Entity.
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../../engine/defaults';
 import { recomputeDerived } from '../../engine/pipeline';
 import { Entity } from '../../engine/types';
 import { applyChangesToEntity, materialFingerprint } from '../entityAdapter';

@@ -9,17 +9,16 @@
 // SpellIndexEntry (Tier 1) this browser filters against — bulk-loading
 // Tier 2 for the whole pool just to filter would mean reloading the full
 // spell catalog per keystroke. BLOCKED until spellRepo's Tier-1 index
-// (spellRepo.ts's web array + spellRepo.native.ts's SQLite `spells` table)
+// (spellRepo.ts)
 // is extended to carry those fields. Damage-type/saving-throw/subclass
 // filters are also not offered: not structured fields on Spell at all.
 import { useState, useMemo, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, SectionList,
-} from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView, SectionList } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Entity, Spell, CharClass, matchesRuleset } from '../../engine/types';
+import { Entity, Spell, matchesRuleset } from '../../engine/types';
 import { spellRepo } from '../../content/spellRepo';
 import type { SpellIndexEntry } from '../../content/spellRepo.types';
 import { mergeSpellIndex } from '../../content/contentResolution';
@@ -52,7 +51,7 @@ export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficial
   const insets = useSafeAreaInsets();
   const homebrewSpells = useHomebrewStore(s => s.spells);
   const getMergedContentDB = useHomebrewStore(s => s.getMergedContentDB);
-  const allClasses = getMergedContentDB().classes as CharClass[];
+  const allClasses = getMergedContentDB().classes;
 
   // Merges the lightweight official index (Tier 1 — id/name/level/school/
   // classes/castingTime/ritual/concentration, no description) with homebrew,
@@ -179,7 +178,7 @@ export function AddSpellModal({ visible, entity, onAdd, onClose, initialOfficial
     if (homebrew) { setExpandedSpell(homebrew); return; }
     let cancelled = false;
     setExpandedSpell(null);
-    spellRepo.ensureLoaded([expandedId]).then(() => {
+    void spellRepo.ensureLoaded([expandedId]).then(() => {
       if (!cancelled) setExpandedSpell(spellRepo.getSpellSync(expandedId, entity.rulesetId) ?? null);
     });
     return () => { cancelled = true; };

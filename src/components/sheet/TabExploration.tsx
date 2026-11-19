@@ -13,13 +13,12 @@
 //    until a race/item/spell grants them.
 import { findBeastForm } from '../../content/runtimeRules';
 import { useState, useMemo, memo } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from '../Lists';
 import { Pressable, TextInput } from '../AccessibleControls';
 import { Modal } from '../AppModal';
-import {
-  Entity, Ability, SkillName, CampaignRules, SenseType, Sense, ItemInstance, Spell, DurationTracker,
-} from '../../engine/types';
-import { modifier, collectAllEffects, applyStatModifiers, recomputeDerived } from '../../engine/pipeline';
+import { Entity, Ability, SkillName, CampaignRules, SenseType, Sense, ItemInstance, Spell, DurationTracker } from '../../engine/types';
+import { collectAllEffects, applyStatModifiers, recomputeDerived } from '../../engine/pipeline';
 import { skillCheck } from '../../engine/skillCheck';
 import { AsiFeatPicker } from '../AsiFeatPicker';
 import { HpModal } from './HpModal';
@@ -28,6 +27,7 @@ import { useCharacterStore } from '../../store/characterStore';
 import { useDiceLogStore } from '../../store/diceLogStore';
 import { spellRepo } from '../../content/spellRepo';
 import { itemRepo } from '../../content/itemRepo';
+import { proficiencyLabel } from '../../content/identityLabels';
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '../../theme';
 
 const SKILLS: { name: SkillName; label: string; ability: Ability }[] = [
@@ -213,7 +213,7 @@ function TabExplorationInner({
   // TabCharacter.tsx's HpModal — shown only while transformed into a form
   // that actually declares nonmagicalPhysicalResistance.
   const activeBeastForm = entity.wildShapeState?.active
-    ? findBeastForm(entity.wildShapeState!.formId)
+    ? findBeastForm(entity.wildShapeState.formId)
     : undefined;
   const showNonmagicalOption = !!activeBeastForm?.nonmagicalPhysicalResistance;
   const [condOpen, setCondOpen] = useState(false);
@@ -345,13 +345,13 @@ function TabExplorationInner({
       {/* Languages */}
       <Section title="LANGUAGES">
         {languages.length === 0 ? <Text style={styles.emptyNote}>None</Text>
-          : <View style={styles.chipWrap}>{languages.map(l => <Tag key={l} text={l} />)}</View>}
+          : <View style={styles.chipWrap}>{languages.map(l => <Tag key={l} text={proficiencyLabel(l)} />)}</View>}
       </Section>
 
       {/* Tools */}
       <Section title="TOOLS">
         {tools.length === 0 ? <Text style={styles.emptyNote}>None</Text>
-          : <View style={styles.chipWrap}>{tools.map(t => <Tag key={t} text={t} />)}</View>}
+          : <View style={styles.chipWrap}>{tools.map(t => <Tag key={t} text={proficiencyLabel(t)} />)}</View>}
       </Section>
 
       {/* Conditions — add/remove */}

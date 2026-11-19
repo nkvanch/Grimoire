@@ -4,7 +4,7 @@
 // getClassLevels' legacy fallback or syncLegacyIdentity's mirroring would
 // silently corrupt every pre-multiclass save (the common case) or every
 // class-list display for a multiclassed character.
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import {
   getClassLevels, isMulticlassed, getClassEntry, hasClassId, totalLevelOf,
   syncLegacyIdentity, formatClassLabel, multiclassProficienciesFor, migrateEntity,

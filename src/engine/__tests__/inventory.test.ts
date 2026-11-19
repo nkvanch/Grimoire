@@ -1,7 +1,7 @@
 // src/engine/__tests__/inventory.test.ts
 import { equipItem, unequipItem, itemRequiresAttunement, attunementCap, countAttuned, toggleAttunement } from '../inventory';
 import { recomputeDerived } from '../pipeline';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { Entity, Item, ItemInstance, FeatureInstance } from '../types';
 
 function withCarried(inst: ItemInstance): Entity {

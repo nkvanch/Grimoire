@@ -11,7 +11,7 @@ import {
   hasInvalidManualHp, invalidManualHpCombatants, combatantsWithInvalidManualHp,
 } from '../preparedEncounter';
 import { resolveMonsterById } from '../../content/contentResolution';
-import { DEFAULT_RULES } from '../../store/characterStore';
+import { DEFAULT_RULES } from '../defaults';
 import { setRandomSource } from '../dice';
 import { MonsterTemplate } from '../../content/monsters/types';
 import * as fs from 'fs';

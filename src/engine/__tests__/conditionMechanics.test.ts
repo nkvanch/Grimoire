@@ -19,10 +19,12 @@
 // this file's own closing describe block, which just re-confirms nothing
 // broke rather than re-testing what those files already own.
 import { Entity } from '../types';
-import { makeEmptyEntity, DEFAULT_RULES } from '../../store/characterStore';
+import { makeEmptyEntity, DEFAULT_RULES } from '../defaults';
 import { applyCondition, removeCondition, isImmuneToCondition } from '../conditions';
-import { isIncapacitated, incapacitationReason, applyDamage, startTurn, startWildShape } from '../combat';
-import { isFeatureAvailable } from '../actionCards';
+import { isIncapacitated, incapacitationReason, startTurn } from '../combat';
+import { startWildShape } from '../combatWildShape';
+import { applyDamage } from '../combatDamage';
+import { isFeatureAvailable } from '../actionCardAvailability';
 import { recomputeDerived } from '../pipeline';
 import { CONDITIONS_BY_ID } from '../../content/conditions';
 

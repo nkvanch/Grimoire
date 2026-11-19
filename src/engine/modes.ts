@@ -47,7 +47,7 @@ export function modeGroupsForEntity(entity: Entity, classDefs: readonly CharClas
 export function activeModeOption(entity: Entity, group: ModeGroup): string | null {
   const entry = entity.identity.classes?.find(c => c.classId === group.classId);
   const id = entry ? entry.subclassId : entity.identity.classId === group.classId ? entity.identity.subclassId : null;
-  return id && group.optionIds.includes(id as string) ? (id as string) : null;
+  return id && group.optionIds.includes(id) ? (id) : null;
 }
 
 /** How many dice the player rolls when a new period starts, at their current class level. */

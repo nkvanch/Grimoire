@@ -3,7 +3,6 @@
 // Tiny key-value store for app-level flags (one-time seeding markers, etc.).
 // Backed by the app_meta table. Web-safe: no-ops / null on web.
 // ============================================================================
-import { Platform } from 'react-native';
 import { getDb } from './db';
 
 type AppMetaRow = { key: string; value: string };

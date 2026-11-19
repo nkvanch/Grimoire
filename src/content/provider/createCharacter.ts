@@ -6,15 +6,18 @@
 // subclass, spell picks), through the same engine functions, so a character made here is the character the screens
 // would make. The screens still read the static catalog; moving them onto a provider is the next step.
 // ============================================================================
-import { makeEmptyEntity } from '../../store/characterStore';
-import {
-  applyGrant, acquireClass, levelUpClass, queueChoice, swapBackground, applySubclassToEntity, applySpellChoiceToEntity,
-} from '../../engine/leveling';
+import { makeEmptyEntity } from '../../engine/defaults';
+import { acquireClass, levelUpClass, applySubclassToEntity } from '../../engine/leveling';
+import { applySpellChoiceToEntity } from '../../engine/levelingSpells';
+import { swapBackground } from '../../engine/levelingBackground';
+import { queueChoice } from '../../engine/levelingGrants';
+import { applyGrant } from '../../engine/levelingGrants';
 import { recomputeDerived } from '../../engine/pipeline';
 import { getProgressionForClass } from '../classes/progressions';
 import { mergeSubclassIntoProgression } from '../classes/progressions';
 import { candidateSpellsForChoice } from '../spellChoiceFilter';
 import { extraClassSpellIds } from '../../engine/spellModifiers';
+import { ALL_LANGUAGES } from '../languages';
 import type { AbilityScores, CampaignRules, Entity, Subrace } from '../../engine/types';
 import type { ContentProvider } from './contentProvider';
 
@@ -55,7 +58,7 @@ export function createCharacter(provider: ContentProvider, spec: CharacterSpec, 
   let entity = makeEmptyEntity(spec.id, 'character');
   entity = {
     ...entity, rulesetId: provider.rulesetId,
-    identity: { ...entity.identity, name: spec.name, raceId: race.id as never, subRaceId: spec.subrace?.id ?? null, backgroundId: background.id as never, classId: '', level: 0 },
+    identity: { ...entity.identity, name: spec.name, raceId: race.id, subRaceId: spec.subrace?.id ?? null, backgroundId: background.id, classId: '', level: 0 },
     stats: { ...spec.stats },
     resources: { ...entity.resources, hp: { current: 0, maximum: 0, temp: 0 } },
   };
@@ -72,6 +75,9 @@ export function createCharacter(provider: ContentProvider, spec: CharacterSpec, 
     for (const feature of spec.subrace.features) entity = applyGrant(entity, { kind: 'feature', value: { ...feature, isActive: true } }, feature.level ?? 0);
     for (const resource of spec.subrace.resources ?? []) entity = applyGrant(entity, { kind: 'resource', value: resource }, 0, undefined, { kind: 'subrace', id: spec.subrace.id });
   }
+  // The languages every member of the species speaks (race.languages, by name; the species screen's selectRace grants the same).
+  const spoken = ALL_LANGUAGES.filter(l => (race.languages ?? []).some(n => n.toLowerCase() === l.name.toLowerCase())).map(l => l.id);
+  if (spoken.length > 0) entity = applyGrant(entity, { kind: 'proficiency', value: { languages: spoken } }, 0, undefined, { kind: 'race', id: race.id });
   for (const choice of [...(race.pendingChoices ?? []), ...(spec.subrace?.pendingChoices ?? [])]) entity = queueChoice(entity, choice, 0);
 
   // Background: its features, picks and Origin feat (the feat comes from the provider, not the engine).
@@ -87,7 +93,7 @@ export function createCharacter(provider: ContentProvider, spec: CharacterSpec, 
   const bindSubclass = () => {
     const pick = subclass && entity.choices.find(c => !c.resolved && c.definition.kind === 'subclass');
     if (subclass && pick) {
-      entity = applySubclassToEntity(entity, pick.id, subclass.id as never, subclass, rules);
+      entity = applySubclassToEntity(entity, pick.id, subclass.id, subclass, rules);
       progression = mergeSubclassIntoProgression(progression, subclass);
     }
   };

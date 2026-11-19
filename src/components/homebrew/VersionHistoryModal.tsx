@@ -29,7 +29,7 @@ export function VersionHistoryModal({ visible, type, id, name, onClose }: Props)
   useEffect(() => {
     if (!visible || !type || !id) { setHistory(null); return; }
     let cancelled = false;
-    useHomebrewStore.getState().loadVersionHistory(type, id).then(h => {
+    void useHomebrewStore.getState().loadVersionHistory(type, id).then(h => {
       if (!cancelled) setHistory(h);
     });
     return () => { cancelled = true; };
@@ -44,7 +44,7 @@ export function VersionHistoryModal({ visible, type, id, name, onClose }: Props)
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Restore',
-          onPress: async () => {
+          onPress: () => void (async () => {
             setRestoring(version);
             try {
               await useHomebrewStore.getState().restoreVersion(type, id, version);
@@ -55,7 +55,7 @@ export function VersionHistoryModal({ visible, type, id, name, onClose }: Props)
             } finally {
               setRestoring(null);
             }
-          },
+          })(),
         },
       ],
     );

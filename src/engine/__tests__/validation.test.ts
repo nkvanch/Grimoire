@@ -1,6 +1,6 @@
 // src/engine/__tests__/validation.test.ts
 import { validateEntity } from '../validation';
-import { makeEmptyEntity } from '../../store/characterStore';
+import { makeEmptyEntity } from '../defaults';
 import {
   Entity, ContentDB, HomebrewSubclass, Race, CharClass, Background, Feat,
   RulesetId,
